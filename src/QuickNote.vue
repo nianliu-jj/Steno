@@ -26,14 +26,25 @@ watch(draft, text => {
   }, 200);
 });
 
-function onHeaderMousedown() {
-  void getCurrentWindow().startDragging();
+async function onHeaderPointerdown(e: PointerEvent) {
+  if (e.button !== 0) {
+    return;
+  }
+  e.preventDefault();
+  // 先告诉 Rust 端进入拖动握手期（500ms），让它在 startDragging 引发的
+  // 失焦回调里跳过自动隐藏；否则刚开始拖窗口就被 PR2.C 收掉了。
+  try {
+    await invoke('quicknote_begin_drag');
+    await getCurrentWindow().startDragging();
+  } catch (err) {
+    console.error('[quicknote] startDragging failed:', err);
+  }
 }
 </script>
 
 <template>
   <div class="quicknote-root">
-    <header class="quicknote-header" @mousedown.left="onHeaderMousedown">
+    <header class="quicknote-header" @pointerdown="onHeaderPointerdown">
       Steno · 速记
     </header>
     <textarea
