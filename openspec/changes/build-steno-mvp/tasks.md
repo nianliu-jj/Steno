@@ -1,9 +1,9 @@
 ## 1. 工程依赖与应用配置
 
-- [ ] 1.1 更新 `package.json`，加入 Markdown 渲染、拖拽、类型检查和前端测试所需依赖。
-- [ ] 1.2 更新 `src-tauri/Cargo.toml`，加入 `tokio`、`rusqlite`、`uuid`、`chrono`、`dirs`、`pulldown-cmark` 和必要 Tauri 插件。
-- [ ] 1.3 更新 `src-tauri/tauri.conf.json`，配置无主窗口启动、多窗口安全策略、bundle 信息和开发 URL。
-- [ ] 1.4 更新 `src-tauri/capabilities/default.json`，允许核心窗口、事件、opener/shell、global-shortcut 和必要文件访问权限。
+- [x] 1.1 更新 `package.json`，加入 Markdown 渲染、拖拽、类型检查和前端测试所需依赖。
+- [x] 1.2 更新 `src-tauri/Cargo.toml`，加入 `tokio`、`rusqlite`、`uuid`、`chrono`、`dirs`、`pulldown-cmark` 和必要 Tauri 插件。
+- [x] 1.3 更新 `src-tauri/tauri.conf.json`，配置无主窗口启动、多窗口安全策略、bundle 信息和开发 URL。
+- [x] 1.4 更新 `src-tauri/capabilities/default.json`，允许核心窗口、事件、opener/shell、global-shortcut 和必要文件访问权限。
 
 ## 2. Rust 数据库与本地存储
 
