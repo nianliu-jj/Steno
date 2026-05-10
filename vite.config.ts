@@ -4,15 +4,8 @@ import { defineConfig, loadEnv } from 'vite';
 import { setupVitePlugins } from './build/plugins';
 import { getBuildTime } from './build/config';
 
-interface ViteEnv {
-  VITE_BASE_URL?: string;
-  VITE_APP_TITLE?: string;
-  VITE_SOURCE_MAP?: string;
-  VITE_DEVTOOLS_LAUNCH_EDITOR?: string;
-}
-
 export default defineConfig(configEnv => {
-  const env = loadEnv(configEnv.mode, process.cwd()) as unknown as ViteEnv;
+  const env = loadEnv(configEnv.mode, process.cwd());
   const buildTime = getBuildTime();
 
   return {
