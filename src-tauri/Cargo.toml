@@ -1,0 +1,27 @@
+[package]
+name = "steno"
+version = "0.0.0"
+description = "Steno — 跨平台桌面速记应用"
+edition = "2024"
+rust-version = "1.85"
+
+# tauri 推荐结构：lib + 薄 main，便于未来拓展（如手机端共用 lib）
+[lib]
+name = "steno_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# 体积优化：release 模式下尽可能瘦身
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
