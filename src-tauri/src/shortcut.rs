@@ -24,7 +24,6 @@ pub fn plugin() -> TauriPlugin<Wry> {
         .build()
 }
 
-pub fn register(app: &AppHandle) -> tauri::Result<()> {
-    app.global_shortcut().register(toggle_shortcut())?;
-    Ok(())
+pub fn register(app: &AppHandle) -> Result<(), tauri_plugin_global_shortcut::Error> {
+    app.global_shortcut().register(toggle_shortcut())
 }

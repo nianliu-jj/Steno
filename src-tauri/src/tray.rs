@@ -2,7 +2,7 @@
 // 当前菜单项 "新建速记" 暂时等同于 "显示主窗口"，待 PR3 浮窗落地后改为打开浮窗。
 
 use tauri::{
-    App, Manager,
+    App,
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };

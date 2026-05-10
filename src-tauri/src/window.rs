@@ -13,6 +13,7 @@ pub fn show_main(app: &AppHandle) {
     }
 }
 
+#[allow(dead_code)]
 pub fn hide_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window(MAIN_LABEL) {
         let _ = w.hide();
