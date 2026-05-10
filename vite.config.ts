@@ -40,6 +40,13 @@ export default defineConfig(configEnv => {
       sourcemap: env.VITE_SOURCE_MAP === 'Y',
       commonjsOptions: {
         ignoreTryCatch: false
+      },
+      // 主窗口与浮窗各自独立入口，前端 bundle 互不干扰
+      rollupOptions: {
+        input: {
+          main: fileURLToPath(new URL('./index.html', import.meta.url)),
+          quicknote: fileURLToPath(new URL('./quicknote.html', import.meta.url))
+        }
       }
     }
   };
