@@ -6,7 +6,7 @@ mod quicknote;
 mod shortcut;
 mod sync;
 mod tray;
-mod window;
+mod window_manager;
 
 use tauri::Manager;
 
@@ -26,6 +26,12 @@ pub fn run() {
             commands::list_pinned_notes,
             commands::get_setting,
             commands::set_setting,
+            commands::open_sticky_note_window,
+            commands::close_sticky_note_window,
+            commands::open_canvas_window,
+            commands::open_search_window,
+            commands::open_settings_window,
+            commands::open_zen_window,
         ])
         .on_window_event(|window, event| match event {
             // 关闭按钮 = 隐藏，不真正退出。真正退出走托盘菜单"退出"项。
@@ -47,6 +53,16 @@ pub fn run() {
             // SQLite 句柄进 Tauri State，供后续 commands 通过
             // `tauri::State<'_, db::Db>` 取用。
             let database = db::Db::init()?;
+
+            // 启动恢复（plan 3.8）：列出 is_pinned=true 的笔记，逐一打开
+            // sticky 窗口。WebviewWindowBuilder 内部 channel 切主线程，
+            // 可在 setup 同步调用。
+            if let Ok(pinned) = database.list_pinned() {
+                for n in &pinned {
+                    let _ = window_manager::open_sticky_note(app.handle(), &n.id);
+                }
+            }
+
             app.manage(database);
 
             tray::setup(app)?;

@@ -8,7 +8,7 @@ use tauri_plugin_global_shortcut::{
     Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState,
 };
 
-use crate::{quicknote, window};
+use crate::{quicknote, window_manager};
 
 /// 主窗口呼出/隐藏快捷键。macOS 后续按平台分支改为 Cmd+Shift+N。
 pub fn toggle_shortcut() -> Shortcut {
@@ -27,7 +27,7 @@ pub fn plugin() -> TauriPlugin<Wry> {
                 return;
             }
             if shortcut == &toggle_shortcut() {
-                window::toggle_main(app);
+                window_manager::toggle_main(app);
             } else if shortcut == &quicknote_shortcut() {
                 quicknote::toggle(app);
             }

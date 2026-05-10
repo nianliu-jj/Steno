@@ -8,10 +8,11 @@
 // JoinError 都格式化成 String 返给前端 — 前端有完整错误消息便于排查，
 // 同时避免泄露 DbError 内部结构。
 
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use crate::db::Db;
 use crate::models::{Note, SaveNoteRequest, SearchNotesRequest};
+use crate::window_manager;
 
 /// 把任意 Error-like 转成 String，匹配 tauri::command 的 Result<T, String> 约定。
 fn to_msg<E: std::fmt::Display>(e: E) -> String {
@@ -115,4 +116,36 @@ pub async fn set_setting(
         .await
         .map_err(to_msg)?
         .map_err(to_msg)
+}
+
+// ----- 窗口管理 commands（Plan Task 3 Step 2 暴露给前端） ---------------
+
+#[tauri::command]
+pub fn open_sticky_note_window(app: AppHandle, id: String) -> Result<(), String> {
+    window_manager::open_sticky_note(&app, &id).map_err(to_msg)
+}
+
+#[tauri::command]
+pub fn close_sticky_note_window(app: AppHandle, id: String) -> Result<(), String> {
+    window_manager::close_sticky_note(&app, &id).map_err(to_msg)
+}
+
+#[tauri::command]
+pub fn open_canvas_window(app: AppHandle) -> Result<(), String> {
+    window_manager::open_canvas(&app).map_err(to_msg)
+}
+
+#[tauri::command]
+pub fn open_search_window(app: AppHandle) -> Result<(), String> {
+    window_manager::open_search(&app).map_err(to_msg)
+}
+
+#[tauri::command]
+pub fn open_settings_window(app: AppHandle) -> Result<(), String> {
+    window_manager::open_settings(&app).map_err(to_msg)
+}
+
+#[tauri::command]
+pub fn open_zen_window(app: AppHandle, id: Option<String>) -> Result<(), String> {
+    window_manager::open_zen(&app, id.as_deref()).map_err(to_msg)
 }
