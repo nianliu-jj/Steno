@@ -1,48 +1,50 @@
 import process from 'node:process';
-import { URL, fileURLToPath } from 'node:url';
+import { fileURLToPath, URL } from 'node:url';
 import { defineConfig, loadEnv } from 'vite';
 import { setupVitePlugins } from './build/plugins';
-import { createViteProxy, getBuildTime } from './build/config';
+import { getBuildTime } from './build/config';
+
+interface ViteEnv {
+  VITE_BASE_URL?: string;
+  VITE_APP_TITLE?: string;
+  VITE_SOURCE_MAP?: string;
+  VITE_DEVTOOLS_LAUNCH_EDITOR?: string;
+}
 
 export default defineConfig(configEnv => {
-  const viteEnv = loadEnv(configEnv.mode, process.cwd()) as unknown as Env.ImportMeta;
-
+  const env = loadEnv(configEnv.mode, process.cwd()) as unknown as ViteEnv;
   const buildTime = getBuildTime();
 
-  const enableProxy = configEnv.command === 'serve' && !configEnv.isPreview;
-
   return {
-    base: viteEnv.VITE_BASE_URL,
+    base: env.VITE_BASE_URL || '/',
     resolve: {
       alias: {
         '~': fileURLToPath(new URL('./', import.meta.url)),
         '@': fileURLToPath(new URL('./src', import.meta.url))
       }
     },
-    css: {
-      preprocessorOptions: {
-        scss: {
-          api: 'modern-compiler',
-          additionalData: `@use "@/styles/scss/global.scss" as *;`
-        }
-      }
-    },
-    plugins: setupVitePlugins(viteEnv, buildTime),
+    plugins: setupVitePlugins(env, buildTime),
     define: {
       BUILD_TIME: JSON.stringify(buildTime)
     },
+    // Tauri 在自己的窗口里跑，不要清屏，避免吞掉 cargo 日志
+    clearScreen: false,
+    // 让前端可以读 TAURI_ 前缀的环境变量
+    envPrefix: ['VITE_', 'TAURI_'],
     server: {
       host: '0.0.0.0',
-      port: 9527,
-      open: true,
-      proxy: createViteProxy(viteEnv, enableProxy)
+      port: 1420,
+      strictPort: true,
+      open: false
     },
     preview: {
-      port: 9725
+      port: 1421,
+      strictPort: true
     },
     build: {
+      target: 'esnext',
       reportCompressedSize: false,
-      sourcemap: viteEnv.VITE_SOURCE_MAP === 'Y',
+      sourcemap: env.VITE_SOURCE_MAP === 'Y',
       commonjsOptions: {
         ignoreTryCatch: false
       }

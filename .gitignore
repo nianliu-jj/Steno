@@ -37,3 +37,13 @@ yarn.lock
 # Local AI agent / assistant config (not part of project source)
 .claude/
 .codex/
+
+# Tauri / Rust build artifacts
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# Tauri bundle outputs
+*.app
+*.dmg
+*.msi
+*.AppImage

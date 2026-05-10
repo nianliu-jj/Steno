@@ -1,9 +1,9 @@
 import VueDevtools from 'vite-plugin-vue-devtools';
 
-export function setupDevtoolsPlugin(viteEnv: Env.ImportMeta) {
-  const { VITE_DEVTOOLS_LAUNCH_EDITOR } = viteEnv;
+type LaunchEditor = 'code' | 'webstorm' | 'phpstorm' | 'idea' | 'cursor' | undefined;
 
+export function setupDevtoolsPlugin(viteEnv: Record<string, string>) {
   return VueDevtools({
-    launchEditor: VITE_DEVTOOLS_LAUNCH_EDITOR
+    launchEditor: viteEnv.VITE_DEVTOOLS_LAUNCH_EDITOR as LaunchEditor
   });
 }
