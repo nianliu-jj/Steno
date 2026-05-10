@@ -1,9 +1,26 @@
 <script setup lang="ts">
-// PR2.A 仅占位骨架：标题 + textarea。
-// PR2.D 接入草稿恢复后会把 textarea 双向绑定到 Rust 端的内存草稿。
-import { ref } from 'vue';
+// PR2.D：textarea 双向绑定 Rust 端进程内草稿。
+// - mounted 时拉取最近一次草稿
+// - 输入时 200ms debounce 保存，避免高频 IPC
+// - 草稿仅存内存（Mutex<String>），退出即失，PR3 接入本地存储后替换。
+import { onMounted, ref, watch } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
 
 const draft = ref('');
+
+onMounted(async () => {
+  draft.value = await invoke<string>('load_quicknote_draft');
+});
+
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
+watch(draft, text => {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+  }
+  saveTimer = setTimeout(() => {
+    invoke('save_quicknote_draft', { text });
+  }, 200);
+});
 </script>
 
 <template>
@@ -14,7 +31,7 @@ const draft = ref('');
     <textarea
       v-model="draft"
       class="quicknote-textarea"
-      placeholder="此刻在想什么？(占位 — PR2.D 起接入草稿恢复)"
+      placeholder="此刻在想什么？(草稿会保留到退出 Steno 前)"
       autofocus
     />
   </div>

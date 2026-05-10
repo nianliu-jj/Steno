@@ -6,6 +6,10 @@ mod window;
 pub fn run() {
     tauri::Builder::default()
         .plugin(shortcut::plugin())
+        .invoke_handler(tauri::generate_handler![
+            quicknote::load_quicknote_draft,
+            quicknote::save_quicknote_draft,
+        ])
         .on_window_event(|window, event| match event {
             // 关闭按钮 = 隐藏，不真正退出。真正退出走托盘菜单"退出"项。
             tauri::WindowEvent::CloseRequested { api, .. } => {
