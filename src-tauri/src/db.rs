@@ -1,20 +1,15 @@
-// SQLite 数据访问层。Plan Task 2 Step 2–6。
+// SQLite 数据访问层。Plan Task 2 Step 2–6 + Task 3 接入（Arc<Mutex> 改造）。
 //
 // Commit A 落了基础设施（连接 / 路径 / v1 迁移）。
 // Commit B 在此追加：notes/settings CRUD + 内容派生 + 默认设置初始化。
 // 备份与同步预留在独立模块（backup.rs / sync.rs）。
 //
-// 业务方法仍是同步签名 + 内部 Mutex 锁；调用方（commands.rs，Task 3 实现）
-// 用 `tauri::async_runtime::spawn_blocking` 包，避免阻塞 tokio runtime。
-//
-// 模块 dead_code allow 是过渡状态：这里所有 pub API 都是给 Task 3 的
-// commands.rs 用的，目前只在 cfg(test) 里被引用，cargo check 看不到。
-// 下一个 commit (plan Task 3) 落地 commands 后移除此 allow。
-
-#![allow(dead_code)]
+// 为了让 commands.rs 在 `tauri::async_runtime::spawn_blocking` 里使用，
+// Db 必须实现 Clone 且 'static — Connection 被 Arc<Mutex> 包裹，
+// 整个 Db 是廉价克隆的句柄（Arc 引用计数）。
 
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use rusqlite::{Connection, OptionalExtension};
 
@@ -37,9 +32,17 @@ pub enum DbError {
 }
 
 pub struct Db {
-    conn: Mutex<Connection>,
-    #[allow(dead_code)]
+    conn: Arc<Mutex<Connection>>,
     db_path: PathBuf,
+}
+
+impl Clone for Db {
+    fn clone(&self) -> Self {
+        Self {
+            conn: Arc::clone(&self.conn),
+            db_path: self.db_path.clone(),
+        }
+    }
 }
 
 impl Db {
@@ -62,9 +65,16 @@ impl Db {
         Self::migrate(&mut conn)?;
         Self::ensure_default_settings(&conn)?;
         Ok(Self {
-            conn: Mutex::new(conn),
+            conn: Arc::new(Mutex::new(conn)),
             db_path,
         })
+    }
+
+    /// 备份/调试用：返回当前数据库文件路径。Commit 1 还没有调用方，
+    /// 但 plan 9 验收阶段集成 BackupService 时会用到。
+    #[allow(dead_code)]
+    pub fn db_path(&self) -> &Path {
+        &self.db_path
     }
 
     pub fn lock(&self) -> Result<std::sync::MutexGuard<'_, Connection>, DbError> {
@@ -424,7 +434,7 @@ mod tests {
         Db::migrate(&mut conn).expect("migrate");
         Db::ensure_default_settings(&conn).expect("ensure defaults");
         Db {
-            conn: Mutex::new(conn),
+            conn: Arc::new(Mutex::new(conn)),
             db_path: PathBuf::from(":memory:"),
         }
     }

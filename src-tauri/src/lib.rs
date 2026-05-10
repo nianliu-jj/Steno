@@ -1,4 +1,5 @@
 mod backup;
+mod commands;
 mod db;
 mod models;
 mod quicknote;
@@ -16,6 +17,15 @@ pub fn run() {
             quicknote::load_quicknote_draft,
             quicknote::save_quicknote_draft,
             quicknote::quicknote_begin_drag,
+            commands::save_note,
+            commands::get_note,
+            commands::list_notes,
+            commands::search_notes,
+            commands::delete_note,
+            commands::set_note_pinned,
+            commands::list_pinned_notes,
+            commands::get_setting,
+            commands::set_setting,
         ])
         .on_window_event(|window, event| match event {
             // 关闭按钮 = 隐藏，不真正退出。真正退出走托盘菜单"退出"项。
