@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default capability for the Steno main window. Allows core APIs (window show/hide/focus, app exit, etc.). Plugin-side permissions for global-shortcut are not needed here because PR1 only registers shortcuts from Rust; future PRs that expose registration to JS should add `global-shortcut:default`.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
