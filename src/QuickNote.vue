@@ -3,8 +3,12 @@
 // - mounted 时拉取最近一次草稿
 // - 输入时 200ms debounce 保存，避免高频 IPC
 // - 草稿仅存内存（Mutex<String>），退出即失，PR3 接入本地存储后替换。
+//
+// PR2.A 顶栏拖拽：显式调用 startDragging() 而不依赖 `data-tauri-drag-region`，
+// 后者在部分 Tauri 2 版本/配置下不稳定。
 import { onMounted, ref, watch } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 const draft = ref('');
 
@@ -21,11 +25,15 @@ watch(draft, text => {
     invoke('save_quicknote_draft', { text });
   }, 200);
 });
+
+function onHeaderMousedown() {
+  void getCurrentWindow().startDragging();
+}
 </script>
 
 <template>
   <div class="quicknote-root">
-    <header class="quicknote-header" data-tauri-drag-region>
+    <header class="quicknote-header" @mousedown.left="onHeaderMousedown">
       Steno · 速记
     </header>
     <textarea
