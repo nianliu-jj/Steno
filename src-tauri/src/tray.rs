@@ -1,5 +1,5 @@
 // 系统托盘：紫色 "S" 图标 + 右键菜单（新建速记/显示主窗口/退出）+ 左键单击呼出主窗口。
-// 当前菜单项 "新建速记" 暂时等同于 "显示主窗口"，待 PR3 浮窗落地后改为打开浮窗。
+// "新建速记" 自 PR2.A 起打开浮窗；左键单击仍呼出主窗口（与状态栏入口语义一致）。
 
 use tauri::{
     App,
@@ -7,7 +7,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 
-use crate::window;
+use crate::{quicknote, window};
 
 pub fn setup(app: &App) -> tauri::Result<()> {
     let new_note = MenuItem::with_id(app, "new_note", "新建速记", true, None::<&str>)?;
@@ -22,7 +22,8 @@ pub fn setup(app: &App) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
-            "new_note" | "show" => window::show_main(app),
+            "new_note" => quicknote::show(app),
+            "show" => window::show_main(app),
             "quit" => app.exit(0),
             _ => {}
         })

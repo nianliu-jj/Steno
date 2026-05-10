@@ -1,3 +1,4 @@
+mod quicknote;
 mod shortcut;
 mod tray;
 mod window;
