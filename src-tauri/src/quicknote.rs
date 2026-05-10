@@ -20,7 +20,6 @@ pub fn hide(app: &AppHandle) {
     }
 }
 
-#[allow(dead_code)]
 pub fn toggle(app: &AppHandle) {
     let Some(w) = app.get_webview_window(QUICKNOTE_LABEL) else {
         return;
