@@ -11,3 +11,6 @@
 "*.md"     eol=lf
 "*.yaml"   eol=lf
 "*.yml"    eol=lf
+"*.rs"     eol=lf
+"*.toml"   eol=lf
+"*.lock"   eol=lf
