@@ -1,7 +1,9 @@
+mod backup;
 mod db;
 mod models;
 mod quicknote;
 mod shortcut;
+mod sync;
 mod tray;
 mod window;
 
