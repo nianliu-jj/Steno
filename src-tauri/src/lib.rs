@@ -1,7 +1,11 @@
+mod db;
+mod models;
 mod quicknote;
 mod shortcut;
 mod tray;
 mod window;
+
+use tauri::Manager;
 
 pub fn run() {
     tauri::Builder::default()
@@ -28,6 +32,11 @@ pub fn run() {
             _ => {}
         })
         .setup(|app| {
+            // SQLite 句柄进 Tauri State，供后续 commands 通过
+            // `tauri::State<'_, db::Db>` 取用。
+            let database = db::Db::init()?;
+            app.manage(database);
+
             tray::setup(app)?;
             shortcut::register(app.handle())?;
             Ok(())
