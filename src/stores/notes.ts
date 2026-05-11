@@ -10,7 +10,12 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 
 import { useDb } from '@/composables/useDb';
-import type { Note, PinnedWindowConfig, SaveNoteRequest } from '@/types/steno';
+import type {
+  CanvasPosition,
+  Note,
+  PinnedWindowConfig,
+  SaveNoteRequest,
+} from '@/types/steno';
 
 export const useNotesStore = defineStore('notes', () => {
   const db = useDb();
@@ -87,6 +92,16 @@ export const useNotesStore = defineStore('notes', () => {
     return updated;
   }
 
+  async function updateCanvasPosition(
+    id: string,
+    position: CanvasPosition,
+  ): Promise<Note> {
+    const updated = await db.updateCanvasPosition(id, position);
+    upsertLocal(updated);
+    upsertPinned(updated);
+    return updated;
+  }
+
   async function removeNote(id: string) {
     await db.deleteNote(id);
     notes.value = notes.value.filter(n => n.id !== id);
@@ -125,6 +140,7 @@ export const useNotesStore = defineStore('notes', () => {
     unpinNote,
     search,
     updatePinnedConfig,
+    updateCanvasPosition,
     removeNote,
   };
 });

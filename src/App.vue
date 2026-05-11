@@ -12,6 +12,7 @@ import { useUiStore } from '@/stores/ui';
 import { useSettingsStore } from '@/stores/settings';
 import FloatingEditor from '@/components/FloatingEditor.vue';
 import StickyNote from '@/components/StickyNote.vue';
+import CanvasView from '@/views/CanvasView.vue';
 
 const ui = useUiStore();
 const settings = useSettingsStore();
@@ -77,6 +78,7 @@ function placeholderTaskNum(mode: string): number {
       v-else-if="ui.mode === 'sticky' && ui.noteId"
       :note-id="ui.noteId"
     />
+    <CanvasView v-else-if="ui.mode === 'canvas'" />
     <section v-else class="mode-placeholder">
       <h1>Steno · {{ ui.mode }}</h1>
       <p>

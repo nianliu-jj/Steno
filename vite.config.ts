@@ -41,13 +41,12 @@ export default defineConfig(configEnv => {
       commonjsOptions: {
         ignoreTryCatch: false
       },
-      // 主窗口 + 浮窗 + 置顶便签都用 index.html，按 Tauri 窗口 label 路由。
-      // canvas / search / settings / zen 仍是 plan Task 7-8 的占位入口；
-      // 各自切到 index.html 时同样删除对应 rollup entry。
+      // 主窗口 + 浮窗 + 置顶便签 + 画布都用 index.html，按 Tauri 窗口 label 路由。
+      // search / settings / zen 仍是 plan Task 8 的占位入口；各自切到 index.html
+      // 时同样删除对应 rollup entry。
       rollupOptions: {
         input: {
           main: fileURLToPath(new URL('./index.html', import.meta.url)),
-          canvas: fileURLToPath(new URL('./canvas.html', import.meta.url)),
           search: fileURLToPath(new URL('./search.html', import.meta.url)),
           settings: fileURLToPath(new URL('./settings.html', import.meta.url)),
           zen: fileURLToPath(new URL('./zen.html', import.meta.url))

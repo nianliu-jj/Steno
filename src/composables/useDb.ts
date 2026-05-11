@@ -9,6 +9,7 @@
 import { invoke } from '@tauri-apps/api/core';
 
 import type {
+  CanvasPosition,
   Note,
   PinnedWindowConfig,
   SaveNoteRequest,
@@ -57,6 +58,11 @@ export function useDb() {
     return invoke<Note>('update_pinned_window_config', { id, config });
   }
 
+  /** Canvas 拖卡片释放后写 canvas_position 单列（plan Task 7）。 */
+  function updateCanvasPosition(id: string, position: CanvasPosition) {
+    return invoke<Note>('update_canvas_position', { id, position });
+  }
+
   // ----- settings ------------------------------------------------------
 
   function getSetting(key: string) {
@@ -83,6 +89,7 @@ export function useDb() {
     setNotePinned,
     listPinnedNotes,
     updatePinnedWindowConfig,
+    updateCanvasPosition,
     getSetting,
     setSetting,
     reloadShortcuts,
