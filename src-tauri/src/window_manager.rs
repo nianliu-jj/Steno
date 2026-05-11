@@ -54,8 +54,9 @@ pub fn open_sticky_note(app: &AppHandle, note_id: &str) -> tauri::Result<()> {
         let _ = w.set_focus();
         return Ok(());
     }
-    let url = format!("sticky.html?id={note_id}");
-    WebviewWindowBuilder::new(app, &label, WebviewUrl::App(PathBuf::from(url)))
+    // URL = index.html；noteId 由前端 ui store 从 label `sticky-{uuid}` 解析。
+    // 大小/位置/外观由 StickyNote.vue 在 mount 时按 pinnedWindowConfig 应用。
+    WebviewWindowBuilder::new(app, &label, WebviewUrl::App(PathBuf::from("index.html")))
         .title("Steno · 便签")
         .inner_size(280.0, 220.0)
         .decorations(false)

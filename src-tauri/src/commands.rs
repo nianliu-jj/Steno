@@ -11,7 +11,7 @@
 use tauri::{AppHandle, State};
 
 use crate::db::Db;
-use crate::models::{Note, SaveNoteRequest, SearchNotesRequest};
+use crate::models::{Note, PinnedWindowConfig, SaveNoteRequest, SearchNotesRequest};
 use crate::{shortcut, window_manager};
 
 /// 把任意 Error-like 转成 String，匹配 tauri::command 的 Result<T, String> 约定。
@@ -88,6 +88,21 @@ pub async fn set_note_pinned(
 pub async fn list_pinned_notes(db: State<'_, Db>) -> Result<Vec<Note>, String> {
     let db = db.inner().clone();
     tauri::async_runtime::spawn_blocking(move || db.list_pinned())
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+/// Plan Task 6 Step 1：StickyNote 调整透明度/颜色/字号时单列更新，
+/// 避免每次都走 save_note 的整行 INSERT OR REPLACE。
+#[tauri::command]
+pub async fn update_pinned_window_config(
+    db: State<'_, Db>,
+    id: String,
+    config: PinnedWindowConfig,
+) -> Result<Note, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.update_pinned_window_config(&id, &config))
         .await
         .map_err(to_msg)?
         .map_err(to_msg)

@@ -21,6 +21,7 @@ pub fn run() {
             commands::delete_note,
             commands::set_note_pinned,
             commands::list_pinned_notes,
+            commands::update_pinned_window_config,
             commands::get_setting,
             commands::set_setting,
             commands::open_sticky_note_window,
