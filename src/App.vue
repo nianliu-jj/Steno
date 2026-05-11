@@ -10,6 +10,7 @@ import { useDark, useToggle } from '@vueuse/core';
 
 import { useUiStore } from '@/stores/ui';
 import { useSettingsStore } from '@/stores/settings';
+import FloatingEditor from '@/components/FloatingEditor.vue';
 
 const ui = useUiStore();
 const settings = useSettingsStore();
@@ -70,6 +71,7 @@ function placeholderTaskNum(mode: string): number {
     </div>
 
     <!-- 非 main 模式：placeholder。Task 5-8 各自替换。 -->
+    <FloatingEditor v-else-if="ui.mode === 'floating'" />
     <section v-else class="mode-placeholder">
       <h1>Steno · {{ ui.mode }}</h1>
       <p>

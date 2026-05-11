@@ -4,6 +4,7 @@
 // sticky / zen 接受 noteId（zen 可选）。其余无参。
 
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 export function useWindow() {
   function openStickyNote(id: string) {
@@ -31,6 +32,35 @@ export function useWindow() {
     return invoke<void>('open_zen_window', { id: id ?? null });
   }
 
+  // ----- 当前窗口控制（FloatingEditor / StickyNote 用） -----------------
+
+  function hideCurrent() {
+    return getCurrentWindow().hide();
+  }
+
+  function closeCurrent() {
+    return getCurrentWindow().close();
+  }
+
+  /**
+   * 订阅当前窗口的 focus/blur 事件。返回 unlisten 函数，调用方负责在
+   * onUnmounted 里清理。
+   *
+   * Tauri 2 的 onFocusChanged 在 window.hide() 时也会触发 focused=false，
+   * 因此 FloatingEditor 既能通过失焦保存关闭，也能通过 toggle 快捷键关闭
+   * （两条路径汇合到同一个 handler，调用方做去抖/dedupe）。
+   */
+  async function onCurrentWindowFocusChange(
+    handler: (focused: boolean) => void,
+  ): Promise<() => void> {
+    return await getCurrentWindow().onFocusChanged(({ payload }) => handler(payload));
+  }
+
+  /** 浮窗顶栏拖拽：调用方在 pointerdown 里触发。 */
+  function startDragCurrent() {
+    return getCurrentWindow().startDragging();
+  }
+
   return {
     openStickyNote,
     closeStickyNote,
@@ -38,5 +68,9 @@ export function useWindow() {
     openSearch,
     openSettings,
     openZen,
+    hideCurrent,
+    closeCurrent,
+    onCurrentWindowFocusChange,
+    startDragCurrent,
   };
 }
