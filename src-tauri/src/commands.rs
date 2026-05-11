@@ -12,7 +12,7 @@ use tauri::{AppHandle, State};
 
 use crate::db::Db;
 use crate::models::{Note, SaveNoteRequest, SearchNotesRequest};
-use crate::window_manager;
+use crate::{shortcut, window_manager};
 
 /// 把任意 Error-like 转成 String，匹配 tauri::command 的 Result<T, String> 约定。
 fn to_msg<E: std::fmt::Display>(e: E) -> String {
@@ -20,10 +20,7 @@ fn to_msg<E: std::fmt::Display>(e: E) -> String {
 }
 
 #[tauri::command]
-pub async fn save_note(
-    db: State<'_, Db>,
-    input: SaveNoteRequest,
-) -> Result<Option<Note>, String> {
+pub async fn save_note(db: State<'_, Db>, input: SaveNoteRequest) -> Result<Option<Note>, String> {
     let db = db.inner().clone();
     tauri::async_runtime::spawn_blocking(move || db.save_note(input))
         .await
@@ -106,11 +103,7 @@ pub async fn get_setting(db: State<'_, Db>, key: String) -> Result<Option<String
 }
 
 #[tauri::command]
-pub async fn set_setting(
-    db: State<'_, Db>,
-    key: String,
-    value: String,
-) -> Result<(), String> {
+pub async fn set_setting(db: State<'_, Db>, key: String, value: String) -> Result<(), String> {
     let db = db.inner().clone();
     tauri::async_runtime::spawn_blocking(move || db.set_setting(&key, &value))
         .await
@@ -148,4 +141,14 @@ pub fn open_settings_window(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn open_zen_window(app: AppHandle, id: Option<String>) -> Result<(), String> {
     window_manager::open_zen(&app, id.as_deref()).map_err(to_msg)
+}
+
+// ----- 快捷键 ----------------------------------------------------------
+
+/// 设置面板写完 mainWindowShortcut / quicknoteShortcut 后调用，让 Rust 端
+/// unregister_all + 用新值重新 register。同步 command：只做一次 db 查询和
+/// OS register，无需 spawn_blocking。
+#[tauri::command]
+pub fn reload_shortcuts(app: AppHandle, db: State<'_, Db>) -> Result<(), String> {
+    shortcut::register_from_settings(&app, db.inner()).map_err(to_msg)
 }

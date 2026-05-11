@@ -32,6 +32,7 @@ pub fn run() {
             commands::open_search_window,
             commands::open_settings_window,
             commands::open_zen_window,
+            commands::reload_shortcuts,
         ])
         .on_window_event(|window, event| match event {
             // 关闭按钮 = 隐藏，不真正退出。真正退出走托盘菜单"退出"项。
@@ -63,10 +64,13 @@ pub fn run() {
                 }
             }
 
+            // 先从 settings 读快捷键并 register（需要 &Db），之后再 manage()
+            // 把 db 交给 State。reload_shortcuts command 后续会从 State 拿。
+            shortcut::register_from_settings(app.handle(), &database)?;
+
             app.manage(database);
 
             tray::setup(app)?;
-            shortcut::register(app.handle())?;
             Ok(())
         })
         .run(tauri::generate_context!())
