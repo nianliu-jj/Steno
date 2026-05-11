@@ -111,9 +111,7 @@ const previewHtml = computed(() => renderHtml(local.value));
         @focus="emit('focus')"
         @blur="emit('blur')"
       />
-      <!--
-        v-html 安全说明：见文件顶部"设计取舍"。MVP 阶段不接入 sanitizer。
-      -->
+      <!-- v-html 安全说明：见文件顶部"设计取舍"。MVP 阶段不接入 sanitizer。 -->
       <!-- eslint-disable-next-line vue/no-v-html -->
       <div
         v-if="preview"
