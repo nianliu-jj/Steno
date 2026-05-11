@@ -509,7 +509,10 @@ mod tests {
 
     #[test]
     fn extract_tags_basic_dedup_and_extra_merge() {
-        let tags = extract_tags("see #rust and #rust again, plus 中文 #笔记", &["extra".into()]);
+        let tags = extract_tags(
+            "see #rust and #rust again, plus 中文 #笔记",
+            &["extra".into()],
+        );
         assert_eq!(tags, vec!["rust", "笔记", "extra"]);
     }
 
@@ -602,7 +605,10 @@ mod tests {
     fn set_setting_upsert_does_not_change_unrelated_keys() {
         let db = fresh_db();
         db.set_setting("themeMode", "dark").unwrap();
-        assert_eq!(db.get_setting("themeMode").unwrap().as_deref(), Some("dark"));
+        assert_eq!(
+            db.get_setting("themeMode").unwrap().as_deref(),
+            Some("dark")
+        );
         // 其它默认值未受影响
         assert_eq!(
             db.get_setting("blurCloseDelayMs").unwrap().as_deref(),

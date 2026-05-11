@@ -28,11 +28,7 @@ impl BackupService {
     ///
     /// 不返回错误时调用方应继续；返回 io::Error 时调用方应记录日志但不
     /// 中断业务（备份失败不阻塞用户保存）。
-    pub fn maybe_backup(
-        db_path: &Path,
-        data_dir: &Path,
-        change_count: u64,
-    ) -> std::io::Result<()> {
+    pub fn maybe_backup(db_path: &Path, data_dir: &Path, change_count: u64) -> std::io::Result<()> {
         if change_count == 0 || change_count % 10 != 0 {
             return Ok(());
         }
