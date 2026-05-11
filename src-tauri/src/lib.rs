@@ -22,6 +22,7 @@ pub fn run() {
             commands::set_note_pinned,
             commands::list_pinned_notes,
             commands::update_pinned_window_config,
+            commands::update_canvas_position,
             commands::get_setting,
             commands::set_setting,
             commands::open_sticky_note_window,

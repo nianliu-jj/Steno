@@ -102,7 +102,7 @@ fn ensure_single_window(
 }
 
 pub fn open_canvas(app: &AppHandle) -> tauri::Result<()> {
-    ensure_single_window(app, "canvas", "canvas.html", "Steno · 画布", 1024.0, 720.0)
+    ensure_single_window(app, "canvas", "index.html", "Steno · 画布", 1024.0, 720.0)
 }
 
 pub fn open_search(app: &AppHandle) -> tauri::Result<()> {

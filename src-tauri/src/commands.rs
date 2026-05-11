@@ -11,7 +11,9 @@
 use tauri::{AppHandle, State};
 
 use crate::db::Db;
-use crate::models::{Note, PinnedWindowConfig, SaveNoteRequest, SearchNotesRequest};
+use crate::models::{
+    CanvasPosition, Note, PinnedWindowConfig, SaveNoteRequest, SearchNotesRequest,
+};
 use crate::{shortcut, window_manager};
 
 /// 把任意 Error-like 转成 String，匹配 tauri::command 的 Result<T, String> 约定。
@@ -103,6 +105,20 @@ pub async fn update_pinned_window_config(
 ) -> Result<Note, String> {
     let db = db.inner().clone();
     tauri::async_runtime::spawn_blocking(move || db.update_pinned_window_config(&id, &config))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+/// Plan Task 7 Step 1：Canvas 拖卡片释放后单列更新位置。
+#[tauri::command]
+pub async fn update_canvas_position(
+    db: State<'_, Db>,
+    id: String,
+    position: CanvasPosition,
+) -> Result<Note, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.update_canvas_position(&id, &position))
         .await
         .map_err(to_msg)?
         .map_err(to_msg)

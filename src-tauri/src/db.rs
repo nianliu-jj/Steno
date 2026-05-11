@@ -298,6 +298,26 @@ impl Db {
         Self::find_note(&conn, id)
     }
 
+    /// 仅更新 canvas_position 一列。Canvas 拖动释放后调用，避免整行 REPLACE
+    /// 把 word_count 等派生列重算一遍。
+    pub fn update_canvas_position(
+        &self,
+        id: &str,
+        position: &crate::models::CanvasPosition,
+    ) -> Result<Note, DbError> {
+        let json = serde_json::to_string(position)?;
+        let conn = self.lock()?;
+        let now = chrono::Utc::now().to_rfc3339();
+        let updated = conn.execute(
+            "UPDATE notes SET canvas_position = ?1, updated_at = ?2 WHERE id = ?3",
+            rusqlite::params![&json, &now, id],
+        )?;
+        if updated == 0 {
+            return Err(DbError::NotFound(id.to_string()));
+        }
+        Self::find_note(&conn, id)
+    }
+
     pub fn list_pinned(&self) -> Result<Vec<Note>, DbError> {
         let conn = self.lock()?;
         let mut stmt = conn.prepare(
