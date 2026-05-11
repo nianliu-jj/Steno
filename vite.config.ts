@@ -41,13 +41,12 @@ export default defineConfig(configEnv => {
       commonjsOptions: {
         ignoreTryCatch: false
       },
-      // 主窗口（含浮窗 floating 模式，按 location.hash 路由）独立入口；
-      // sticky / canvas / search / settings / zen 是 plan Task 6-8 的占位入口，
-      // 当前内容是纯 HTML 文案，等 Task 6/7/8 各自填上 Vue 入口与组件。
+      // 主窗口 + 浮窗 + 置顶便签都用 index.html，按 Tauri 窗口 label 路由。
+      // canvas / search / settings / zen 仍是 plan Task 7-8 的占位入口；
+      // 各自切到 index.html 时同样删除对应 rollup entry。
       rollupOptions: {
         input: {
           main: fileURLToPath(new URL('./index.html', import.meta.url)),
-          sticky: fileURLToPath(new URL('./sticky.html', import.meta.url)),
           canvas: fileURLToPath(new URL('./canvas.html', import.meta.url)),
           search: fileURLToPath(new URL('./search.html', import.meta.url)),
           settings: fileURLToPath(new URL('./settings.html', import.meta.url)),

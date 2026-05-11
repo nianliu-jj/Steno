@@ -4,7 +4,7 @@
 // sticky / zen 接受 noteId（zen 可选）。其余无参。
 
 import { invoke } from '@tauri-apps/api/core';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { LogicalPosition, LogicalSize, getCurrentWindow } from '@tauri-apps/api/window';
 
 export function useWindow() {
   function openStickyNote(id: string) {
@@ -61,6 +61,20 @@ export function useWindow() {
     return getCurrentWindow().startDragging();
   }
 
+  /** Sticky 启动恢复尺寸用：LogicalSize 跟着 DPI 缩放。 */
+  function setCurrentSize(width: number, height: number) {
+    return getCurrentWindow().setSize(new LogicalSize(width, height));
+  }
+
+  function setCurrentPosition(x: number, y: number) {
+    return getCurrentWindow().setPosition(new LogicalPosition(x, y));
+  }
+
+  /** Sticky 顶栏的当前 label，调用方用来判断 mode 等。 */
+  function currentLabel() {
+    return getCurrentWindow().label;
+  }
+
   return {
     openStickyNote,
     closeStickyNote,
@@ -72,5 +86,8 @@ export function useWindow() {
     closeCurrent,
     onCurrentWindowFocusChange,
     startDragCurrent,
+    setCurrentSize,
+    setCurrentPosition,
+    currentLabel,
   };
 }

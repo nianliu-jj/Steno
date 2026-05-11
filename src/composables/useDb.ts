@@ -10,6 +10,7 @@ import { invoke } from '@tauri-apps/api/core';
 
 import type {
   Note,
+  PinnedWindowConfig,
   SaveNoteRequest,
   SearchNotesRequest,
 } from '@/types/steno';
@@ -48,6 +49,14 @@ export function useDb() {
     return invoke<Note[]>('list_pinned_notes');
   }
 
+  /**
+   * 仅写 pinned_window_config 一列（plan Task 6）。比 save_note 轻很多，
+   * 适合 StickyNote 拖滑块、改字号等高频调用。
+   */
+  function updatePinnedWindowConfig(id: string, config: PinnedWindowConfig) {
+    return invoke<Note>('update_pinned_window_config', { id, config });
+  }
+
   // ----- settings ------------------------------------------------------
 
   function getSetting(key: string) {
@@ -73,6 +82,7 @@ export function useDb() {
     deleteNote,
     setNotePinned,
     listPinnedNotes,
+    updatePinnedWindowConfig,
     getSetting,
     setSetting,
     reloadShortcuts,
