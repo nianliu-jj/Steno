@@ -106,21 +106,16 @@ pub fn open_canvas(app: &AppHandle) -> tauri::Result<()> {
 }
 
 pub fn open_search(app: &AppHandle) -> tauri::Result<()> {
-    ensure_single_window(app, "search", "search.html", "Steno · 搜索", 720.0, 540.0)
+    ensure_single_window(app, "search", "index.html", "Steno · 搜索", 720.0, 540.0)
 }
 
 pub fn open_settings(app: &AppHandle) -> tauri::Result<()> {
-    ensure_single_window(
-        app,
-        "settings",
-        "settings.html",
-        "Steno · 设置",
-        720.0,
-        540.0,
-    )
+    ensure_single_window(app, "settings", "index.html", "Steno · 设置", 720.0, 540.0)
 }
 
 /// note_id = Some 时把 ?id=... 透传给 zen 页面（用前端 location.search 解析）。
+/// URL 走 index.html，前端 ui store 通过 label='zen' 派生 mode='zen'，
+/// 再读 location.search 拿到 noteId。
 pub fn open_zen(app: &AppHandle, note_id: Option<&str>) -> tauri::Result<()> {
     let label = "zen";
     if let Some(w) = app.get_webview_window(label) {
@@ -128,9 +123,13 @@ pub fn open_zen(app: &AppHandle, note_id: Option<&str>) -> tauri::Result<()> {
         let _ = w.set_focus();
         return Ok(());
     }
+    // index.html 不能直接带 ?id=...（Tauri 2 会对 url 字段做 path 编码），
+    // 但 hash 后的 query 不受影响。ui store 解析 zen 时按 location.search
+    // 兜底，所以用 `index.html?id=...` 的形式（不带 hash），让 webview
+    // 走正常的 query string 路径。
     let url = match note_id {
-        Some(id) => format!("zen.html?id={id}"),
-        None => "zen.html".to_string(),
+        Some(id) => format!("index.html?id={id}"),
+        None => "index.html".to_string(),
     };
     WebviewWindowBuilder::new(app, label, WebviewUrl::App(PathBuf::from(url)))
         .title("Steno · Zen")
