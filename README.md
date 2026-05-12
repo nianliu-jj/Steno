@@ -77,48 +77,102 @@ pnpm fmt         # oxfmt 代码格式化
 
 ```
 steno/
-├── src/                      # Vue 3 前端
-│   ├── main.ts               # 应用入口
-│   ├── App.vue               # 根组件
-│   ├── env.d.ts              # 类型声明
-│   ├── theme/                # 主题定义
-│   └── styles/               # 全局样式
-├── src-tauri/                # Rust 后端
-│   ├── Cargo.toml            # Rust 依赖
-│   ├── tauri.conf.json       # Tauri 配置（窗口、bundle、权限）
-│   ├── build.rs              # 构建脚本
+├── src/                       # Vue 3 前端
+│   ├── main.ts                # 应用入口（挂 Pinia + Naive UI）
+│   ├── App.vue                # 根组件：按 ui.mode 路由到各视图
+│   ├── env.d.ts
+│   ├── components/
+│   │   ├── FloatingEditor.vue # 速记浮窗（label=quicknote）
+│   │   ├── StickyNote.vue     # 置顶便签（label=sticky-{id}）
+│   │   ├── Canvas.vue         # 无限画布核心
+│   │   └── MarkdownEditor.vue # textarea + 工具栏 + 预览
+│   ├── views/
+│   │   ├── MainView.vue       # 主窗口落地页
+│   │   ├── CanvasView.vue     # canvas 入口容器
+│   │   ├── ZenMode.vue        # 全屏写作
+│   │   ├── SearchView.vue     # 全局搜索
+│   │   └── SettingsView.vue   # 主题/快捷键/浮窗/备份/数据目录
+│   ├── composables/
+│   │   ├── useDb.ts           # Tauri invoke 类型化封装
+│   │   ├── useWindow.ts       # 窗口控制 + 失焦监听
+│   │   ├── useAutosave.ts     # 1s 防抖保存调度
+│   │   └── useMarkdown.ts     # marked 渲染 + CJK 字数 + #tag 提取
+│   ├── stores/
+│   │   ├── ui.ts              # 当前窗口承担的 WindowMode
+│   │   ├── notes.ts           # 笔记缓存 + CRUD
+│   │   └── settings.ts        # 设置 reactive view-model
+│   ├── types/steno.ts         # 与 Rust models 对齐的 DTO
+│   ├── theme/ · styles/
+├── src-tauri/                 # Rust 后端
+│   ├── Cargo.toml
+│   ├── tauri.conf.json        # 窗口、bundle、CSP
+│   ├── capabilities/          # 权限白名单（窗口 label 通配 + core 权限）
 │   ├── src/
-│   │   ├── main.rs           # 应用入口
-│   │   └── lib.rs            # 业务库（暴露 run()）
-│   └── icons/                # 应用图标
-├── packages/                 # pnpm workspace 内部包
-│   ├── utils/                # 通用工具
-│   ├── hooks/                # 通用 hooks
-│   ├── color/                # 颜色处理
-│   ├── axios/                # HTTP 封装（保留）
-│   ├── uno-preset/           # UnoCSS preset
-│   └── scripts/              # sa CLI（commit/release/changelog）
-├── build/                    # Vite 构建辅助
-├── docs/                     # 需求文档与原型
-└── public/                   # 静态资源
+│   │   ├── main.rs            # 薄入口，调 lib::run()
+│   │   ├── lib.rs             # 注册插件、commands、tray、setup
+│   │   ├── db.rs              # SQLite 连接 + notes/settings CRUD + 派生
+│   │   ├── models.rs          # DTO（serde camelCase）
+│   │   ├── commands.rs        # 所有 #[tauri::command] 边界
+│   │   ├── window_manager.rs  # 多窗口创建/聚焦
+│   │   ├── quicknote.rs       # 速记浮窗 toggle 逻辑
+│   │   ├── shortcut.rs        # 全局快捷键注册 + 重载
+│   │   ├── tray.rs            # 系统托盘 + 菜单
+│   │   ├── export.rs          # Markdown 导出 + PDF 适配器
+│   │   ├── backup.rs          # SQLite 文件备份触发
+│   │   └── sync.rs            # 同步 trait + 本地 no-op
+│   └── icons/
+├── packages/                  # pnpm workspace 内部包（保留自模板）
+├── build/                     # Vite 构建辅助
+├── docs/                      # 需求文档与原型
+├── openspec/                  # OpenSpec 变更跟踪
+└── public/
 ```
+
+## 数据目录
+
+启动后 Steno 把所有数据放在用户主目录下：
+
+| 路径 | 说明 |
+|---|---|
+| `~/.steno/data.db` | SQLite 数据库，`notes` 和 `settings` 两张表 |
+| `~/.steno/backup/` | 每累计 N 次修改（默认 10）触发一次的 `.db` 副本 |
+| `~/.steno/exports/` | Markdown 导出文件落点（`<title>-<short_id>.md`） |
+
+数据目录可在「设置 → 存储区域」查看并复制完整路径。MVP 不提供"迁移到自定义目录"，未来可在设置中补充。
 
 ## 开发命令一览
 
 | 命令 | 说明 |
 |---|---|
 | `pnpm dev` | 启动 Vite dev server（端口 1420） |
-| `pnpm build` | 构建前端到 `dist/` |
+| `pnpm build` | `vue-tsc --noEmit` + 构建前端到 `dist/` |
 | `pnpm tauri:dev` | 启动 Tauri 开发窗口（含 cargo build） |
 | `pnpm tauri:build` | 生产打包应用 |
 | `pnpm typecheck` | vue-tsc 类型检查 |
 | `pnpm lint` | oxlint + eslint 检查与自动修复 |
 | `pnpm fmt` | oxfmt 代码格式化 |
+| `cargo check` | （在 `src-tauri/`）Rust 编译检查 |
+| `cargo test` | （在 `src-tauri/`）db / shortcut / export / backup 单元测试 |
 | `pnpm commit` | 交互式 Conventional Commits 提交 |
 | `pnpm commit:zh` | 同上，中文提示 |
 | `pnpm release` | 版本号 bump + changelog + commit + tag |
 | `pnpm cleanup` | 清理 dist / node_modules |
 | `pnpm update-pkg` | 更新依赖版本 |
+
+## 手动验收清单
+
+参考 `openspec/changes/build-steno-mvp/tasks.md` Task 9.3。逐项试一遍即可覆盖 MVP 所有 user-facing 行为：
+
+1. 托盘：左键单击呼出主窗口；右键看到「新建速记 / 显示主窗口 / 显示置顶便签 / 打开画布 / 搜索笔记 / 设置 / 退出 Steno」。
+2. 全局快捷键：`Ctrl+Shift+N` 显示/隐藏主窗口；`Ctrl+Shift+M` 呼出速记浮窗（在其他应用全屏下也生效）。
+3. 浮窗速记：输入内容停手 1 秒看到「已保存 HH:MM:SS」；空白内容关闭不写库；置顶按钮把当前内容固定为便签。
+4. 置顶便签：双击切阅读/编辑；改透明度/颜色/字号；拖动改位置；重启 app 后便签按原位置/外观恢复。
+5. 画布：拖背景平移、滚轮缩放、拖卡片改位置并落库；搜索/标签过滤生效；双击卡片内联编辑。
+6. Zen：从搜索或主窗口进 Zen；写作 1 秒自动保存；Esc 退出；导出菜单拿到 `.md` 路径。
+7. 搜索：自动 focus；标签 chips 多选 AND 过滤；编辑/置顶/导出/删除按钮可用。
+8. 设置：主题切换立即生效；快捷键改后输入框失焦立即重新注册到 OS；浮窗尺寸/失焦延迟改完下次浮窗生效；存储区域显示三条路径并可复制。
+9. 导出：Markdown 落到 `~/.steno/exports/<title>-<short_id>.md`；PDF 弹"PDF 适配器不可用"提示而不崩。
+10. 备份：累计 10 次保存后 `~/.steno/backup/` 出现 `data-<timestamp>.db`。
 
 ## 文档
 
@@ -133,12 +187,13 @@ steno/
 |---|---|---|
 | 0 | Tauri 壳 + 工程化骨架 | ✅ 已完成 |
 | 0.5 | 文档与分支策略 | ✅ 已完成 |
-| 1 | 状态栏 + 全局快捷键 + 浮窗速记 + 本地保存 + Inbox | 🚧 进行中（PR1 ✅ + PR2 ✅ 浮窗速记 + Ctrl+Shift+M + 内存草稿）|
-| 2 | 置顶便签 + 无限画布 + 智能排列 | ⏳ |
-| 3 | Zen 模式 + 全局搜索 + 主题完善 | ⏳ |
-| 4 | Markdown 导出 + 隐私设置 + 跨平台打包 | ⏳ |
+| 1 | 状态栏 + 全局快捷键 + 浮窗速记 + 本地保存 + Inbox | ✅ 已完成 |
+| 2 | 置顶便签 + 无限画布 + 智能排列 | ✅ 已完成（智能排列：网格初始 + 拖动落库） |
+| 3 | Zen 模式 + 全局搜索 + 主题完善 | ✅ 已完成 |
+| 4 | Markdown 导出 + 隐私设置 + 跨平台打包 | 🚧 Markdown ✅ ／ PDF 适配器待选型 ／ 打包验证待做 |
 
 > **MVP 不含**：剪贴板历史、多人协作、云同步、AI 自动总结、移动端、复杂媒体笔记、插件市场。
+> **MVP 留白**：见 `openspec/changes/build-steno-mvp/follow-ups.md`。
 
 ## 许可证
 
