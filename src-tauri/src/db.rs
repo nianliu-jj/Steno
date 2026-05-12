@@ -77,6 +77,24 @@ impl Db {
         &self.db_path
     }
 
+    /// 备份目录：`<data_dir>/backup`。SettingsView 展示给用户用。
+    pub fn backup_dir(&self) -> PathBuf {
+        self.db_path
+            .parent()
+            .map(|p| p.join("backup"))
+            .unwrap_or_else(|| PathBuf::from("backup"))
+    }
+
+    /// SettingsView "存储区域" 用：把数据目录、db 路径、备份目录一次性返回。
+    pub fn paths(&self) -> (PathBuf, PathBuf, PathBuf) {
+        let data_dir = self
+            .db_path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."));
+        (data_dir, self.db_path.clone(), self.backup_dir())
+    }
+
     pub fn lock(&self) -> Result<std::sync::MutexGuard<'_, Connection>, DbError> {
         self.conn.lock().map_err(|_| DbError::Poisoned)
     }

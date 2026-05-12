@@ -11,6 +11,7 @@
 use tauri::{AppHandle, State};
 
 use crate::db::Db;
+use crate::export;
 use crate::models::{
     CanvasPosition, Note, PinnedWindowConfig, SaveNoteRequest, SearchNotesRequest,
 };
@@ -182,4 +183,67 @@ pub fn open_zen_window(app: AppHandle, id: Option<String>) -> Result<(), String>
 #[tauri::command]
 pub fn reload_shortcuts(app: AppHandle, db: State<'_, Db>) -> Result<(), String> {
     shortcut::register_from_settings(&app, db.inner()).map_err(to_msg)
+}
+
+// ----- 导出 commands（Plan Task 8.4） ----------------------------------
+
+/// 把指定笔记导出为 Markdown 文件到 `<data_dir>/exports/<title>-<short_id>.md`。
+/// 返回完整路径字符串，UI 拿到后可展示给用户并提供"打开目录"等操作。
+/// 失败时不动数据库，仅返回错误字符串给前端。
+#[tauri::command]
+pub async fn export_note_markdown(db: State<'_, Db>, id: String) -> Result<String, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
+        let note = db
+            .get_note(&id)
+            .map_err(to_msg)?
+            .ok_or_else(|| format!("笔记不存在：{id}"))?;
+        let (data_dir, _db_path, _backup) = db.paths();
+        let exports_dir = data_dir.join("exports");
+        let path = export::build_output_path(&exports_dir, &note, "md");
+        export::export_markdown(&note, &path).map_err(to_msg)?;
+        Ok(path.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(to_msg)?
+}
+
+/// MVP 当前没有跨平台 PDF 适配器；总是返回明确失败原因，让 UI 提示
+/// 用户使用浏览器打印或外部工具。
+#[tauri::command]
+pub async fn export_note_pdf(db: State<'_, Db>, id: String) -> Result<String, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
+        let note = db
+            .get_note(&id)
+            .map_err(to_msg)?
+            .ok_or_else(|| format!("笔记不存在：{id}"))?;
+        let (data_dir, _db_path, _backup) = db.paths();
+        let exports_dir = data_dir.join("exports");
+        let path = export::build_output_path(&exports_dir, &note, "pdf");
+        export::export_pdf(&note, &path).map_err(to_msg)?;
+        Ok(path.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(to_msg)?
+}
+
+// ----- 存储路径（SettingsView 展示） -----------------------------------
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DataPaths {
+    pub data_dir: String,
+    pub db_path: String,
+    pub backup_dir: String,
+}
+
+#[tauri::command]
+pub fn get_data_paths(db: State<'_, Db>) -> DataPaths {
+    let (data_dir, db_path, backup_dir) = db.paths();
+    DataPaths {
+        data_dir: data_dir.to_string_lossy().into_owned(),
+        db_path: db_path.to_string_lossy().into_owned(),
+        backup_dir: backup_dir.to_string_lossy().into_owned(),
+    }
 }

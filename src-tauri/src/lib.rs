@@ -1,6 +1,7 @@
 mod backup;
 mod commands;
 mod db;
+mod export;
 mod models;
 mod quicknote;
 mod shortcut;
@@ -32,6 +33,9 @@ pub fn run() {
             commands::open_settings_window,
             commands::open_zen_window,
             commands::reload_shortcuts,
+            commands::export_note_markdown,
+            commands::export_note_pdf,
+            commands::get_data_paths,
         ])
         .on_window_event(|window, event| match event {
             // 关闭按钮 = 隐藏，不真正退出。真正退出走托盘菜单"退出"项。
