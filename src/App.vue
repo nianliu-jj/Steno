@@ -1,27 +1,30 @@
 <script setup lang="ts">
 // 根组件按 ui store 解析出的 WindowMode 渲染对应顶层视图。
 //
-// Task 4 阶段所有非 main 的视图都是 placeholder <section>；Task 5-8 会
-// 逐步把它们换成真实组件，并相应把 window_manager.rs 里 open_*_window 的
-// URL 从独立 *.html 切到 index.html#mode（保留 hash 解析约定）。
+// Plan Task 8 完成后所有 mode 都接入实际视图（main / floating / sticky /
+// canvas / zen / search / settings）。SettingsView / SearchView / ZenMode /
+// MainView 内部使用 Naive UI 的 useMessage，因此根节点需要套
+// NMessageProvider。
 import { computed, onMounted, watch } from 'vue';
-import { darkTheme, NButton, NCard, NConfigProvider, NSpace, NText } from 'naive-ui';
-import { useDark, useToggle } from '@vueuse/core';
+import { NConfigProvider, NMessageProvider, darkTheme } from 'naive-ui';
+import { useDark } from '@vueuse/core';
 
 import { useUiStore } from '@/stores/ui';
 import { useSettingsStore } from '@/stores/settings';
 import FloatingEditor from '@/components/FloatingEditor.vue';
 import StickyNote from '@/components/StickyNote.vue';
 import CanvasView from '@/views/CanvasView.vue';
+import MainView from '@/views/MainView.vue';
+import SearchView from '@/views/SearchView.vue';
+import SettingsView from '@/views/SettingsView.vue';
+import ZenMode from '@/views/ZenMode.vue';
 
 const ui = useUiStore();
 const settings = useSettingsStore();
 
 const isDark = useDark();
-const toggleDark = useToggle(isDark);
 
 const naiveTheme = computed(() => (isDark.value ? darkTheme : null));
-const appTitle = import.meta.env.VITE_APP_TITLE;
 
 // 启动加载 settings（Pinia store 自行缓存）。失败不阻塞 UI，错误会进 store.error。
 onMounted(() => {
@@ -29,7 +32,7 @@ onMounted(() => {
 });
 
 // themeMode 优先级：用户在 SettingsView 显式切换 → 覆盖 system；'system' 时
-// 跟随 useDark 默认（matchMedia）。Task 8 SettingsView 实装后再补三选一 UI。
+// 跟随 useDark 默认（matchMedia）。
 watch(
   () => settings.state.themeMode,
   mode => {
@@ -41,59 +44,34 @@ watch(
     // system 留给 useDark 自己跟随系统
   },
 );
-
-function placeholderTaskNum(mode: string): number {
-  if (mode === 'floating') return 5;
-  if (mode === 'sticky') return 6;
-  if (mode === 'canvas') return 7;
-  return 8;
-}
 </script>
 
 <template>
   <NConfigProvider :theme="naiveTheme">
-    <!-- main：临时落地页（Task 8 用 MainView.vue 替换） -->
-    <div
-      v-if="ui.mode === 'main'"
-      class="h-full w-full flex-center p-8"
-      :class="isDark ? 'bg-#0b0b0f' : 'bg-#fafafa'"
-    >
-      <NCard class="max-w-md w-full" :title="`${appTitle} · 待命中`">
-        <NSpace vertical>
-          <NText>Phase 1 PR3 · 前端基础就位（stores / composables / types）。</NText>
-          <NText depth="3" style="font-size: 12px;">
-            按 <code>{{ settings.state.mainWindowShortcut }}</code> 显示 / 隐藏本窗口；
-            <code>{{ settings.state.quicknoteShortcut }}</code> 呼出浮窗速记。
-          </NText>
-          <NButton type="primary" @click="toggleDark()">
-            切换{{ isDark ? '浅色' : '深色' }}主题
-          </NButton>
-        </NSpace>
-      </NCard>
-    </div>
-
-    <!-- 非 main 模式：placeholder。Task 5-8 各自替换。 -->
-    <FloatingEditor v-else-if="ui.mode === 'floating'" />
-    <StickyNote
-      v-else-if="ui.mode === 'sticky' && ui.noteId"
-      :note-id="ui.noteId"
-    />
-    <CanvasView v-else-if="ui.mode === 'canvas'" />
-    <section v-else class="mode-placeholder">
-      <h1>Steno · {{ ui.mode }}</h1>
-      <p>
-        当前窗口模式：<code>{{ ui.mode }}</code>
-        <template v-if="ui.noteId">&nbsp;· note id = <code>{{ ui.noteId }}</code></template>
-      </p>
-      <p class="hint">
-        视图占位中（plan Task {{ placeholderTaskNum(ui.mode) }}）。
-      </p>
-    </section>
+    <NMessageProvider>
+      <MainView v-if="ui.mode === 'main'" />
+      <FloatingEditor v-else-if="ui.mode === 'floating'" />
+      <StickyNote
+        v-else-if="ui.mode === 'sticky' && ui.noteId"
+        :note-id="ui.noteId"
+      />
+      <CanvasView v-else-if="ui.mode === 'canvas'" />
+      <ZenMode v-else-if="ui.mode === 'zen'" />
+      <SearchView v-else-if="ui.mode === 'search'" />
+      <SettingsView v-else-if="ui.mode === 'settings'" />
+      <section v-else class="mode-fallback">
+        <h1>Steno · {{ ui.mode }}</h1>
+        <p>
+          当前窗口模式：<code>{{ ui.mode }}</code>
+          <template v-if="ui.noteId">&nbsp;· note id = <code>{{ ui.noteId }}</code></template>
+        </p>
+      </section>
+    </NMessageProvider>
   </NConfigProvider>
 </template>
 
 <style scoped>
-.mode-placeholder {
+.mode-fallback {
   height: 100vh;
   display: flex;
   flex-direction: column;
@@ -105,19 +83,16 @@ function placeholderTaskNum(mode: string): number {
   color: #e8e8ea;
   font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
-.mode-placeholder h1 {
+.mode-fallback h1 {
   font-size: 18px;
   margin: 0;
 }
-.mode-placeholder p {
+.mode-fallback p {
   font-size: 12px;
   color: #9a9aa3;
   margin: 0;
 }
-.mode-placeholder .hint {
-  color: #6f6f78;
-}
-.mode-placeholder code {
+.mode-fallback code {
   background: #2c2c34;
   padding: 1px 6px;
   border-radius: 3px;

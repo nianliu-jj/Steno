@@ -80,6 +80,26 @@ export function useDb() {
     return invoke<void>('reload_shortcuts');
   }
 
+  // ----- 导出（plan Task 8.4） -----------------------------------------
+
+  /** 成功时返回写入的完整文件路径。失败时 invoke 抛错。 */
+  function exportNoteMarkdown(id: string) {
+    return invoke<string>('export_note_markdown', { id });
+  }
+
+  /** MVP 当前总是失败，返回的错误用于前端展示"PDF 不可用"提示。 */
+  function exportNotePdf(id: string) {
+    return invoke<string>('export_note_pdf', { id });
+  }
+
+  // ----- 存储路径（SettingsView 展示） ---------------------------------
+
+  function getDataPaths() {
+    return invoke<{ dataDir: string; dbPath: string; backupDir: string }>(
+      'get_data_paths',
+    );
+  }
+
   return {
     saveNote,
     getNote,
@@ -93,5 +113,8 @@ export function useDb() {
     getSetting,
     setSetting,
     reloadShortcuts,
+    exportNoteMarkdown,
+    exportNotePdf,
+    getDataPaths,
   };
 }
