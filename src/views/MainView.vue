@@ -10,9 +10,11 @@ import { useDark, useToggle } from '@vueuse/core';
 
 import { useWindow } from '@/composables/useWindow';
 import { useNotesStore } from '@/stores/notes';
+import { useUiStore } from '@/stores/ui';
 import type { Note } from '@/types/steno';
 
 const notes = useNotesStore();
+const ui = useUiStore();
 const win = useWindow();
 const message = useMessage();
 
@@ -36,6 +38,10 @@ async function onNewQuickNote() {
   } catch (e) {
     message.error(`打开失败：${String(e)}`);
   }
+}
+
+function onNewNote() {
+  ui.navigateTo('note-editor');
 }
 
 async function onOpenCanvas() {
@@ -65,11 +71,7 @@ async function onOpenSettings() {
 // ----- 笔记交互 -------------------------------------------------------
 
 async function onOpenZen(note: Note) {
-  try {
-    await win.openZen(note.id);
-  } catch (e) {
-    message.error(String(e));
-  }
+  ui.navigateTo('note-editor', note.id);
 }
 
 async function onTogglePin(note: Note) {
@@ -143,7 +145,23 @@ function formatUpdatedAt(iso: string): string {
     </header>
 
     <section class="main-quickbar">
-      <NCard size="small" class="main-quick" hoverable @click="onNewQuickNote">
+      <NCard
+        size="small"
+        class="main-quick"
+        data-action="new-note"
+        hoverable
+        @click="onNewNote"
+      >
+        <div class="main-quick-title">＋ 新建笔记</div>
+        <NText depth="3" class="main-quick-hint">在主窗口编辑完整笔记</NText>
+      </NCard>
+      <NCard
+        size="small"
+        class="main-quick"
+        data-action="new-quicknote"
+        hoverable
+        @click="onNewQuickNote"
+      >
         <div class="main-quick-title">✎ 新建速记</div>
         <NText depth="3" class="main-quick-hint">打开速记浮窗</NText>
       </NCard>

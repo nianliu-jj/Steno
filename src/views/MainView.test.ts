@@ -10,6 +10,7 @@ import MainView from './MainView.vue';
 
 const openQuicknote = vi.fn(() => Promise.resolve());
 const openZen = vi.fn(() => Promise.resolve());
+const navigateTo = vi.fn();
 
 vi.mock('@vueuse/core', async importOriginal => {
   const actual = await importOriginal<typeof import('@vueuse/core')>();
@@ -47,6 +48,12 @@ vi.mock('@/stores/notes', () => ({
   }),
 }));
 
+vi.mock('@/stores/ui', () => ({
+  useUiStore: () => ({
+    navigateTo,
+  }),
+}));
+
 vi.mock('@/stores/settings', () => ({
   useSettingsStore: () => ({
     state: {
@@ -73,6 +80,7 @@ describe('MainView', () => {
     setActivePinia(createPinia());
     openQuicknote.mockClear();
     openZen.mockClear();
+    navigateTo.mockClear();
     loadNotes.mockClear();
     loadPinned.mockClear();
   });
@@ -86,11 +94,22 @@ describe('MainView', () => {
     expect(wrapper.text()).not.toContain('Ctrl+Shift+M');
   });
 
-  it('opens the quicknote window when the quick entry is clicked', async () => {
+  it('opens the note editor in the main window when creating a note', async () => {
     const wrapper = mount(WrappedMainView);
     await flushPromises();
 
-    await wrapper.find('.main-quick').trigger('click');
+    await wrapper.find('[data-action="new-note"]').trigger('click');
+
+    expect(navigateTo).toHaveBeenCalledWith('note-editor');
+    expect(openQuicknote).not.toHaveBeenCalled();
+    expect(openZen).not.toHaveBeenCalled();
+  });
+
+  it('opens quicknote only from the quicknote action', async () => {
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    await wrapper.find('[data-action="new-quicknote"]').trigger('click');
 
     expect(openQuicknote).toHaveBeenCalledOnce();
     expect(openZen).not.toHaveBeenCalled();
