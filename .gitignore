@@ -43,10 +43,6 @@ docs/
 src-tauri/target/
 src-tauri/gen/schemas/
 
-# Mobile icon resources — Steno MVP is desktop only (Win first, then mac/Linux)
-src-tauri/icons/ios/
-src-tauri/icons/android/
-
 # Tauri bundle outputs
 *.app
 *.dmg
