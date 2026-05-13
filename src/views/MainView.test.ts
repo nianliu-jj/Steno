@@ -8,6 +8,9 @@ import { defineComponent, h } from 'vue';
 
 import MainView from './MainView.vue';
 
+const openQuicknote = vi.fn(() => Promise.resolve());
+const openZen = vi.fn(() => Promise.resolve());
+
 vi.mock('@vueuse/core', async importOriginal => {
   const actual = await importOriginal<typeof import('@vueuse/core')>();
   return {
@@ -19,7 +22,8 @@ vi.mock('@vueuse/core', async importOriginal => {
 
 vi.mock('@/composables/useWindow', () => ({
   useWindow: () => ({
-    openZen: vi.fn(() => Promise.resolve()),
+    openQuicknote,
+    openZen,
     openCanvas: vi.fn(() => Promise.resolve()),
     openSearch: vi.fn(() => Promise.resolve()),
     openSettings: vi.fn(() => Promise.resolve()),
@@ -67,6 +71,8 @@ const WrappedMainView = defineComponent({
 describe('MainView', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    openQuicknote.mockClear();
+    openZen.mockClear();
     loadNotes.mockClear();
     loadPinned.mockClear();
   });
@@ -78,5 +84,15 @@ describe('MainView', () => {
     expect(wrapper.text()).not.toContain('全局快捷键');
     expect(wrapper.text()).not.toContain('Ctrl+Shift+N');
     expect(wrapper.text()).not.toContain('Ctrl+Shift+M');
+  });
+
+  it('opens the quicknote window when the quick entry is clicked', async () => {
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    await wrapper.find('.main-quick').trigger('click');
+
+    expect(openQuicknote).toHaveBeenCalledOnce();
+    expect(openZen).not.toHaveBeenCalled();
   });
 });

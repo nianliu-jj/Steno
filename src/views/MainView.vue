@@ -32,10 +32,7 @@ const recentNotes = computed(() => notes.notes.slice(0, 30));
 
 async function onNewQuickNote() {
   try {
-    // quicknote 窗口在 tauri.conf.json 预声明，由全局快捷键 / 托盘菜单
-    // 唤起。这里没有暴露专门的命令，复用一个：点击就 openZen 不带 id，
-    // 直接在主窗口进入 Zen 写作新笔记体验。
-    await win.openZen();
+    await win.openQuicknote();
   } catch (e) {
     message.error(`打开失败：${String(e)}`);
   }
@@ -147,8 +144,8 @@ function formatUpdatedAt(iso: string): string {
 
     <section class="main-quickbar">
       <NCard size="small" class="main-quick" hoverable @click="onNewQuickNote">
-        <div class="main-quick-title">✎ 新建写作</div>
-        <NText depth="3" class="main-quick-hint">进入 Zen 写作视图</NText>
+        <div class="main-quick-title">✎ 新建速记</div>
+        <NText depth="3" class="main-quick-hint">打开速记浮窗</NText>
       </NCard>
       <NCard size="small" class="main-quick" hoverable @click="onOpenCanvas">
         <div class="main-quick-title">▦ 画布</div>

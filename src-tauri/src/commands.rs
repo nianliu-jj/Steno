@@ -15,7 +15,7 @@ use crate::export;
 use crate::models::{
     CanvasPosition, Note, PinnedWindowConfig, SaveNoteRequest, SearchNotesRequest,
 };
-use crate::{shortcut, window_manager};
+use crate::{quicknote, shortcut, window_manager};
 
 /// 把任意 Error-like 转成 String，匹配 tauri::command 的 Result<T, String> 约定。
 fn to_msg<E: std::fmt::Display>(e: E) -> String {
@@ -168,6 +168,12 @@ pub fn open_search_window(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn open_settings_window(app: AppHandle) -> Result<(), String> {
     window_manager::open_settings(&app).map_err(to_msg)
+}
+
+#[tauri::command]
+pub fn open_quicknote_window(app: AppHandle) -> Result<(), String> {
+    quicknote::show(&app);
+    Ok(())
 }
 
 #[tauri::command]
