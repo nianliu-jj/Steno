@@ -73,4 +73,15 @@ describe('ui store', () => {
     expect(ui.mode).toBe('main');
     expect(ui.noteId).toBeNull();
   });
+
+  it('returns to the canvas view after opening Zen from the canvas', () => {
+    const ui = useUiStore();
+
+    ui.navigateTo('canvas');
+    ui.navigateToZenFromCanvas('note-1');
+    ui.exitZen();
+
+    expect(ui.mode).toBe('canvas');
+    expect(ui.noteId).toBeNull();
+  });
 });

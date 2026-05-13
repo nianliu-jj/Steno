@@ -114,7 +114,7 @@ async function exitZen() {
     await flushSave();
     if (status.value === 'error') return; // 保留窗口让用户看错误
   }
-  ui.navigateToMain();
+  ui.exitZen();
 }
 
 function onKeydown(e: KeyboardEvent) {

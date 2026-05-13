@@ -1,0 +1,69 @@
+// @vitest-environment jsdom
+
+import { flushPromises, mount } from '@vue/test-utils';
+import { NConfigProvider, NMessageProvider } from 'naive-ui';
+import { describe, expect, it, vi } from 'vitest';
+import { defineComponent, h } from 'vue';
+
+import ZenMode from './ZenMode.vue';
+
+const exitZen = vi.fn();
+const navigateToMain = vi.fn();
+const getNote = vi.fn(() => Promise.resolve(null));
+const saveDraft = vi.fn(() => Promise.resolve(null));
+
+vi.mock('@/composables/useDb', () => ({
+  useDb: () => ({
+    getNote,
+    exportNoteMarkdown: vi.fn(),
+    exportNotePdf: vi.fn(),
+  }),
+}));
+
+vi.mock('@/stores/notes', () => ({
+  useNotesStore: () => ({
+    saveDraft,
+  }),
+}));
+
+vi.mock('@/stores/ui', () => ({
+  useUiStore: () => ({
+    noteId: 'note-1',
+    exitZen,
+    navigateToMain,
+  }),
+}));
+
+vi.mock('@/composables/useMarkdown', () => ({
+  useMarkdown: () => ({
+    countWords: (content: string) => content.length,
+  }),
+}));
+
+vi.mock('@/components/MarkdownEditor.vue', () => ({
+  default: { template: '<textarea />' },
+}));
+
+const WrappedZenMode = defineComponent({
+  setup() {
+    return () =>
+      h(NConfigProvider, null, {
+        default: () =>
+          h(NMessageProvider, null, {
+            default: () => h(ZenMode),
+          }),
+      });
+  },
+});
+
+describe('ZenMode', () => {
+  it('delegates exit routing to the ui store', async () => {
+    const wrapper = mount(WrappedZenMode);
+    await flushPromises();
+
+    await wrapper.find('.zen-exit').trigger('click');
+
+    expect(exitZen).toHaveBeenCalledOnce();
+    expect(navigateToMain).not.toHaveBeenCalled();
+  });
+});

@@ -109,14 +109,29 @@ export const useUiStore = defineStore('ui', () => {
   const initial = resolveInitialRoute();
   const mode = ref<WindowMode>(initial.mode);
   const noteId = ref<string | null>(initial.noteId);
+  const zenReturnMode = ref<MainRouteMode | null>(null);
 
-  function navigateTo(nextMode: MainRouteMode, nextNoteId: string | null = null) {
+  function navigateTo(
+    nextMode: MainRouteMode,
+    nextNoteId: string | null = null,
+    returnMode: MainRouteMode | null = null,
+  ) {
     mode.value = nextMode;
     noteId.value = nextMode === 'zen' ? nextNoteId : null;
+    zenReturnMode.value = nextMode === 'zen' ? returnMode : null;
   }
 
   function navigateToMain() {
     navigateTo('main');
+  }
+
+  function navigateToZenFromCanvas(nextNoteId: string) {
+    navigateTo('zen', nextNoteId, 'canvas');
+  }
+
+  function exitZen() {
+    const target = zenReturnMode.value;
+    navigateTo(target ?? 'main');
   }
 
   // hashchange 监听仅在 hash-fallback 路径有意义（dev 时浏览器手动改 URL）。
@@ -136,5 +151,5 @@ export const useUiStore = defineStore('ui', () => {
     });
   }
 
-  return { mode, noteId, navigateTo, navigateToMain };
+  return { mode, noteId, navigateTo, navigateToMain, navigateToZenFromCanvas, exitZen };
 });

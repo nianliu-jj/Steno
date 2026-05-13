@@ -11,19 +11,19 @@
 // - 背景拖动 → 改 pan
 // - 卡片拖动 → 改卡片 world position（释放时 commit 到 db）
 // - 滚轮 → 改 zoom，锚定在鼠标位置
-// - 双击卡片 → 进入 inline 编辑（MarkdownEditor 覆盖卡片）
+// - 双击卡片 → 进入 Zen 写作视图编辑
 //
 // 视口裁剪：只渲染当前可见 + 600px buffer 内的卡片。无 canvasPosition 的卡片
 // 按网格初始排列（不写库，等用户主动拖一下才落库）。
-import { computed, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
 import { NInput, NTag } from 'naive-ui';
 
-import MarkdownEditor from '@/components/MarkdownEditor.vue';
-import { useAutosave } from '@/composables/useAutosave';
 import { useNotesStore } from '@/stores/notes';
-import type { CanvasPosition, Note, SaveNoteRequest } from '@/types/steno';
+import { useUiStore } from '@/stores/ui';
+import type { CanvasPosition, Note } from '@/types/steno';
 
 const notes = useNotesStore();
+const ui = useUiStore();
 
 // ----- 卡片尺寸 + 默认网格布局 ----------------------------------------
 
@@ -225,19 +225,8 @@ interface CardDragState {
 
 let cardDrag: CardDragState | null = null;
 
-// ----- 双击卡片：进入内联编辑（声明在 onCardPointerdown 之前以便引用） ----
-
-const editingId = ref<string | null>(null);
-const editingDraft = ref('');
-
-const inlineSave = useAutosave(async (payload: SaveNoteRequest) => {
-  await notes.saveDraft(payload);
-});
-
 function onCardPointerdown(e: PointerEvent, card: VisibleCard) {
   if (e.button !== 0) return;
-  // editing 时不能拖
-  if (editingId.value === card.note.id) return;
   if ((e.target as HTMLElement | null)?.closest('button, input, textarea')) return;
   e.stopPropagation();
   const el = e.currentTarget as HTMLElement;
@@ -284,38 +273,10 @@ async function onCardPointerup(e: PointerEvent) {
   }
 }
 
-// ----- 双击卡片：进入内联编辑（hook 在上面声明，这里只放剩余逻辑） ----
+// ----- 双击卡片：进入 Zen 写作视图 -------------------------------------
 
 function onCardDblclick(card: VisibleCard) {
-  if (editingId.value === card.note.id) return;
-  editingId.value = card.note.id;
-  editingDraft.value = card.note.content;
-}
-
-watch(editingDraft, draft => {
-  if (!editingId.value) return;
-  const note = notes.notes.find(n => n.id === editingId.value);
-  if (!note) return;
-  inlineSave.scheduleSave({
-    id: note.id,
-    title: note.title || undefined,
-    content: draft,
-    tags: note.tags,
-    isPinned: note.isPinned,
-  });
-});
-
-async function exitEditing() {
-  if (!editingId.value) return;
-  await inlineSave.flushSave();
-  editingId.value = null;
-  editingDraft.value = '';
-}
-
-function onSurfaceKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && editingId.value) {
-    void exitEditing();
-  }
+  ui.navigateToZenFromCanvas(card.note.id);
 }
 
 // ----- 卡片预览文本 ---------------------------------------------------
@@ -341,7 +302,7 @@ defineExpose({ resetView, setZoom });
 </script>
 
 <template>
-  <div class="canvas-root" tabindex="0" @keydown="onSurfaceKeydown">
+  <div class="canvas-root" tabindex="0">
     <!-- 顶栏：搜索 + 标签 + 缩放控件 -->
     <div class="canvas-toolbar">
       <NInput
@@ -372,7 +333,7 @@ defineExpose({ resetView, setZoom });
       </div>
     </div>
 
-    <!-- 画布表面：负责 pan、wheel、背景点击退出编辑 -->
+    <!-- 画布表面：负责 pan 和 wheel -->
     <div
       ref="root"
       class="canvas-surface"
@@ -382,7 +343,6 @@ defineExpose({ resetView, setZoom });
       @pointerup="onSurfacePointerup"
       @pointercancel="onSurfacePointerup"
       @wheel.passive.prevent="onWheel"
-      @dblclick="exitEditing"
     >
       <!-- 网格背景层（不参与 pan，CSS 用 background-position 跟随） -->
       <div
@@ -404,7 +364,6 @@ defineExpose({ resetView, setZoom });
             class="canvas-card"
             :class="{
               'canvas-card--pinned': card.note.isPinned,
-              'canvas-card--editing': editingId === card.note.id,
             }"
             :style="{
               left: `${card.x}px`,
@@ -425,10 +384,7 @@ defineExpose({ resetView, setZoom });
               <span v-if="card.note.isPinned" class="canvas-card-pin" title="已置顶">★</span>
             </header>
 
-            <div v-if="editingId === card.note.id" class="canvas-card-edit">
-              <MarkdownEditor v-model="editingDraft" autofocus placeholder="输入内容…  Esc / 双击空白 完成" />
-            </div>
-            <p v-else class="canvas-card-body">{{ previewText(card.note.content) }}</p>
+            <p class="canvas-card-body">{{ previewText(card.note.content) }}</p>
 
             <footer v-if="card.note.tags.length" class="canvas-card-tags">
               <span
@@ -551,11 +507,6 @@ defineExpose({ resetView, setZoom });
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
 .canvas-card--pinned { border-color: rgba(255, 200, 90, 0.35); }
-.canvas-card--editing {
-  cursor: default;
-  border-color: rgba(120, 180, 255, 0.6);
-  box-shadow: 0 6px 24px rgba(120, 180, 255, 0.18);
-}
 .canvas-card-header {
   display: flex;
   align-items: center;
@@ -584,13 +535,6 @@ defineExpose({ resetView, setZoom });
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   white-space: pre-wrap;
-}
-.canvas-card-edit {
-  flex: 1;
-  min-height: 0;
-  background: #14141a;
-  border-radius: 4px;
-  overflow: hidden;
 }
 .canvas-card-tags {
   display: flex;
