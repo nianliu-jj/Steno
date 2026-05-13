@@ -10,7 +10,6 @@
 // - 存储区域：调 getDataPaths 拿三条路径，只读展示 + 复制按钮
 import { computed, onMounted, ref } from 'vue';
 import {
-  NButton,
   NCard,
   NDivider,
   NFormItem,
@@ -25,11 +24,9 @@ import {
 
 import { useDb } from '@/composables/useDb';
 import { useSettingsStore, type EditorMode, type ThemeMode } from '@/stores/settings';
-import { useUiStore } from '@/stores/ui';
 
 const db = useDb();
 const settings = useSettingsStore();
-const ui = useUiStore();
 const message = useMessage();
 
 // ----- 主题 -----------------------------------------------------------
@@ -145,15 +142,7 @@ const headerSub = computed(() =>
 
 <template>
   <div class="settings-root">
-    <header class="settings-header">
-      <div>
-        <h1>设置</h1>
-        <NText depth="3" class="settings-subtitle">{{ headerSub }}</NText>
-      </div>
-      <NButton size="small" quaternary @click="ui.navigateToMain">
-        返回
-      </NButton>
-    </header>
+    <NText depth="3" class="settings-subtitle">{{ headerSub }}</NText>
 
     <div class="settings-body">
       <!-- 主题 -->
@@ -297,29 +286,14 @@ const headerSub = computed(() =>
 .settings-root {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  width: 100vw;
-  background: #14141a;
-  color: #e8e8ea;
+  min-height: 100%;
+  color: #2a2a2a;
   font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
-.settings-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 24px 10px;
-  background: #1a1a22;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-}
-.settings-header h1 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #f0f0f2;
-}
 .settings-subtitle {
   font-size: 11px;
+  padding: 16px 24px 0;
 }
 
 .settings-body {
@@ -333,7 +307,7 @@ const headerSub = computed(() =>
 }
 
 .settings-card {
-  background: #1a1a22;
+  background: rgba(255, 255, 255, 0.55);
 }
 
 .settings-hint {
@@ -354,14 +328,14 @@ const headerSub = computed(() =>
 .settings-path-label {
   flex: 0 0 88px;
   font-size: 12px;
-  color: #9a9aa3;
+  color: #7a7067;
 }
 .settings-path-value {
   flex: 1;
   min-width: 0;
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
-  color: #d7d7dc;
+  color: #3f3933;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

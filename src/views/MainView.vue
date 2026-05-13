@@ -1,12 +1,10 @@
 <script setup lang="ts">
 // 主窗口落地页（mode === 'main'）。
-// 之前在 App.vue 内联，Plan Task 8.5 提到独立组件。内容：
-// - 顶部 brand + 主题切换
-// - 快捷入口卡片：新建速记 / 打开画布 / 搜索 / 设置
+// 当前作为工作台内容页渲染：
+// - 快捷入口卡片：新建笔记 / 新建速记 / 画布 / 搜索 / 设置
 // - 最近笔记列表（点击进 Zen / 钉住 / 删除）
 import { computed, onMounted } from 'vue';
-import { NButton, NCard, NEmpty, NText, useMessage } from 'naive-ui';
-import { useDark, useToggle } from '@vueuse/core';
+import { NCard, NEmpty, NText, useMessage } from 'naive-ui';
 
 import { useWindow } from '@/composables/useWindow';
 import { useNotesStore } from '@/stores/notes';
@@ -17,11 +15,6 @@ const notes = useNotesStore();
 const ui = useUiStore();
 const win = useWindow();
 const message = useMessage();
-
-const isDark = useDark();
-const toggleDark = useToggle(isDark);
-
-const appTitle = import.meta.env.VITE_APP_TITLE || 'Steno';
 
 onMounted(() => {
   void notes.loadNotes(50);
@@ -133,17 +126,7 @@ function formatUpdatedAt(iso: string): string {
 </script>
 
 <template>
-  <div class="main-root" :class="{ 'main-root--dark': isDark }">
-    <header class="main-header">
-      <div class="main-brand">
-        <h1>{{ appTitle }}</h1>
-        <NText depth="3" class="main-subtitle">本地优先 · 速记 · 整理 · 写作</NText>
-      </div>
-      <NButton tertiary size="small" @click="toggleDark()">
-        {{ isDark ? '浅色' : '深色' }}
-      </NButton>
-    </header>
-
+  <div class="main-root">
     <section class="main-quickbar">
       <NCard
         size="small"
@@ -229,31 +212,9 @@ function formatUpdatedAt(iso: string): string {
 .main-root {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  width: 100vw;
-  background: #fafafa;
+  min-height: 100%;
   color: #2a2a2a;
   font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  overflow: auto;
-}
-.main-root--dark {
-  background: #0b0b0f;
-  color: #e8e8ea;
-}
-
-.main-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 18px 24px 12px;
-}
-.main-brand h1 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-}
-.main-subtitle {
-  font-size: 12px;
 }
 
 /* 入口卡片 */
@@ -261,7 +222,7 @@ function formatUpdatedAt(iso: string): string {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px;
-  padding: 0 24px 12px;
+  padding: 16px 24px 12px;
 }
 .main-quick {
   cursor: pointer;
@@ -318,14 +279,8 @@ function formatUpdatedAt(iso: string): string {
   background: rgba(0, 0, 0, 0.03);
   transition: background 0.1s;
 }
-.main-root--dark .main-item {
-  background: rgba(255, 255, 255, 0.03);
-}
 .main-item:hover {
   background: rgba(0, 0, 0, 0.06);
-}
-.main-root--dark .main-item:hover {
-  background: rgba(255, 255, 255, 0.06);
 }
 
 .main-item-main {
@@ -369,9 +324,6 @@ function formatUpdatedAt(iso: string): string {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
-.main-root--dark .main-item-body {
-  color: #b3b3bb;
-}
 .main-item-tags {
   display: flex;
   flex-wrap: wrap;
@@ -383,10 +335,6 @@ function formatUpdatedAt(iso: string): string {
   color: #2e8a55;
   padding: 1px 6px;
   border-radius: 8px;
-}
-.main-root--dark .main-item-tag {
-  background: rgba(136, 224, 167, 0.1);
-  color: #88e0a7;
 }
 .main-item-actions {
   display: flex;

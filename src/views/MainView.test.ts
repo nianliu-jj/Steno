@@ -92,6 +92,7 @@ describe('MainView', () => {
     expect(wrapper.text()).not.toContain('全局快捷键');
     expect(wrapper.text()).not.toContain('Ctrl+Shift+N');
     expect(wrapper.text()).not.toContain('Ctrl+Shift+M');
+    expect(wrapper.text()).not.toContain('Steno');
   });
 
   it('opens the note editor in the main window when creating a note', async () => {

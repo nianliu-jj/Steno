@@ -81,6 +81,7 @@ describe('SettingsView', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('D:\\Steno\\data');
+    expect(wrapper.text()).not.toContain('返回');
     const messages = error.mock.calls.map(args => args.join(' '));
     error.mockRestore();
     expect(messages.some(message => message.includes('hljs is not set'))).toBe(false);

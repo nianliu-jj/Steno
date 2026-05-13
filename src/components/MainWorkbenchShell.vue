@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { useWindow } from '@/composables/useWindow';
+import { useUiStore } from '@/stores/ui';
+import type { WindowMode } from '@/types/steno';
 
 interface NavItem {
-  key: string;
+  key: WindowMode;
   label: string;
   active?: boolean;
 }
@@ -14,6 +16,7 @@ const props = defineProps<{
 }>();
 
 const win = useWindow();
+const ui = useUiStore();
 
 function onDragBarPointerDown(event: PointerEvent) {
   const target = event.target as HTMLElement | null;
@@ -31,6 +34,14 @@ function onToggleMaximize() {
 
 function onClose() {
   void win.closeCurrent();
+}
+
+function onNavigate(key: WindowMode) {
+  if (key === 'main') {
+    ui.navigateToMain();
+    return;
+  }
+  ui.navigateTo(key as Parameters<typeof ui.navigateTo>[0]);
 }
 </script>
 
@@ -57,6 +68,8 @@ function onClose() {
             class="workbench-nav-item"
             :class="{ 'workbench-nav-item--active': item.active }"
             type="button"
+            :data-nav="item.key"
+            @click="onNavigate(item.key)"
           >
             {{ item.label }}
           </button>
