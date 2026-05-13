@@ -1,0 +1,76 @@
+// @vitest-environment jsdom
+
+import { createPinia, setActivePinia } from 'pinia';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { useUiStore } from './ui';
+
+type Listener<T> = (event: { payload: T }) => void;
+
+const listeners = new Map<string, Listener<unknown>>();
+let currentLabel = 'main';
+
+vi.mock('@tauri-apps/api/window', () => ({
+  getCurrentWindow: () => ({ label: currentLabel }),
+}));
+
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn((event: string, handler: Listener<unknown>) => {
+    listeners.set(event, handler);
+    return Promise.resolve(() => listeners.delete(event));
+  }),
+}));
+
+function emit<T>(event: string, payload: T) {
+  const handler = listeners.get(event) as Listener<T> | undefined;
+  if (!handler) throw new Error(`Missing listener: ${event}`);
+  handler({ payload });
+}
+
+describe('ui store', () => {
+  beforeEach(() => {
+    listeners.clear();
+    currentLabel = 'main';
+    window.location.hash = '';
+    setActivePinia(createPinia());
+  });
+
+  it('switches the main window view when navigation event is received', async () => {
+    const ui = useUiStore();
+    await Promise.resolve();
+
+    emit('steno:navigate', { mode: 'search' });
+
+    expect(ui.mode).toBe('search');
+    expect(ui.noteId).toBeNull();
+  });
+
+  it('keeps the target note when navigating to Zen from the main window', async () => {
+    const ui = useUiStore();
+    await Promise.resolve();
+
+    emit('steno:navigate', { mode: 'zen', noteId: 'note-1' });
+
+    expect(ui.mode).toBe('zen');
+    expect(ui.noteId).toBe('note-1');
+  });
+
+  it('uses the hash route when the main window is created directly for a page', () => {
+    window.location.hash = '#canvas';
+
+    const ui = useUiStore();
+
+    expect(ui.mode).toBe('canvas');
+    expect(ui.noteId).toBeNull();
+  });
+
+  it('returns to the main view and clears the current note', () => {
+    const ui = useUiStore();
+
+    ui.navigateTo('zen', 'note-1');
+    ui.navigateToMain();
+
+    expect(ui.mode).toBe('main');
+    expect(ui.noteId).toBeNull();
+  });
+});

@@ -17,19 +17,37 @@
 
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
+import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import type { WindowMode } from '@/types/steno';
+
+type MainRouteMode = Extract<WindowMode, 'main' | 'canvas' | 'zen' | 'search' | 'settings'>;
 
 interface ParsedRoute {
   mode: WindowMode;
   noteId: string | null;
 }
 
+interface NavigationPayload {
+  mode: MainRouteMode;
+  noteId?: string | null;
+}
+
+const NAVIGATE_EVENT = 'steno:navigate';
+
 const VALID_MODES: ReadonlySet<WindowMode> = new Set<WindowMode>([
   'main',
   'floating',
   'sticky',
+  'canvas',
+  'zen',
+  'search',
+  'settings',
+]);
+
+const MAIN_ROUTE_MODES: ReadonlySet<MainRouteMode> = new Set<MainRouteMode>([
+  'main',
   'canvas',
   'zen',
   'search',
@@ -50,7 +68,12 @@ function parseFromHash(hash: string, search: string): ParsedRoute {
 }
 
 function parseFromLabel(label: string, search: string): ParsedRoute {
-  if (label === 'main') return { mode: 'main', noteId: null };
+  if (label === 'main') {
+    const hashRoute = parseFromHash(window.location.hash, search);
+    return MAIN_ROUTE_MODES.has(hashRoute.mode as MainRouteMode)
+      ? { mode: hashRoute.mode, noteId: hashRoute.mode === 'zen' ? hashRoute.noteId : null }
+      : { mode: 'main', noteId: null };
+  }
   if (label === 'quicknote') return { mode: 'floating', noteId: null };
   if (label.startsWith('sticky-')) {
     return { mode: 'sticky', noteId: label.slice('sticky-'.length) };
@@ -87,6 +110,15 @@ export const useUiStore = defineStore('ui', () => {
   const mode = ref<WindowMode>(initial.mode);
   const noteId = ref<string | null>(initial.noteId);
 
+  function navigateTo(nextMode: MainRouteMode, nextNoteId: string | null = null) {
+    mode.value = nextMode;
+    noteId.value = nextMode === 'zen' ? nextNoteId : null;
+  }
+
+  function navigateToMain() {
+    navigateTo('main');
+  }
+
   // hashchange 监听仅在 hash-fallback 路径有意义（dev 时浏览器手动改 URL）。
   // label 由 Tauri 在窗口创建时决定，不会运行时变化。
   if (typeof window !== 'undefined') {
@@ -95,7 +127,14 @@ export const useUiStore = defineStore('ui', () => {
       mode.value = next.mode;
       noteId.value = next.noteId;
     });
+
+    void listen<NavigationPayload>(NAVIGATE_EVENT, ({ payload }) => {
+      if (!MAIN_ROUTE_MODES.has(payload.mode)) return;
+      navigateTo(payload.mode, payload.noteId ?? null);
+    }).catch(() => {
+      // 非 Tauri 浏览器调试环境下 listen 可能不可用；hash fallback 仍可工作。
+    });
   }
 
-  return { mode, noteId };
+  return { mode, noteId, navigateTo, navigateToMain };
 });

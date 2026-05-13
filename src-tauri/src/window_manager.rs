@@ -1,16 +1,26 @@
 // 多窗口管理（plan Task 3 Step 2）。从 PR1 的 src/window.rs 演进而来：
 // - 保留主窗口的 show_main / hide_main / toggle_main helper（PR1/PR2 既有）。
 // - 新增 open_sticky_note / close_sticky_note (label = sticky-{id})。
-// - 新增 open_canvas / open_search / open_settings / open_zen (单实例)。
+// - open_canvas / open_search / open_settings / open_zen 不再创建页面窗口，
+//   而是显示 main 窗口并通过前端路由切换视图。
 //
 // 浮窗（quicknote）仍在 src/quicknote.rs 自管（它在 tauri.conf.json 预声明，
 // 且自带拖动握手 / 失焦隐藏逻辑），不并入此模块。
 
+use serde::Serialize;
 use std::path::PathBuf;
 
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 pub const MAIN_LABEL: &str = "main";
+const NAVIGATE_EVENT: &str = "steno:navigate";
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MainRoutePayload {
+    mode: String,
+    note_id: Option<String>,
+}
 
 // ----- 主窗口（PR1 既有，从 window.rs 平移） ---------------------------
 
@@ -75,66 +85,92 @@ pub fn close_sticky_note(app: &AppHandle, note_id: &str) -> tauri::Result<()> {
     Ok(())
 }
 
-// ----- 单实例视图：canvas / search / settings / zen --------------------
+// ----- 主窗口内页面路由：canvas / search / settings / zen ---------------
 
-/// 已存在则前置；不存在则 builder 创建。`url` 是 frontendDist 下的相对路径
-/// （或 dev 模式下 vite serve 的相对路径）。
-fn ensure_single_window(
-    app: &AppHandle,
-    label: &str,
-    url: &str,
-    title: &str,
-    width: f64,
-    height: f64,
-) -> tauri::Result<()> {
-    if let Some(w) = app.get_webview_window(label) {
+fn encode_query_value(value: &str) -> String {
+    let mut encoded = String::with_capacity(value.len());
+    for b in value.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                encoded.push(char::from(b));
+            }
+            b' ' => encoded.push('+'),
+            _ => {
+                use std::fmt::Write;
+                let _ = write!(encoded, "%{b:02X}");
+            }
+        }
+    }
+    encoded
+}
+
+fn main_route_url(mode: &str, note_id: Option<&str>) -> String {
+    match note_id {
+        Some(id) => format!("index.html#{mode}?id={}", encode_query_value(id)),
+        None => format!("index.html#{mode}"),
+    }
+}
+
+/// 页面型入口统一落在 main 窗口里：main 已存在就 emit 前端导航事件；如果
+/// 极端情况下 main 不存在，则用 hash URL 创建一个 main 窗口作为兜底。
+fn navigate_main(app: &AppHandle, mode: &str, note_id: Option<&str>) -> tauri::Result<()> {
+    let payload = MainRoutePayload {
+        mode: mode.to_string(),
+        note_id: note_id.map(ToOwned::to_owned),
+    };
+
+    if let Some(w) = app.get_webview_window(MAIN_LABEL) {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
+        w.emit(NAVIGATE_EVENT, payload)?;
         return Ok(());
     }
-    WebviewWindowBuilder::new(app, label, WebviewUrl::App(PathBuf::from(url)))
-        .title(title)
-        .inner_size(width, height)
+
+    WebviewWindowBuilder::new(
+        app,
+        MAIN_LABEL,
+        WebviewUrl::App(PathBuf::from(main_route_url(mode, note_id))),
+    )
+        .title("Steno")
+        .inner_size(800.0, 600.0)
+        .min_inner_size(480.0, 360.0)
         .center()
         .build()?;
     Ok(())
 }
 
 pub fn open_canvas(app: &AppHandle) -> tauri::Result<()> {
-    ensure_single_window(app, "canvas", "index.html", "Steno · 画布", 1024.0, 720.0)
+    navigate_main(app, "canvas", None)
 }
 
 pub fn open_search(app: &AppHandle) -> tauri::Result<()> {
-    ensure_single_window(app, "search", "index.html", "Steno · 搜索", 720.0, 540.0)
+    navigate_main(app, "search", None)
 }
 
 pub fn open_settings(app: &AppHandle) -> tauri::Result<()> {
-    ensure_single_window(app, "settings", "index.html", "Steno · 设置", 720.0, 540.0)
+    navigate_main(app, "settings", None)
 }
 
-/// note_id = Some 时把 ?id=... 透传给 zen 页面（用前端 location.search 解析）。
-/// URL 走 index.html，前端 ui store 通过 label='zen' 派生 mode='zen'，
-/// 再读 location.search 拿到 noteId。
+/// note_id = Some 时把 id 作为导航事件 payload 传给主窗口内的 Zen 页面。
 pub fn open_zen(app: &AppHandle, note_id: Option<&str>) -> tauri::Result<()> {
-    let label = "zen";
-    if let Some(w) = app.get_webview_window(label) {
-        let _ = w.show();
-        let _ = w.set_focus();
-        return Ok(());
+    navigate_main(app, "zen", note_id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn main_route_url_for_plain_page_uses_hash_route() {
+        assert_eq!(main_route_url("canvas", None), "index.html#canvas");
     }
-    // index.html 不能直接带 ?id=...（Tauri 2 会对 url 字段做 path 编码），
-    // 但 hash 后的 query 不受影响。ui store 解析 zen 时按 location.search
-    // 兜底，所以用 `index.html?id=...` 的形式（不带 hash），让 webview
-    // 走正常的 query string 路径。
-    let url = match note_id {
-        Some(id) => format!("index.html?id={id}"),
-        None => "index.html".to_string(),
-    };
-    WebviewWindowBuilder::new(app, label, WebviewUrl::App(PathBuf::from(url)))
-        .title("Steno · Zen")
-        .inner_size(960.0, 720.0)
-        .center()
-        .build()?;
-    Ok(())
+
+    #[test]
+    fn main_route_url_for_zen_keeps_encoded_note_id() {
+        assert_eq!(
+            main_route_url("zen", Some("abc 123")),
+            "index.html#zen?id=abc+123"
+        );
+    }
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zen 写作窗口顶层视图（mode === 'zen'）。
-// 窗口由 window_manager::open_zen 创建（label='zen'，960x720 居中），
-// URL = index.html?id=... 透传 noteId；no id 时是空白草稿。
+// 页面由主窗口路由切入，noteId 优先来自 ui store；hash/query 仅作为浏览器
+// 调试兜底。no id 时是空白草稿。
 //
 // 行为（plan Task 8.1 / spec zen-writing）：
 // - mount：若有 ?id= 则 getNote 拉数据；否则空白草稿（hide 时若空内容则不写库）
@@ -16,13 +16,13 @@ import MarkdownEditor from '@/components/MarkdownEditor.vue';
 import { useAutosave } from '@/composables/useAutosave';
 import { useDb } from '@/composables/useDb';
 import { useMarkdown } from '@/composables/useMarkdown';
-import { useWindow } from '@/composables/useWindow';
 import { useNotesStore } from '@/stores/notes';
+import { useUiStore } from '@/stores/ui';
 import type { Note, SaveNoteRequest } from '@/types/steno';
 
 const db = useDb();
 const notes = useNotesStore();
-const win = useWindow();
+const ui = useUiStore();
 const { countWords } = useMarkdown();
 const message = useMessage();
 
@@ -46,7 +46,7 @@ function readIdFromUrl(): string | null {
 }
 
 onMounted(async () => {
-  const id = readIdFromUrl();
+  const id = ui.noteId ?? readIdFromUrl();
   if (id) {
     try {
       const note = await db.getNote(id);
@@ -114,7 +114,7 @@ async function exitZen() {
     await flushSave();
     if (status.value === 'error') return; // 保留窗口让用户看错误
   }
-  await win.hideCurrent();
+  ui.navigateToMain();
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -186,7 +186,7 @@ onUnmounted(() => {
         >
           <button class="zen-export" title="导出">↓</button>
         </NDropdown>
-        <button class="zen-exit" title="退出 Zen (Esc)" @click="exitZen">
+        <button class="zen-exit" title="返回主界面 (Esc)" @click="exitZen">
           ✕
         </button>
       </div>
@@ -205,7 +205,7 @@ onUnmounted(() => {
           <MarkdownEditor
             v-model="content"
             autofocus
-            placeholder="开始写作… 按 Esc 退出 Zen"
+            placeholder="开始写作… 按 Esc 返回主界面"
           />
         </div>
       </div>

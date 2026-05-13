@@ -1,6 +1,5 @@
 <script setup lang="ts">
-// 设置面板（mode === 'settings'）。
-// 窗口由 window_manager::open_settings 创建（label='settings'，720x540 居中）。
+// 设置面板（mode === 'settings'）。由 main 窗口路由切入。
 //
 // 行为（plan 8.3 / spec search-export-settings）：
 // - 启动：settings store.load() 已在 App.vue mounted 时触发；这里只读 state
@@ -27,9 +26,11 @@ import {
 
 import { useDb } from '@/composables/useDb';
 import { useSettingsStore, type EditorMode, type ThemeMode } from '@/stores/settings';
+import { useUiStore } from '@/stores/ui';
 
 const db = useDb();
 const settings = useSettingsStore();
+const ui = useUiStore();
 const message = useMessage();
 
 // ----- 主题 -----------------------------------------------------------
@@ -146,8 +147,13 @@ const headerSub = computed(() =>
 <template>
   <div class="settings-root">
     <header class="settings-header">
-      <h1>设置</h1>
-      <NText depth="3" class="settings-subtitle">{{ headerSub }}</NText>
+      <div>
+        <h1>设置</h1>
+        <NText depth="3" class="settings-subtitle">{{ headerSub }}</NText>
+      </div>
+      <NButton size="small" quaternary @click="ui.navigateToMain">
+        返回
+      </NButton>
     </header>
 
     <div class="settings-body">
@@ -300,6 +306,9 @@ const headerSub = computed(() =>
 }
 
 .settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 16px 24px 10px;
   background: #1a1a22;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);

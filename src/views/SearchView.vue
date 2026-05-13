@@ -1,6 +1,5 @@
 <script setup lang="ts">
-// 全局搜索窗口（mode === 'search'）。
-// 窗口由 window_manager::open_search 创建（label='search'，720x540 居中）。
+// 全局搜索视图（mode === 'search'）。由 main 窗口路由切入。
 //
 // 行为（plan 8.2 / spec search-export-settings）：
 // - mount：搜索输入框自动 focus
@@ -15,10 +14,12 @@ import { NButton, NDropdown, NEmpty, NIcon, NInput, NTag, useMessage } from 'nai
 import { useDb } from '@/composables/useDb';
 import { useWindow } from '@/composables/useWindow';
 import { useNotesStore } from '@/stores/notes';
+import { useUiStore } from '@/stores/ui';
 import type { Note } from '@/types/steno';
 
 const db = useDb();
 const notes = useNotesStore();
+const ui = useUiStore();
 const win = useWindow();
 const message = useMessage();
 
@@ -186,6 +187,9 @@ function formatUpdatedAt(iso: string): string {
 <template>
   <div class="search-root">
     <header class="search-header">
+      <NButton size="small" quaternary @click="ui.navigateToMain">
+        返回
+      </NButton>
       <NInput
         ref="searchInput"
         v-model:value="query"
@@ -313,9 +317,15 @@ function formatUpdatedAt(iso: string): string {
 }
 
 .search-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 16px 18px 8px;
   background: #1a1a22;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.search-input {
+  flex: 1;
 }
 .search-input :deep(input) {
   font-size: 16px;

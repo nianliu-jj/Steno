@@ -4,7 +4,8 @@
 // Plan Task 8 完成后所有 mode 都接入实际视图（main / floating / sticky /
 // canvas / zen / search / settings）。SettingsView / SearchView / ZenMode /
 // MainView 内部使用 Naive UI 的 useMessage，因此根节点需要套
-// NMessageProvider。
+// NMessageProvider。页面型 mode 在 main 窗口里通过 `steno:navigate` 事件切换；
+// floating / sticky 仍由独立窗口 label 初始化。
 import { computed, onMounted, watch } from 'vue';
 import { NConfigProvider, NMessageProvider, darkTheme } from 'naive-ui';
 import { useDark } from '@vueuse/core';

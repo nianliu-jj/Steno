@@ -1,8 +1,7 @@
 // 系统托盘：紫色 "S" 图标 + 右键菜单 + 左键单击呼出主窗口。
 // PR1 提供基础 (托盘 + 主窗口/退出菜单)；PR2 让 "新建速记" 打开浮窗。
 // Plan Task 3 Step 4 扩展菜单：show_stickies / open_canvas / open_search /
-// open_settings。占位 html 会先开出"功能待实现"页面，等 Task 6/7/8
-// 各自填充真实视图。
+// open_settings。页面型入口现在统一回到 main 窗口，并由前端路由切换视图。
 
 use tauri::{
     App, Manager,

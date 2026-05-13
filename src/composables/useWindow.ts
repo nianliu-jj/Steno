@@ -1,5 +1,6 @@
-// 窗口管理命令封装。对应 src-tauri/src/commands.rs 里的 open_*_window /
-// close_*_window 系列同步命令。Rust 端真正调用 window_manager::open_*。
+// 窗口/页面入口命令封装。对应 src-tauri/src/commands.rs 里的 open_*_window /
+// close_*_window 系列同步命令。页面型入口会让 Rust 端聚焦 main 窗口并发送
+// 前端导航事件；sticky 仍是真正的独立窗口。
 //
 // sticky / zen 接受 noteId（zen 可选）。其余无参。
 
