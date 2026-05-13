@@ -37,6 +37,7 @@ yarn.lock
 # Local AI agent / assistant config (not part of project source)
 .claude/
 .codex/
+.worktrees/
 docs/
 
 # Tauri / Rust build artifacts
