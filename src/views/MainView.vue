@@ -4,13 +4,14 @@
 // - 顶部 brand + 主题切换
 // - 快捷入口卡片：新建速记 / 打开画布 / 搜索 / 设置
 // - 最近笔记列表（点击进 Zen / 钉住 / 删除）
-import { computed, onMounted } from 'vue';
-import { NButton, NCard, NEmpty, NText, useMessage } from 'naive-ui';
+import { computed, onMounted, ref } from 'vue';
+import { NButton, NCard, NEmpty, NModal, NText, useMessage } from 'naive-ui';
 import { useDark, useToggle } from '@vueuse/core';
 
 import { useWindow } from '@/composables/useWindow';
 import { useNotesStore } from '@/stores/notes';
 import type { Note } from '@/types/steno';
+import SettingsView from '@/views/SettingsView.vue';
 
 const notes = useNotesStore();
 const win = useWindow();
@@ -18,6 +19,7 @@ const message = useMessage();
 
 const isDark = useDark();
 const toggleDark = useToggle(isDark);
+const settingsVisible = ref(false);
 
 const appTitle = import.meta.env.VITE_APP_TITLE || 'Steno';
 
@@ -54,12 +56,8 @@ async function onOpenSearch() {
   }
 }
 
-async function onOpenSettings() {
-  try {
-    await win.openSettings();
-  } catch (e) {
-    message.error(String(e));
-  }
+function onOpenSettings() {
+  settingsVisible.value = true;
 }
 
 // ----- 笔记交互 -------------------------------------------------------
@@ -155,11 +153,27 @@ function formatUpdatedAt(iso: string): string {
         <div class="main-quick-title">⌕ 搜索</div>
         <NText depth="3" class="main-quick-hint">全文 + 标签查找</NText>
       </NCard>
-      <NCard size="small" class="main-quick" hoverable @click="onOpenSettings">
-        <div class="main-quick-title">⚙ 设置</div>
+      <NCard
+        size="small"
+        class="main-quick"
+        hoverable
+        data-testid="main-open-settings"
+        @click="onOpenSettings"
+      >
+        <div class="main-quick-title">设置</div>
         <NText depth="3" class="main-quick-hint">快捷键 / 主题 / 备份</NText>
       </NCard>
     </section>
+
+    <NModal
+      v-model:show="settingsVisible"
+      display-directive="if"
+      :auto-focus="false"
+      :trap-focus="true"
+      class="settings-modal-host"
+    >
+      <SettingsView embedded @close="settingsVisible = false" />
+    </NModal>
 
     <section class="main-recent">
       <header class="main-section-head">
@@ -375,5 +389,9 @@ function formatUpdatedAt(iso: string): string {
   align-items: center;
   gap: 4px;
   flex: 0 0 auto;
+}
+
+:deep(.settings-modal-host) {
+  width: auto;
 }
 </style>

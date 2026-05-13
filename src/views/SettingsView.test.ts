@@ -80,9 +80,24 @@ describe('SettingsView', () => {
     const wrapper = mount(WrappedSettingsView);
     await flushPromises();
 
+    await wrapper.get('[data-testid="settings-tab-storage"]').trigger('click');
+
     expect(wrapper.text()).toContain('D:\\Steno\\data');
     const messages = error.mock.calls.map(args => args.join(' '));
     error.mockRestore();
     expect(messages.some(message => message.includes('hljs is not set'))).toBe(false);
+  });
+
+  it('switches between settings sections inside the panel', async () => {
+    const wrapper = mount(WrappedSettingsView);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('常规');
+    expect(wrapper.text()).toContain('启动与速记');
+
+    await wrapper.get('[data-testid="settings-tab-storage"]').trigger('click');
+
+    expect(wrapper.text()).toContain('存储位置');
+    expect(wrapper.text()).toContain('D:\\Steno\\data\\steno.db');
   });
 });

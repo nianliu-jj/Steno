@@ -10,6 +10,7 @@ import MainView from './MainView.vue';
 
 const openQuicknote = vi.fn(() => Promise.resolve());
 const openZen = vi.fn(() => Promise.resolve());
+const openSettings = vi.fn(() => Promise.resolve());
 
 vi.mock('@vueuse/core', async importOriginal => {
   const actual = await importOriginal<typeof import('@vueuse/core')>();
@@ -26,9 +27,22 @@ vi.mock('@/composables/useWindow', () => ({
     openZen,
     openCanvas: vi.fn(() => Promise.resolve()),
     openSearch: vi.fn(() => Promise.resolve()),
-    openSettings: vi.fn(() => Promise.resolve()),
+    openSettings,
     closeStickyNote: vi.fn(() => Promise.resolve()),
     openStickyNote: vi.fn(() => Promise.resolve()),
+  }),
+}));
+
+vi.mock('@/views/SettingsView.vue', () => ({
+  default: defineComponent({
+    emits: ['close'],
+    setup(_, { emit }) {
+      return () =>
+        h('div', { 'data-testid': 'settings-panel' }, [
+          h('span', '设置面板'),
+          h('button', { onClick: () => emit('close') }, '关闭'),
+        ]);
+    },
   }),
 }));
 
@@ -73,6 +87,7 @@ describe('MainView', () => {
     setActivePinia(createPinia());
     openQuicknote.mockClear();
     openZen.mockClear();
+    openSettings.mockClear();
     loadNotes.mockClear();
     loadPinned.mockClear();
   });
@@ -94,5 +109,18 @@ describe('MainView', () => {
 
     expect(openQuicknote).toHaveBeenCalledOnce();
     expect(openZen).not.toHaveBeenCalled();
+  });
+
+  it('opens settings in a modal instead of opening a settings window', async () => {
+    const wrapper = mount(WrappedMainView, { attachTo: document.body });
+    await flushPromises();
+
+    await wrapper.get('[data-testid="main-open-settings"]').trigger('click');
+    await flushPromises();
+
+    expect(document.body.textContent).toContain('设置面板');
+    expect(openSettings).not.toHaveBeenCalled();
+
+    wrapper.unmount();
   });
 });
