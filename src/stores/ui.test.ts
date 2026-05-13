@@ -85,6 +85,33 @@ describe('ui store', () => {
     expect(ui.noteId).toBeNull();
   });
 
+  it('opens the note editor in the main window and keeps the note id', () => {
+    const ui = useUiStore();
+
+    ui.navigateTo('note-editor', 'note-1');
+
+    expect(ui.mode).toBe('note-editor');
+    expect(ui.noteId).toBe('note-1');
+  });
+
+  it('opens a blank note editor from the main window', () => {
+    const ui = useUiStore();
+
+    ui.navigateTo('note-editor');
+
+    expect(ui.mode).toBe('note-editor');
+    expect(ui.noteId).toBeNull();
+  });
+
+  it('navigates to placeholder pages in the main window', () => {
+    const ui = useUiStore();
+
+    ui.navigateTo('clipboard');
+
+    expect(ui.mode).toBe('clipboard');
+    expect(ui.noteId).toBeNull();
+  });
+
   it('returns to the canvas view after opening Zen from the canvas', () => {
     const ui = useUiStore();
 
