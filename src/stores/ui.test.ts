@@ -55,6 +55,17 @@ describe('ui store', () => {
     expect(ui.noteId).toBe('note-1');
   });
 
+  it('ignores main-window navigation events in the quicknote window', async () => {
+    currentLabel = 'quicknote';
+
+    const ui = useUiStore();
+    await Promise.resolve();
+
+    expect(listeners.has('steno:navigate')).toBe(false);
+    expect(ui.mode).toBe('floating');
+    expect(ui.noteId).toBeNull();
+  });
+
   it('uses the hash route when the main window is created directly for a page', () => {
     window.location.hash = '#canvas';
 

@@ -54,6 +54,17 @@ const MAIN_ROUTE_MODES: ReadonlySet<MainRouteMode> = new Set<MainRouteMode>([
   'settings',
 ]);
 
+function resolveWindowLabel(): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    return getCurrentWindow().label || null;
+  } catch {
+    return null;
+  }
+}
+
 function parseFromHash(hash: string, search: string): ParsedRoute {
   const raw = hash.startsWith('#') ? hash.slice(1) : hash;
   if (!raw) {
@@ -94,19 +105,16 @@ function resolveInitialRoute(): ParsedRoute {
     return { mode: 'main', noteId: null };
   }
   const search = window.location.search;
-  try {
-    const label = getCurrentWindow().label;
-    if (label) {
-      return parseFromLabel(label, search);
-    }
-  } catch {
-    // 非 Tauri 上下文（纯浏览器调试）：getCurrentWindow 会抛
+  const label = resolveWindowLabel();
+  if (label) {
+    return parseFromLabel(label, search);
   }
   return parseFromHash(window.location.hash, search);
 }
 
 export const useUiStore = defineStore('ui', () => {
   const initial = resolveInitialRoute();
+  const windowLabel = resolveWindowLabel();
   const mode = ref<WindowMode>(initial.mode);
   const noteId = ref<string | null>(initial.noteId);
   const zenReturnMode = ref<MainRouteMode | null>(null);
@@ -137,18 +145,20 @@ export const useUiStore = defineStore('ui', () => {
   // hashchange 监听仅在 hash-fallback 路径有意义（dev 时浏览器手动改 URL）。
   // label 由 Tauri 在窗口创建时决定，不会运行时变化。
   if (typeof window !== 'undefined') {
-    window.addEventListener('hashchange', () => {
-      const next = parseFromHash(window.location.hash, window.location.search);
-      mode.value = next.mode;
-      noteId.value = next.noteId;
-    });
+    if (!windowLabel || windowLabel === 'main') {
+      window.addEventListener('hashchange', () => {
+        const next = parseFromHash(window.location.hash, window.location.search);
+        mode.value = next.mode;
+        noteId.value = next.noteId;
+      });
 
-    void listen<NavigationPayload>(NAVIGATE_EVENT, ({ payload }) => {
-      if (!MAIN_ROUTE_MODES.has(payload.mode)) return;
-      navigateTo(payload.mode, payload.noteId ?? null);
-    }).catch(() => {
-      // 非 Tauri 浏览器调试环境下 listen 可能不可用；hash fallback 仍可工作。
-    });
+      void listen<NavigationPayload>(NAVIGATE_EVENT, ({ payload }) => {
+        if (!MAIN_ROUTE_MODES.has(payload.mode)) return;
+        navigateTo(payload.mode, payload.noteId ?? null);
+      }).catch(() => {
+        // 非 Tauri 浏览器调试环境下 listen 可能不可用；hash fallback 仍可工作。
+      });
+    }
   }
 
   return { mode, noteId, navigateTo, navigateToMain, navigateToZenFromCanvas, exitZen };
