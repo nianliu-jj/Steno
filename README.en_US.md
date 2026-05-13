@@ -7,7 +7,7 @@
 
 ## What is Steno?
 
-Steno is a local-first "desktop capture layer". Inspired by FloatMemo's "write anywhere" experience but tuned for desktop efficiency: it lives in the system tray, summons a floating editor on a global shortcut, and saves whatever you type so you can keep working in the app you were already in.
+Steno is a local-first "desktop note-taking layer." It offers a "write anywhere" experience, but focuses more on desktop efficiency—it resides in the system status bar, and pressing a global shortcut key will pop up a floating window above any application to record ideas. Once finished, it is automatically saved and can be later organized to an infinite canvas or pinned as a desktop sticky note.
 
 **Core idea:** when you're coding, watching a video, in a meeting or chatting and a thought hits, Steno lets you capture it without context-switching. You organize the captures later — on the infinite canvas, as sticky notes, or in Zen mode — and export to Markdown when you're done.
 
@@ -85,10 +85,6 @@ pnpm fmt
 | 4 | Markdown export + privacy settings + cross-platform packaging | ⏳ |
 
 > **Out of MVP scope:** clipboard history, real-time collaboration, cloud sync, AI summarization, mobile, rich media notes, plugin marketplace.
-
-## License
-
-[MIT](./LICENSE)
 
 ---
 
