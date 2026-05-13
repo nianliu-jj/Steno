@@ -12,7 +12,6 @@ import { computed, onMounted, ref } from 'vue';
 import {
   NButton,
   NCard,
-  NCode,
   NDivider,
   NFormItem,
   NInput,
@@ -272,19 +271,19 @@ const headerSub = computed(() =>
         <div v-if="paths" class="settings-paths">
           <div class="settings-path-row">
             <span class="settings-path-label">数据目录</span>
-            <NCode class="settings-path-value">{{ paths.dataDir }}</NCode>
+            <code class="settings-path-value">{{ paths.dataDir }}</code>
             <NButton tertiary size="tiny" @click="copyPath(paths.dataDir)">复制</NButton>
           </div>
           <NDivider />
           <div class="settings-path-row">
             <span class="settings-path-label">数据库文件</span>
-            <NCode class="settings-path-value">{{ paths.dbPath }}</NCode>
+            <code class="settings-path-value">{{ paths.dbPath }}</code>
             <NButton tertiary size="tiny" @click="copyPath(paths.dbPath)">复制</NButton>
           </div>
           <NDivider />
           <div class="settings-path-row">
             <span class="settings-path-label">备份目录</span>
-            <NCode class="settings-path-value">{{ paths.backupDir }}</NCode>
+            <code class="settings-path-value">{{ paths.backupDir }}</code>
             <NButton tertiary size="tiny" @click="copyPath(paths.backupDir)">复制</NButton>
           </div>
         </div>
@@ -361,6 +360,8 @@ const headerSub = computed(() =>
   flex: 1;
   min-width: 0;
   font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  color: #d7d7dc;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
