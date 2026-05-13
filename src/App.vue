@@ -13,6 +13,7 @@ import { useDark } from '@vueuse/core';
 import { useUiStore } from '@/stores/ui';
 import { useSettingsStore } from '@/stores/settings';
 import FloatingEditor from '@/components/FloatingEditor.vue';
+import MainWorkbenchShell from '@/components/MainWorkbenchShell.vue';
 import StickyNote from '@/components/StickyNote.vue';
 import CanvasView from '@/views/CanvasView.vue';
 import MainView from '@/views/MainView.vue';
@@ -26,6 +27,15 @@ const settings = useSettingsStore();
 const isDark = useDark();
 
 const naiveTheme = computed(() => (isDark.value ? darkTheme : null));
+
+const shellNavItems = computed(() => [
+  { key: 'main', label: '笔记列表', active: ui.mode === 'main' },
+]);
+
+const shellMeta = computed(() => ({
+  title: ui.mode === 'main' ? '笔记列表' : '工作台',
+  description: ui.mode === 'main' ? '最近笔记与快捷入口' : '主窗口工作台',
+}));
 
 // 启动加载 settings（Pinia store 自行缓存）。失败不阻塞 UI，错误会进 store.error。
 onMounted(() => {
@@ -50,7 +60,14 @@ watch(
 <template>
   <NConfigProvider :theme="naiveTheme">
     <NMessageProvider>
-      <MainView v-if="ui.mode === 'main'" />
+      <MainWorkbenchShell
+        v-if="ui.mode === 'main'"
+        :title="shellMeta.title"
+        :description="shellMeta.description"
+        :nav-items="shellNavItems"
+      >
+        <MainView />
+      </MainWorkbenchShell>
       <FloatingEditor v-else-if="ui.mode === 'floating'" />
       <StickyNote
         v-else-if="ui.mode === 'sticky' && ui.noteId"
