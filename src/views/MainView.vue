@@ -4,18 +4,15 @@
 // - 顶部 brand + 主题切换
 // - 快捷入口卡片：新建速记 / 打开画布 / 搜索 / 设置
 // - 最近笔记列表（点击进 Zen / 钉住 / 删除）
-// - 当前主窗口和速记浮窗的全局快捷键提示
 import { computed, onMounted } from 'vue';
-import { NButton, NCard, NEmpty, NSpace, NTag, NText, useMessage } from 'naive-ui';
+import { NButton, NCard, NEmpty, NText, useMessage } from 'naive-ui';
 import { useDark, useToggle } from '@vueuse/core';
 
 import { useWindow } from '@/composables/useWindow';
 import { useNotesStore } from '@/stores/notes';
-import { useSettingsStore } from '@/stores/settings';
 import type { Note } from '@/types/steno';
 
 const notes = useNotesStore();
-const settings = useSettingsStore();
 const win = useWindow();
 const message = useMessage();
 
@@ -37,7 +34,7 @@ async function onNewQuickNote() {
   try {
     // quicknote 窗口在 tauri.conf.json 预声明，由全局快捷键 / 托盘菜单
     // 唤起。这里没有暴露专门的命令，复用一个：点击就 openZen 不带 id，
-    // 直接进入 Zen 写作新笔记体验。
+    // 直接在主窗口进入 Zen 写作新笔记体验。
     await win.openZen();
   } catch (e) {
     message.error(`打开失败：${String(e)}`);
@@ -151,7 +148,7 @@ function formatUpdatedAt(iso: string): string {
     <section class="main-quickbar">
       <NCard size="small" class="main-quick" hoverable @click="onNewQuickNote">
         <div class="main-quick-title">✎ 新建写作</div>
-        <NText depth="3" class="main-quick-hint">打开 Zen 写作窗口</NText>
+        <NText depth="3" class="main-quick-hint">进入 Zen 写作视图</NText>
       </NCard>
       <NCard size="small" class="main-quick" hoverable @click="onOpenCanvas">
         <div class="main-quick-title">▦ 画布</div>
@@ -167,17 +164,6 @@ function formatUpdatedAt(iso: string): string {
       </NCard>
     </section>
 
-    <NCard size="small" title="全局快捷键" class="main-shortcuts">
-      <NSpace>
-        <NTag size="small">
-          {{ settings.state.mainWindowShortcut }} · 显示 / 隐藏本窗口
-        </NTag>
-        <NTag size="small">
-          {{ settings.state.quicknoteShortcut }} · 呼出速记浮窗
-        </NTag>
-      </NSpace>
-    </NCard>
-
     <section class="main-recent">
       <header class="main-section-head">
         <h2>最近笔记</h2>
@@ -188,7 +174,7 @@ function formatUpdatedAt(iso: string): string {
 
       <NEmpty
         v-if="!notes.loading && recentNotes.length === 0"
-        description="还没有笔记。按 Ctrl+Shift+M 速记一条吧。"
+        description="还没有笔记。新建一条开始记录吧。"
       />
 
       <ul class="main-list">
@@ -276,11 +262,6 @@ function formatUpdatedAt(iso: string): string {
 }
 .main-quick-hint {
   font-size: 11px;
-}
-
-/* 快捷键 */
-.main-shortcuts {
-  margin: 0 24px 12px;
 }
 
 /* 最近笔记 */
