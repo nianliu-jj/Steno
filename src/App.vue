@@ -17,6 +17,7 @@ import MainWorkbenchShell from '@/components/MainWorkbenchShell.vue';
 import StickyNote from '@/components/StickyNote.vue';
 import CanvasView from '@/views/CanvasView.vue';
 import MainView from '@/views/MainView.vue';
+import NoteEditorView from '@/views/NoteEditorView.vue';
 import SearchView from '@/views/SearchView.vue';
 import SettingsView from '@/views/SettingsView.vue';
 import ZenMode from '@/views/ZenMode.vue';
@@ -68,6 +69,7 @@ watch(
       >
         <MainView />
       </MainWorkbenchShell>
+      <NoteEditorView v-else-if="ui.mode === 'note-editor'" />
       <FloatingEditor v-else-if="ui.mode === 'floating'" />
       <StickyNote
         v-else-if="ui.mode === 'sticky' && ui.noteId"
