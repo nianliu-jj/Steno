@@ -32,17 +32,15 @@ const isDark = useDark();
 const naiveTheme = computed(() => (isDark.value ? darkTheme : null));
 
 const shellNavItems = computed<
-  { key: WindowMode; label: string; active: boolean }[]
+  { key: WindowMode; label: string; count?: string; active: boolean }[]
 >(() => [
-  { key: 'main', label: '笔记列表', active: ui.mode === 'main' },
-  { key: 'canvas', label: '画布', active: ui.mode === 'canvas' },
-  { key: 'clipboard', label: '粘贴板', active: ui.mode === 'clipboard' },
-  { key: 'todo', label: '待办', active: ui.mode === 'todo' },
-  { key: 'screenshot', label: '截图', active: ui.mode === 'screenshot' },
+  { key: 'main', label: '笔记列表', count: '24', active: ui.mode === 'main' },
+  { key: 'canvas', label: '画布', count: '3', active: ui.mode === 'canvas' },
+  { key: 'clipboard', label: '粘贴板', count: '128', active: ui.mode === 'clipboard' },
+  { key: 'todo', label: '待办', count: '7', active: ui.mode === 'todo' },
+  { key: 'screenshot', label: '截图', count: '⌘⇧4', active: ui.mode === 'screenshot' },
   { key: 'ocr', label: 'OCR', active: ui.mode === 'ocr' },
   { key: 'translate', label: '翻译', active: ui.mode === 'translate' },
-  { key: 'search', label: '搜索', active: ui.mode === 'search' },
-  { key: 'settings', label: '设置', active: ui.mode === 'settings' },
 ]);
 
 const shellMeta = computed(() => {
