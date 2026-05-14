@@ -294,13 +294,14 @@ const COLOR_PRESETS = [
             A
           </button>
         </NPopselect>
-        <NColorPicker
-          v-model:value="config.color"
-          :show-alpha="false"
-          :swatches="COLOR_PRESETS"
-          size="small"
-          class="sticky-color-picker"
-        />
+        <div class="sticky-color-picker">
+          <NColorPicker
+            v-model:value="config.color"
+            :show-alpha="false"
+            :swatches="COLOR_PRESETS"
+            size="small"
+          />
+        </div>
         <div class="sticky-opacity">
           <NSlider
             v-model:value="config.opacity"
@@ -448,7 +449,10 @@ const COLOR_PRESETS = [
   background: rgba(0, 0, 0, 0.08);
 }
 .sticky-color-picker {
-  width: 28px !important;
+  width: 28px;
+}
+.sticky-color-picker :deep(.n-color-picker) {
+  width: 100%;
 }
 .sticky-color-picker :deep(.n-color-picker-trigger) {
   height: 16px;
