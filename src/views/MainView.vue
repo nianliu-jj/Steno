@@ -1,22 +1,18 @@
 <script setup lang="ts">
 // 主窗口落地页（mode === 'main'）。
-// 当前作为工作台内容页渲染：
-// - 快捷入口卡片：新建笔记 / 新建速记 / 画布 / 搜索 / 设置
-// - 最近笔记列表（点击进主窗口编辑页 / 钉住 / 删除）
-import { computed, onMounted, ref } from 'vue';
-import { NButton, NCard, NEmpty, NModal, NText, useMessage } from 'naive-ui';
+// 当前作为工作台内容页渲染：原型 v2 的笔记卡片网格和空状态。
+import { computed, onMounted } from 'vue';
+import { NButton, useMessage } from 'naive-ui';
 
 import { useWindow } from '@/composables/useWindow';
 import { useNotesStore } from '@/stores/notes';
 import { useUiStore } from '@/stores/ui';
 import type { Note } from '@/types/steno';
-import SettingsView from '@/views/SettingsView.vue';
 
 const notes = useNotesStore();
 const ui = useUiStore();
 const win = useWindow();
 const message = useMessage();
-const settingsVisible = ref(false);
 
 onMounted(() => {
   void notes.loadNotes(50);
@@ -43,10 +39,6 @@ function onOpenCanvas() {
 
 function onOpenSearch() {
   ui.navigateTo('search');
-}
-
-function onOpenSettings() {
-  settingsVisible.value = true;
 }
 
 function onOpenNoteEditor(note: Note) {
@@ -111,237 +103,225 @@ function formatUpdatedAt(iso: string): string {
 
 <template>
   <div class="main-root">
-    <section class="main-quickbar">
-      <NCard
-        size="small"
-        class="main-quick"
-        data-action="new-note"
-        hoverable
-        @click="onNewNote"
+    <section v-if="recentNotes.length > 0" class="notes-grid">
+      <article
+        v-for="note in recentNotes"
+        :key="note.id"
+        class="note-card"
+        :class="{ 'paper-1': note.isPinned }"
+        @dblclick="onOpenNoteEditor(note)"
       >
-        <div class="main-quick-title">＋ 新建笔记</div>
-        <NText depth="3" class="main-quick-hint">在主窗口编辑完整笔记</NText>
-      </NCard>
-      <NCard
-        size="small"
-        class="main-quick"
-        data-action="new-quicknote"
-        hoverable
-        @click="onNewQuickNote"
-      >
-        <div class="main-quick-title">✎ 新建速记</div>
-        <NText depth="3" class="main-quick-hint">打开速记浮窗</NText>
-      </NCard>
-      <NCard size="small" class="main-quick" hoverable @click="onOpenCanvas">
-        <div class="main-quick-title">▦ 画布</div>
-        <NText depth="3" class="main-quick-hint">把笔记摆在无限画布上</NText>
-      </NCard>
-      <NCard size="small" class="main-quick" hoverable @click="onOpenSearch">
-        <div class="main-quick-title">⌕ 搜索</div>
-        <NText depth="3" class="main-quick-hint">全文 + 标签查找</NText>
-      </NCard>
-      <NCard
-        size="small"
-        class="main-quick"
-        hoverable
-        data-testid="main-open-settings"
-        @click="onOpenSettings"
-      >
-        <div class="main-quick-title">⚙ 设置</div>
-        <NText depth="3" class="main-quick-hint">快捷键 / 主题 / 备份</NText>
-      </NCard>
+        <div class="note-head">
+          <span v-if="note.isPinned" class="note-pin"></span>
+          <h3>{{ note.title || '无标题' }}</h3>
+        </div>
+        <p>{{ previewText(note.content) }}</p>
+        <div class="note-foot">
+          <div class="note-tags">
+            <span v-for="tag in note.tags.slice(0, 2)" :key="tag">#{{ tag }}</span>
+          </div>
+          <span>{{ formatUpdatedAt(note.updatedAt) }}</span>
+        </div>
+        <div class="note-actions">
+          <NButton tertiary size="tiny" @click="onOpenNoteEditor(note)">编辑</NButton>
+          <NButton tertiary size="tiny" @click="onTogglePin(note)">
+            {{ note.isPinned ? '取消置顶' : '置顶' }}
+          </NButton>
+          <NButton tertiary size="tiny" @click="onDelete(note)">删除</NButton>
+        </div>
+      </article>
     </section>
 
-    <NModal
-      v-model:show="settingsVisible"
-      display-directive="if"
-      :auto-focus="false"
-      :trap-focus="true"
-      class="settings-modal-host"
-    >
-      <SettingsView embedded @close="settingsVisible = false" />
-    </NModal>
-
-    <section class="main-recent">
-      <header class="main-section-head">
-        <h2>最近笔记</h2>
-        <NText depth="3" class="main-section-meta">
-          {{ recentNotes.length }} 条
-        </NText>
-      </header>
-
-      <NEmpty
-        v-if="!notes.loading && recentNotes.length === 0"
-        description="还没有笔记。新建一条开始记录吧。"
-      />
-
-      <ul class="main-list">
-        <li
-          v-for="note in recentNotes"
-          :key="note.id"
-          class="main-item"
-          @dblclick="onOpenNoteEditor(note)"
-        >
-          <div class="main-item-main">
-            <header class="main-item-header">
-              <span class="main-item-title">
-                {{ note.title || '无标题' }}
-                <span v-if="note.isPinned" class="main-item-pin" title="已置顶">★</span>
-              </span>
-              <span class="main-item-time">{{ formatUpdatedAt(note.updatedAt) }}</span>
-            </header>
-            <p class="main-item-body">{{ previewText(note.content) }}</p>
-            <footer v-if="note.tags.length" class="main-item-tags">
-              <span v-for="t in note.tags" :key="t" class="main-item-tag">#{{ t }}</span>
-            </footer>
-          </div>
-          <div class="main-item-actions">
-            <NButton tertiary size="tiny" @click="onOpenNoteEditor(note)">编辑</NButton>
-            <NButton tertiary size="tiny" @click="onTogglePin(note)">
-              {{ note.isPinned ? '取消置顶' : '置顶' }}
-            </NButton>
-            <NButton tertiary size="tiny" @click="onDelete(note)">删除</NButton>
-          </div>
-        </li>
-      </ul>
+    <section v-else-if="!notes.loading" class="empty-state">
+      <div class="empty-inner">
+        <div class="empty-illus">□</div>
+        <h2>这里还空着</h2>
+        <p>第一条笔记从一次复制开始。按下快捷键呼出浮窗，或直接新建。</p>
+        <div class="empty-tips">
+          <button type="button" data-action="new-note" @click="onNewNote">新建笔记</button>
+          <button type="button" data-action="new-quicknote" @click="onNewQuickNote">新建速记</button>
+          <button type="button" @click="onOpenCanvas">打开画布</button>
+          <button type="button" @click="onOpenSearch">搜索</button>
+        </div>
+      </div>
     </section>
   </div>
 </template>
 
 <style scoped>
 .main-root {
-  display: flex;
-  flex-direction: column;
   min-height: 100%;
   color: #2a2a2a;
   font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
-.main-quickbar {
+.notes-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 10px;
-  padding: 16px 24px 12px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
 }
-.main-quick {
+
+.note-card {
+  min-height: 168px;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  border: 1px solid oklch(88% 0.012 78);
+  border-radius: 11px;
+  background: oklch(99% 0.006 78);
   cursor: pointer;
-  transition: transform 0.12s, box-shadow 0.12s;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
-.main-quick:hover {
+
+.note-card:hover {
+  border-color: oklch(80% 0.014 78);
+  box-shadow: 0 6px 18px oklch(24% 0.02 70 / 0.1);
   transform: translateY(-1px);
 }
-.main-quick-title {
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-.main-quick-hint {
-  font-size: 11px;
+
+.note-card.paper-1 {
+  background: oklch(96% 0.038 88);
 }
 
-.main-recent {
-  flex: 1;
+.note-head {
   display: flex;
-  flex-direction: column;
-  padding: 0 24px 24px;
-}
-.main-section-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin: 8px 0 8px;
-}
-.main-section-head h2 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-}
-.main-section-meta {
-  font-size: 11px;
-}
-
-.main-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.main-item {
-  display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
-  padding: 10px 12px;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.03);
-  transition: background 0.1s;
-}
-.main-item:hover {
-  background: rgba(0, 0, 0, 0.06);
+  margin-bottom: 8px;
 }
 
-.main-item-main {
+.note-pin {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: oklch(61% 0.13 42);
+}
+
+.note-card h3 {
+  margin: 0;
+  min-width: 0;
   flex: 1;
+  overflow: hidden;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-card p {
+  flex: 1;
+  margin: 0;
+  color: color-mix(in oklch, oklch(20% 0.02 70) 78%, oklch(49% 0.018 70));
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.note-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  color: oklch(49% 0.018 70);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 10.5px;
+}
+
+.note-tags {
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.main-item-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-.main-item-title {
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
+  gap: 6px;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
-.main-item-pin {
-  color: #d4a017;
-  margin-left: 4px;
-  font-size: 12px;
-}
-.main-item-time {
-  font-size: 11px;
-  color: #888;
-  flex: 0 0 auto;
-}
-.main-item-body {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.55;
-  color: #555;
-  white-space: pre-wrap;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-.main-item-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  font-size: 10px;
-}
-.main-item-tag {
-  background: rgba(40, 140, 90, 0.12);
-  color: #2e8a55;
+
+.note-tags span {
   padding: 1px 6px;
-  border-radius: 8px;
+  border: 1px solid oklch(88% 0.012 78);
+  border-radius: 3px;
+  background: color-mix(in oklch, oklch(99% 0.006 78) 60%, transparent);
 }
-.main-item-actions {
+
+.note-actions {
   display: flex;
   align-items: center;
   gap: 4px;
-  flex: 0 0 auto;
+  margin-top: 10px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
 }
 
-:deep(.settings-modal-host) {
-  width: auto;
+.note-card:hover .note-actions {
+  opacity: 1;
+}
+
+.empty-state {
+  min-height: 420px;
+  display: grid;
+  place-items: center;
+  padding: 40px 24px;
+}
+
+.empty-inner {
+  max-width: 360px;
+  text-align: center;
+}
+
+.empty-illus {
+  width: 96px;
+  height: 96px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 22px;
+  border: 1.5px dashed oklch(80% 0.014 78);
+  border-radius: 24px;
+  background: oklch(99% 0.006 78);
+  color: oklch(70% 0.014 70);
+  font-size: 38px;
+}
+
+.empty-inner h2 {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.empty-inner p {
+  margin: 0 0 18px;
+  color: oklch(49% 0.018 70);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.empty-tips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.empty-tips button {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid oklch(88% 0.012 78);
+  border-radius: 7px;
+  background: oklch(99% 0.006 78);
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.empty-tips button:hover {
+  border-color: oklch(61% 0.13 42);
+  color: oklch(61% 0.13 42);
 }
 </style>
