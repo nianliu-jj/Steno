@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Semo | 状态栏浮窗速记</title>
+  <link rel="stylesheet" href="../assets/semo.css">
+</head>
+<body data-screen="floating">
+  <header class="site-header app-topbar">
+    <a class="brand-lockup" href="../index.html" data-nav="home"><span class="brand-mark">Se</span><span>Semo</span></a>
+    <nav class="site-nav" aria-label="原型屏幕">
+      <a href="floating.html" data-nav="floating">浮窗速记</a>
+      <a href="clipboard.html" data-nav="clipboard">剪贴板</a>
+      <a href="canvas.html" data-nav="canvas">画布</a>
+      <a href="zen.html" data-nav="zen">Zen</a>
+      <a href="settings.html" data-nav="settings">设置</a>
+    </nav>
+  </header>
+
+  <main class="screen-shell">
+    <aside class="sidebar">
+      <a class="nav-button" href="floating.html" data-nav="floating">浮窗速记<span>01</span></a>
+      <a class="nav-button" href="clipboard.html" data-nav="clipboard">剪贴板历史<span>02</span></a>
+      <a class="nav-button" href="canvas.html" data-nav="canvas">无限画布<span>03</span></a>
+      <a class="nav-button" href="zen.html" data-nav="zen">Zen 写作<span>04</span></a>
+      <a class="nav-button" href="settings.html" data-nav="settings">设置<span>05</span></a>
+      <p class="sidebar-section">当前状态</p>
+      <article class="note-row" data-pinned="true">
+        <strong>状态栏待命</strong>
+        <div class="note-meta"><span class="status-dot"></span><span>不占 Dock，不抢焦点</span></div>
+      </article>
+    </aside>
+
+    <section class="workspace">
+      <div class="workspace-inner">
+        <div class="screen-title">
+          <div>
+            <p class="eyebrow">MENU BAR + FLOATING WINDOW</p>
+            <h2>轻点状态栏，直接记在当前屏幕上。</h2>
+            <p>模拟 macOS 状态栏常驻体验：点击 Semo 图标呼出浮窗，输入一条速记，Pin 重要内容，完成后自动收起。</p>
+          </div>
+          <button class="button primary" data-action="toggle-floating" type="button">呼出 / 收起浮窗</button>
+        </div>
+
+        <div class="panel floating-stage">
+          <div class="os-bar">
+            <div class="os-menu">
+              <span class="traffic"><i></i><i></i><i></i></span>
+              <span>当前应用</span>
+              <span>文件</span>
+              <span>编辑</span>
+            </div>
+            <div class="menu-extra">
+              <button class="menu-pill" data-action="toggle-floating" type="button"><span class="status-dot"></span>Semo</button>
+              <span class="mono">10:42</span>
+            </div>
+          </div>
+
+          <section class="floating-window" aria-label="Semo 浮窗">
+            <div class="window-bar">
+              <strong>快速记一笔</strong>
+              <div class="row-actions" style="margin:0">
+                <button class="icon-button" data-action="pin-current" title="置顶当前笔记" type="button">P</button>
+                <button class="icon-button" data-action="close-floating" title="收起浮窗" type="button">×</button>
+              </div>
+            </div>
+            <div class="panel-body">
+              <label class="muted" for="quick-note">输入后点击保存，本地记录不会离开设备。</label>
+              <div class="row-actions" style="margin-top:10px">
+                <input id="quick-note" class="quick-input" placeholder="例如：把发布脚本加入剪贴板收藏">
+                <button class="button primary" data-action="add-note" type="button">保存</button>
+              </div>
+              <div id="quick-list" class="note-list" style="margin-top:14px">
+                <article class="note-row" data-pinned="true">
+                  <strong>评审时演示“自动收起”，避免挡住正在看的页面。</strong>
+                  <div class="note-meta"><span>Pin</span><span class="tag">浮窗</span><span>刚刚</span></div>
+                </article>
+                <article class="note-row">
+                  <strong>快捷键默认 ⌘ + Shift + Space，可在设置里自定义。</strong>
+                  <div class="note-meta"><span class="tag">快捷键</span><span>12 分钟前</span></div>
+                </article>
+              </div>
+            </div>
+            <div class="panel-header">
+              <span class="muted">本地自动保存</span>
+              <span class="mono muted">⌘ Shift Space</span>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="mobile-tabbar" aria-label="底部导航">
+    <a href="floating.html" data-nav="floating">速记</a>
+    <a href="clipboard.html" data-nav="clipboard">剪贴板</a>
+    <a href="canvas.html" data-nav="canvas">画布</a>
+    <a href="zen.html" data-nav="zen">Zen</a>
+    <a href="settings.html" data-nav="settings">设置</a>
+  </nav>
+  <script src="../assets/semo.js"></script>
+</body>
+</html>

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Semo | 剪贴板历史</title>
+  <link rel="stylesheet" href="../assets/semo.css">
+</head>
+<body data-screen="clipboard">
+  <header class="site-header app-topbar">
+    <a class="brand-lockup" href="../index.html" data-nav="home"><span class="brand-mark">Se</span><span>Semo</span></a>
+    <nav class="site-nav" aria-label="原型屏幕">
+      <a href="floating.html" data-nav="floating">浮窗速记</a>
+      <a href="clipboard.html" data-nav="clipboard">剪贴板</a>
+      <a href="canvas.html" data-nav="canvas">画布</a>
+      <a href="zen.html" data-nav="zen">Zen</a>
+      <a href="settings.html" data-nav="settings">设置</a>
+    </nav>
+  </header>
+
+  <main class="screen-shell">
+    <aside class="sidebar">
+      <a class="nav-button" href="floating.html" data-nav="floating">浮窗速记<span>01</span></a>
+      <a class="nav-button" href="clipboard.html" data-nav="clipboard">剪贴板历史<span>02</span></a>
+      <a class="nav-button" href="canvas.html" data-nav="canvas">无限画布<span>03</span></a>
+      <a class="nav-button" href="zen.html" data-nav="zen">Zen 写作<span>04</span></a>
+      <a class="nav-button" href="settings.html" data-nav="settings">设置<span>05</span></a>
+      <p class="sidebar-section">今日记录</p>
+      <article class="note-row">
+        <strong>38 条剪贴板内容</strong>
+        <div class="note-meta"><span>文字</span><span>链接</span><span>代码</span></div>
+      </article>
+    </aside>
+
+    <section class="workspace">
+      <div class="workspace-inner">
+        <div class="screen-title">
+          <div>
+            <p class="eyebrow">CLIPBOARD HISTORY</p>
+            <h2>复制过的内容，按线索找回来。</h2>
+            <p>支持关键字搜索、类型过滤、Pin 收藏和详情预览。点击列表项会刷新右侧预览，按钮会给出复制反馈。</p>
+          </div>
+        </div>
+
+        <div class="clipboard-grid">
+          <section class="panel">
+            <div class="panel-header">
+              <input id="clip-search" class="search-input" placeholder="搜索文字、链接、代码片段">
+            </div>
+            <div class="panel-body">
+              <div class="row-actions" style="margin-top:0;margin-bottom:12px">
+                <button class="chip" data-filter="all" data-active="true" type="button">全部</button>
+                <button class="chip" data-filter="文字" type="button">文字</button>
+                <button class="chip" data-filter="链接" type="button">链接</button>
+                <button class="chip" data-filter="代码" type="button">代码</button>
+                <button class="chip" data-filter="pinned" type="button">Pin</button>
+              </div>
+              <div class="clip-list">
+                <article class="clip-row" data-title="发布说明摘要" data-type="文字" data-time="09:41" data-pinned="true" data-content="Semo 采用本地优先架构，所有速记、剪贴板历史和画布便签默认存储在设备上。">
+                  <strong>发布说明摘要</strong>
+                  <div class="clip-meta"><span class="tag">文字</span><span>09:41</span><button class="chip" data-pin type="button">Pin</button></div>
+                </article>
+                <article class="clip-row" data-title="官网参考链接" data-type="链接" data-time="09:22" data-pinned="false" data-content="https://floatmemo.guantou.site/videos/memubar-active.mp4">
+                  <strong>官网参考链接</strong>
+                  <div class="clip-meta"><span class="tag">链接</span><span>09:22</span><button class="chip" data-pin type="button">Pin</button></div>
+                </article>
+                <article class="clip-row" data-title="Markdown 导出脚本" data-type="代码" data-time="08:58" data-pinned="false" data-content="exportNotes({ format: 'markdown', includePinned: true, destination: 'local' })">
+                  <strong>Markdown 导出脚本</strong>
+                  <div class="clip-meta"><span class="tag">代码</span><span>08:58</span><button class="chip" data-pin type="button">Pin</button></div>
+                </article>
+                <article class="clip-row" data-title="设计评审待办" data-type="文字" data-time="昨天" data-pinned="false" data-content="补充状态栏常驻、全局快捷键、画布缩放和 Zen 模式的点击反馈。">
+                  <strong>设计评审待办</strong>
+                  <div class="clip-meta"><span class="tag">文字</span><span>昨天</span><button class="chip" data-pin type="button">Pin</button></div>
+                </article>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel clip-preview">
+            <div class="panel-header">
+              <div>
+                <strong id="preview-title">发布说明摘要</strong>
+                <div id="preview-meta" class="muted" style="margin-top:4px">文字 · 09:41</div>
+              </div>
+              <button id="preview-copy" class="button primary" data-copy="Semo 采用本地优先架构，所有速记、剪贴板历史和画布便签默认存储在设备上。" type="button">复制</button>
+            </div>
+            <div class="panel-body">
+              <pre id="preview-body" class="code-block">Semo 采用本地优先架构，所有速记、剪贴板历史和画布便签默认存储在设备上。</pre>
+            </div>
+            <div class="panel-header">
+              <span class="muted">标签建议</span>
+              <span><span class="tag">local first</span> <span class="tag">产品文案</span></span>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="mobile-tabbar" aria-label="底部导航">
+    <a href="floating.html" data-nav="floating">速记</a>
+    <a href="clipboard.html" data-nav="clipboard">剪贴板</a>
+    <a href="canvas.html" data-nav="canvas">画布</a>
+    <a href="zen.html" data-nav="zen">Zen</a>
+    <a href="settings.html" data-nav="settings">设置</a>
+  </nav>
+  <script src="../assets/semo.js"></script>
+</body>
+</html>
