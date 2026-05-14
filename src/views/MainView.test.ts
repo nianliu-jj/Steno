@@ -9,25 +9,14 @@ import { defineComponent, h } from 'vue';
 import MainView from './MainView.vue';
 
 const openQuicknote = vi.fn(() => Promise.resolve());
-const openZen = vi.fn(() => Promise.resolve());
-const openSettings = vi.fn(() => Promise.resolve());
-
-vi.mock('@vueuse/core', async importOriginal => {
-  const actual = await importOriginal<typeof import('@vueuse/core')>();
-  return {
-    ...actual,
-    useDark: vi.fn(() => false),
-    useToggle: vi.fn(() => vi.fn()),
-  };
-});
+const navigateTo = vi.fn();
 
 vi.mock('@/composables/useWindow', () => ({
   useWindow: () => ({
     openQuicknote,
-    openZen,
     openCanvas: vi.fn(() => Promise.resolve()),
     openSearch: vi.fn(() => Promise.resolve()),
-    openSettings,
+    openSettings: vi.fn(() => Promise.resolve()),
     closeStickyNote: vi.fn(() => Promise.resolve()),
     openStickyNote: vi.fn(() => Promise.resolve()),
   }),
@@ -61,6 +50,12 @@ vi.mock('@/stores/notes', () => ({
   }),
 }));
 
+vi.mock('@/stores/ui', () => ({
+  useUiStore: () => ({
+    navigateTo,
+  }),
+}));
+
 vi.mock('@/stores/settings', () => ({
   useSettingsStore: () => ({
     state: {
@@ -86,8 +81,7 @@ describe('MainView', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     openQuicknote.mockClear();
-    openZen.mockClear();
-    openSettings.mockClear();
+    navigateTo.mockClear();
     loadNotes.mockClear();
     loadPinned.mockClear();
   });
@@ -99,19 +93,29 @@ describe('MainView', () => {
     expect(wrapper.text()).not.toContain('全局快捷键');
     expect(wrapper.text()).not.toContain('Ctrl+Shift+N');
     expect(wrapper.text()).not.toContain('Ctrl+Shift+M');
+    expect(wrapper.text()).not.toContain('Steno');
   });
 
-  it('opens the quicknote window when the quick entry is clicked', async () => {
+  it('opens the note editor in the main window when creating a note', async () => {
     const wrapper = mount(WrappedMainView);
     await flushPromises();
 
-    await wrapper.find('.main-quick').trigger('click');
+    await wrapper.find('[data-action="new-note"]').trigger('click');
 
-    expect(openQuicknote).toHaveBeenCalledOnce();
-    expect(openZen).not.toHaveBeenCalled();
+    expect(navigateTo).toHaveBeenCalledWith('note-editor');
+    expect(openQuicknote).not.toHaveBeenCalled();
   });
 
-  it('opens settings in a modal instead of opening a settings window', async () => {
+  it('opens quicknote only from the quicknote action', async () => {
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    await wrapper.find('[data-action="new-quicknote"]').trigger('click');
+
+    expect(openQuicknote).toHaveBeenCalledOnce();
+  });
+
+  it('opens settings in a modal', async () => {
     const wrapper = mount(WrappedMainView, { attachTo: document.body });
     await flushPromises();
 
@@ -119,7 +123,6 @@ describe('MainView', () => {
     await flushPromises();
 
     expect(document.body.textContent).toContain('设置面板');
-    expect(openSettings).not.toHaveBeenCalled();
 
     wrapper.unmount();
   });

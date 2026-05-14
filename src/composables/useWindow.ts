@@ -43,6 +43,22 @@ export function useWindow() {
     return getCurrentWindow().hide();
   }
 
+  function minimizeCurrent() {
+    return getCurrentWindow().minimize();
+  }
+
+  function maximizeCurrent() {
+    return getCurrentWindow().maximize();
+  }
+
+  function unmaximizeCurrent() {
+    return getCurrentWindow().unmaximize();
+  }
+
+  function toggleMaximizeCurrent() {
+    return getCurrentWindow().toggleMaximize();
+  }
+
   function closeCurrent() {
     return getCurrentWindow().close();
   }
@@ -89,6 +105,10 @@ export function useWindow() {
     openSettings,
     openZen,
     hideCurrent,
+    minimizeCurrent,
+    maximizeCurrent,
+    unmaximizeCurrent,
+    toggleMaximizeCurrent,
     closeCurrent,
     onCurrentWindowFocusChange,
     startDragCurrent,

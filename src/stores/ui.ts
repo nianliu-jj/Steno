@@ -22,7 +22,20 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import type { WindowMode } from '@/types/steno';
 
-type MainRouteMode = Extract<WindowMode, 'main' | 'canvas' | 'zen' | 'search' | 'settings'>;
+type MainRouteMode = Extract<
+  WindowMode,
+  | 'main'
+  | 'canvas'
+  | 'zen'
+  | 'search'
+  | 'settings'
+  | 'note-editor'
+  | 'clipboard'
+  | 'todo'
+  | 'screenshot'
+  | 'ocr'
+  | 'translate'
+>;
 
 interface ParsedRoute {
   mode: WindowMode;
@@ -44,6 +57,12 @@ const VALID_MODES: ReadonlySet<WindowMode> = new Set<WindowMode>([
   'zen',
   'search',
   'settings',
+  'note-editor',
+  'clipboard',
+  'todo',
+  'screenshot',
+  'ocr',
+  'translate',
 ]);
 
 const MAIN_ROUTE_MODES: ReadonlySet<MainRouteMode> = new Set<MainRouteMode>([
@@ -52,6 +71,12 @@ const MAIN_ROUTE_MODES: ReadonlySet<MainRouteMode> = new Set<MainRouteMode>([
   'zen',
   'search',
   'settings',
+  'note-editor',
+  'clipboard',
+  'todo',
+  'screenshot',
+  'ocr',
+  'translate',
 ]);
 
 function resolveWindowLabel(): string | null {
@@ -125,7 +150,7 @@ export const useUiStore = defineStore('ui', () => {
     returnMode: MainRouteMode | null = null,
   ) {
     mode.value = nextMode;
-    noteId.value = nextMode === 'zen' ? nextNoteId : null;
+    noteId.value = nextMode === 'zen' || nextMode === 'note-editor' ? nextNoteId : null;
     zenReturnMode.value = nextMode === 'zen' ? returnMode : null;
   }
 

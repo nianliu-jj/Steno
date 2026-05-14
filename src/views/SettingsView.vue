@@ -42,8 +42,6 @@ const ui = useUiStore();
 const message = useMessage();
 const activeSection = ref<SettingsSection>('general');
 
-// ----- 主题 -----------------------------------------------------------
-
 async function onThemeChange(value: ThemeMode) {
   try {
     await settings.update('themeMode', value);
@@ -51,8 +49,6 @@ async function onThemeChange(value: ThemeMode) {
     message.error(`主题保存失败：${String(e)}`);
   }
 }
-
-// ----- 快捷键 ----------------------------------------------------------
 
 const mainShortcut = ref('');
 const quicknoteShortcut = ref('');
@@ -93,8 +89,6 @@ function labelOf(key: 'mainWindowShortcut' | 'quicknoteShortcut' | 'searchShortc
   }
 }
 
-// ----- 浮窗 / 编辑器 / 备份 -------------------------------------------
-
 async function onUpdateNumber<
   K extends 'floatingWidth' | 'floatingHeight' | 'blurCloseDelayMs' | 'backupEveryChanges',
 >(key: K, value: number | null) {
@@ -120,8 +114,6 @@ const editorModeOptions = [
   { label: '只编辑', value: 'edit' },
   { label: '只预览', value: 'preview' },
 ] satisfies { label: string; value: EditorMode }[];
-
-// ----- 存储路径 --------------------------------------------------------
 
 const paths = ref<{ dataDir: string; dbPath: string; backupDir: string } | null>(null);
 
@@ -153,8 +145,6 @@ function closePanel() {
 function resetPlanned() {
   message.info('当前版本暂不支持一键重置');
 }
-
-// ----- mount ----------------------------------------------------------
 
 onMounted(async () => {
   if (!settings.loaded) {

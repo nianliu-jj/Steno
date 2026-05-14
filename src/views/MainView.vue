@@ -1,27 +1,22 @@
 <script setup lang="ts">
 // 主窗口落地页（mode === 'main'）。
-// 之前在 App.vue 内联，Plan Task 8.5 提到独立组件。内容：
-// - 顶部 brand + 主题切换
-// - 快捷入口卡片：新建速记 / 打开画布 / 搜索 / 设置
-// - 最近笔记列表（点击进 Zen / 钉住 / 删除）
+// 当前作为工作台内容页渲染：
+// - 快捷入口卡片：新建笔记 / 新建速记 / 画布 / 搜索 / 设置
+// - 最近笔记列表（点击进主窗口编辑页 / 钉住 / 删除）
 import { computed, onMounted, ref } from 'vue';
 import { NButton, NCard, NEmpty, NModal, NText, useMessage } from 'naive-ui';
-import { useDark, useToggle } from '@vueuse/core';
 
 import { useWindow } from '@/composables/useWindow';
 import { useNotesStore } from '@/stores/notes';
+import { useUiStore } from '@/stores/ui';
 import type { Note } from '@/types/steno';
 import SettingsView from '@/views/SettingsView.vue';
 
 const notes = useNotesStore();
+const ui = useUiStore();
 const win = useWindow();
 const message = useMessage();
-
-const isDark = useDark();
-const toggleDark = useToggle(isDark);
 const settingsVisible = ref(false);
-
-const appTitle = import.meta.env.VITE_APP_TITLE || 'Steno';
 
 onMounted(() => {
   void notes.loadNotes(50);
@@ -29,8 +24,6 @@ onMounted(() => {
 });
 
 const recentNotes = computed(() => notes.notes.slice(0, 30));
-
-// ----- 入口 -----------------------------------------------------------
 
 async function onNewQuickNote() {
   try {
@@ -40,34 +33,24 @@ async function onNewQuickNote() {
   }
 }
 
-async function onOpenCanvas() {
-  try {
-    await win.openCanvas();
-  } catch (e) {
-    message.error(String(e));
-  }
+function onNewNote() {
+  ui.navigateTo('note-editor');
 }
 
-async function onOpenSearch() {
-  try {
-    await win.openSearch();
-  } catch (e) {
-    message.error(String(e));
-  }
+function onOpenCanvas() {
+  ui.navigateTo('canvas');
+}
+
+function onOpenSearch() {
+  ui.navigateTo('search');
 }
 
 function onOpenSettings() {
   settingsVisible.value = true;
 }
 
-// ----- 笔记交互 -------------------------------------------------------
-
-async function onOpenZen(note: Note) {
-  try {
-    await win.openZen(note.id);
-  } catch (e) {
-    message.error(String(e));
-  }
+function onOpenNoteEditor(note: Note) {
+  ui.navigateTo('note-editor', note.id);
 }
 
 async function onTogglePin(note: Note) {
@@ -99,8 +82,6 @@ async function onDelete(note: Note) {
   }
 }
 
-// ----- 格式 -----------------------------------------------------------
-
 function previewText(content: string): string {
   const stripped = content
     .replace(/^#+\s+/gm, '')
@@ -129,19 +110,25 @@ function formatUpdatedAt(iso: string): string {
 </script>
 
 <template>
-  <div class="main-root" :class="{ 'main-root--dark': isDark }">
-    <header class="main-header">
-      <div class="main-brand">
-        <h1>{{ appTitle }}</h1>
-        <NText depth="3" class="main-subtitle">本地优先 · 速记 · 整理 · 写作</NText>
-      </div>
-      <NButton tertiary size="small" @click="toggleDark()">
-        {{ isDark ? '浅色' : '深色' }}
-      </NButton>
-    </header>
-
+  <div class="main-root">
     <section class="main-quickbar">
-      <NCard size="small" class="main-quick" hoverable @click="onNewQuickNote">
+      <NCard
+        size="small"
+        class="main-quick"
+        data-action="new-note"
+        hoverable
+        @click="onNewNote"
+      >
+        <div class="main-quick-title">＋ 新建笔记</div>
+        <NText depth="3" class="main-quick-hint">在主窗口编辑完整笔记</NText>
+      </NCard>
+      <NCard
+        size="small"
+        class="main-quick"
+        data-action="new-quicknote"
+        hoverable
+        @click="onNewQuickNote"
+      >
         <div class="main-quick-title">✎ 新建速记</div>
         <NText depth="3" class="main-quick-hint">打开速记浮窗</NText>
       </NCard>
@@ -160,7 +147,7 @@ function formatUpdatedAt(iso: string): string {
         data-testid="main-open-settings"
         @click="onOpenSettings"
       >
-        <div class="main-quick-title">设置</div>
+        <div class="main-quick-title">⚙ 设置</div>
         <NText depth="3" class="main-quick-hint">快捷键 / 主题 / 备份</NText>
       </NCard>
     </section>
@@ -193,7 +180,7 @@ function formatUpdatedAt(iso: string): string {
           v-for="note in recentNotes"
           :key="note.id"
           class="main-item"
-          @dblclick="onOpenZen(note)"
+          @dblclick="onOpenNoteEditor(note)"
         >
           <div class="main-item-main">
             <header class="main-item-header">
@@ -209,7 +196,7 @@ function formatUpdatedAt(iso: string): string {
             </footer>
           </div>
           <div class="main-item-actions">
-            <NButton tertiary size="tiny" @click="onOpenZen(note)">编辑</NButton>
+            <NButton tertiary size="tiny" @click="onOpenNoteEditor(note)">编辑</NButton>
             <NButton tertiary size="tiny" @click="onTogglePin(note)">
               {{ note.isPinned ? '取消置顶' : '置顶' }}
             </NButton>
@@ -225,39 +212,16 @@ function formatUpdatedAt(iso: string): string {
 .main-root {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  width: 100vw;
-  background: #fafafa;
+  min-height: 100%;
   color: #2a2a2a;
   font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  overflow: auto;
-}
-.main-root--dark {
-  background: #0b0b0f;
-  color: #e8e8ea;
 }
 
-.main-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 18px 24px 12px;
-}
-.main-brand h1 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-}
-.main-subtitle {
-  font-size: 12px;
-}
-
-/* 入口卡片 */
 .main-quickbar {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px;
-  padding: 0 24px 12px;
+  padding: 16px 24px 12px;
 }
 .main-quick {
   cursor: pointer;
@@ -275,7 +239,6 @@ function formatUpdatedAt(iso: string): string {
   font-size: 11px;
 }
 
-/* 最近笔记 */
 .main-recent {
   flex: 1;
   display: flex;
@@ -314,14 +277,8 @@ function formatUpdatedAt(iso: string): string {
   background: rgba(0, 0, 0, 0.03);
   transition: background 0.1s;
 }
-.main-root--dark .main-item {
-  background: rgba(255, 255, 255, 0.03);
-}
 .main-item:hover {
   background: rgba(0, 0, 0, 0.06);
-}
-.main-root--dark .main-item:hover {
-  background: rgba(255, 255, 255, 0.06);
 }
 
 .main-item-main {
@@ -365,9 +322,6 @@ function formatUpdatedAt(iso: string): string {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
-.main-root--dark .main-item-body {
-  color: #b3b3bb;
-}
 .main-item-tags {
   display: flex;
   flex-wrap: wrap;
@@ -379,10 +333,6 @@ function formatUpdatedAt(iso: string): string {
   color: #2e8a55;
   padding: 1px 6px;
   border-radius: 8px;
-}
-.main-root--dark .main-item-tag {
-  background: rgba(136, 224, 167, 0.1);
-  color: #88e0a7;
 }
 .main-item-actions {
   display: flex;

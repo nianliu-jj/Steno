@@ -9,17 +9,15 @@
 // - "标签筛选"用 chips 切换 selectedTags
 // - 空查询时显示最近 50 条（loadNotes(50)）作为默认展示
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
-import { NButton, NDropdown, NEmpty, NIcon, NInput, NTag, useMessage } from 'naive-ui';
+import { NDropdown, NEmpty, NIcon, NInput, NTag, useMessage } from 'naive-ui';
 
 import { useDb } from '@/composables/useDb';
 import { useWindow } from '@/composables/useWindow';
 import { useNotesStore } from '@/stores/notes';
-import { useUiStore } from '@/stores/ui';
 import type { Note } from '@/types/steno';
 
 const db = useDb();
 const notes = useNotesStore();
-const ui = useUiStore();
 const win = useWindow();
 const message = useMessage();
 
@@ -186,19 +184,14 @@ function formatUpdatedAt(iso: string): string {
 
 <template>
   <div class="search-root">
-    <header class="search-header">
-      <NButton size="small" quaternary @click="ui.navigateToMain">
-        返回
-      </NButton>
-      <NInput
-        ref="searchInput"
-        v-model:value="query"
-        size="large"
-        placeholder="搜索标题 / 正文 / 标签…"
-        clearable
-        class="search-input"
-      />
-    </header>
+    <NInput
+      ref="searchInput"
+      v-model:value="query"
+      size="large"
+      placeholder="搜索标题 / 正文 / 标签…"
+      clearable
+      class="search-input"
+    />
 
     <div v-if="allTags.length" class="search-tags">
       <NTag
@@ -309,23 +302,11 @@ function formatUpdatedAt(iso: string): string {
 .search-root {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  width: 100vw;
-  background: #14141a;
-  color: #e8e8ea;
-  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-}
-
-.search-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 16px 18px 8px;
-  background: #1a1a22;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  min-height: 100%;
+  color: #2a2a2a;
 }
 .search-input {
-  flex: 1;
+  margin: 16px 24px 8px;
 }
 .search-input :deep(input) {
   font-size: 16px;
@@ -335,9 +316,8 @@ function formatUpdatedAt(iso: string): string {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  padding: 8px 18px;
-  background: #1a1a22;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 8px 24px;
+  border-bottom: 1px solid rgba(55, 46, 36, 0.08);
   max-height: 80px;
   overflow: auto;
 }
@@ -349,7 +329,7 @@ function formatUpdatedAt(iso: string): string {
   padding: 8px 0;
 }
 .search-error {
-  padding: 12px 18px;
+  padding: 12px 24px;
   color: #ff6b6b;
   font-size: 12px;
 }
@@ -363,13 +343,13 @@ function formatUpdatedAt(iso: string): string {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 10px 18px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 10px 24px;
+  border-bottom: 1px solid rgba(55, 46, 36, 0.08);
   cursor: default;
   transition: background 0.1s;
 }
 .search-item:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(199, 108, 52, 0.06);
 }
 
 .search-item-main {
@@ -388,7 +368,7 @@ function formatUpdatedAt(iso: string): string {
 .search-item-title {
   font-size: 14px;
   font-weight: 600;
-  color: #f0f0f2;
+  color: #2a2a2a;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -400,7 +380,7 @@ function formatUpdatedAt(iso: string): string {
 }
 .search-item-time {
   font-size: 11px;
-  color: #6f6f78;
+  color: #7a7067;
   white-space: nowrap;
   flex: 0 0 auto;
 }
@@ -408,7 +388,7 @@ function formatUpdatedAt(iso: string): string {
   margin: 0;
   font-size: 12px;
   line-height: 1.55;
-  color: #b3b3bb;
+  color: #5f564d;
   white-space: pre-wrap;
   /* 双行省略 */
   overflow: hidden;
@@ -423,8 +403,8 @@ function formatUpdatedAt(iso: string): string {
   font-size: 10px;
 }
 .search-item-tag {
-  background: rgba(136, 224, 167, 0.1);
-  color: #88e0a7;
+  background: rgba(199, 108, 52, 0.12);
+  color: #9a4d20;
   padding: 1px 6px;
   border-radius: 8px;
 }

@@ -63,4 +63,10 @@ export type WindowMode =
   | 'canvas'
   | 'zen'
   | 'search'
-  | 'settings';
+  | 'settings'
+  | 'note-editor'
+  | 'clipboard'
+  | 'todo'
+  | 'screenshot'
+  | 'ocr'
+  | 'translate';
