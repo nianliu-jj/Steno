@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Steno 跨平台速记原型</title>
+  <link rel="stylesheet" href="assets/prototype.css">
+</head>
+<body data-theme="light">
+  <header class="system-bar" aria-label="系统状态栏">
+    <div class="system-left">
+      <strong class="app-menu-name">Steno</strong>
+      <span>文件</span>
+      <span>编辑</span>
+      <span>画布</span>
+      <span>窗口</span>
+      <span>帮助</span>
+    </div>
+    <div class="system-right">
+      <button class="status-trigger" id="statusTrigger" type="button" aria-expanded="false" aria-controls="statusMenu">
+        <span class="status-dot"></span>
+        <span>Steno</span>
+      </button>
+      <span class="platform-chip">macOS</span>
+      <span class="clock" id="clock">10:42</span>
+    </div>
+    <section class="status-popover" id="statusMenu" aria-label="Steno 状态栏菜单" hidden>
+      <div class="status-popover__head">
+        <span class="brand-mark">S</span>
+        <div>
+          <strong>Steno</strong>
+          <small>本地库已连接</small>
+        </div>
+      </div>
+      <button type="button" data-menu-action="floating"><span class="mini-icon">✎</span>呼出浮窗</button>
+      <button type="button" data-menu-action="clipboard"><span class="mini-icon">⌘</span>剪贴板历史</button>
+      <button type="button" data-menu-action="canvas"><span class="mini-icon">▦</span>打开画布</button>
+      <button type="button" data-menu-action="zen"><span class="mini-icon">◌</span>Zen 模式</button>
+    </section>
+  </header>
+
+  <main class="desktop" aria-label="Steno 原型工作区">
+    <section class="desktop-context" aria-label="当前应用背景">
+      <div class="mock-browser">
+        <div class="mock-browser__bar">
+          <span></span>
+          <span></span>
+          <span></span>
+          <div class="mock-address">docs.local/product-review.md</div>
+        </div>
+        <div class="mock-lines">
+          <i></i><i></i><i></i><i></i>
+        </div>
+      </div>
+    </section>
+
+    <section class="app-window" aria-label="Steno 主窗口">
+      <header class="titlebar">
+        <div class="titlebar-brand">
+          <span class="brand-mark">S</span>
+          <div>
+            <strong>Steno</strong>
+            <small id="activePlatform">桌面速记工作台</small>
+          </div>
+        </div>
+        <label class="top-search">
+          <span>⌕</span>
+          <input id="globalSearch" type="search" placeholder="搜索笔记、剪贴板、标签">
+        </label>
+        <div class="titlebar-actions">
+          <button class="icon-button" type="button" id="openFloating" title="呼出浮窗" aria-label="呼出浮窗">✎</button>
+          <button class="icon-button" type="button" id="enterZenTop" title="Zen 模式" aria-label="Zen 模式">◌</button>
+          <button class="win-button" type="button" title="最小化" aria-label="最小化">−</button>
+          <button class="win-button" type="button" title="最大化" aria-label="最大化">□</button>
+          <button class="win-button" type="button" title="关闭" aria-label="关闭">×</button>
+        </div>
+      </header>
+
+      <div class="workbench">
+        <aside class="sidebar" aria-label="主导航">
+          <button class="nav-item is-active" type="button" data-view-trigger="quicknote">
+            <span class="nav-glyph">✎</span><span>速记</span><kbd>⌘⇧</kbd>
+          </button>
+          <button class="nav-item" type="button" data-view-trigger="clipboard">
+            <span class="nav-glyph">⌘</span><span>剪贴板</span><em id="clipCounter">8</em>
+          </button>
+          <button class="nav-item" type="button" data-view-trigger="pins">
+            <span class="nav-glyph">⌖</span><span>置顶</span><em id="pinCounter">3</em>
+          </button>
+          <button class="nav-item" type="button" data-view-trigger="canvas">
+            <span class="nav-glyph">▦</span><span>画布</span><em id="canvasCounter">5</em>
+          </button>
+          <button class="nav-item" type="button" data-view-trigger="themes">
+            <span class="nav-glyph">◒</span><span>主题</span>
+          </button>
+          <button class="nav-item" type="button" data-view-trigger="settings">
+            <span class="nav-glyph">⚙</span><span>设置</span>
+          </button>
+          <button class="nav-item" type="button" data-view-trigger="zen">
+            <span class="nav-glyph">◌</span><span>Zen</span>
+          </button>
+
+          <section class="storage-strip" aria-label="本地存储状态">
+            <div>
+              <strong>Local First</strong>
+              <span>1,248 条记录</span>
+            </div>
+            <div class="meter" aria-hidden="true"><i></i></div>
+          </section>
+        </aside>
+
+        <section class="content">
+          <header class="content-head">
+            <div>
+              <p class="eyebrow" id="viewEyebrow">FLOATING WINDOW</p>
+              <h1 id="viewTitle">浮窗速记</h1>
+            </div>
+            <div class="content-actions">
+              <button class="button button-secondary" type="button" id="hotkeyDisplay">⌘ ⇧ Space</button>
+              <button class="button button-primary" type="button" id="primaryAction">新建速记</button>
+            </div>
+          </header>
+
+          <section class="view is-active" data-view="quicknote">
+            <div class="quick-grid">
+              <section class="panel note-composer">
+                <header class="panel-head">
+                  <strong>快速记录</strong>
+                  <span class="save-state" id="draftState">已自动保存</span>
+                </header>
+                <label class="field">
+                  <span>标题</span>
+                  <input id="draftTitle" value="产品评审补充">
+                </label>
+                <label class="field field-grow">
+                  <span>内容</span>
+                  <textarea id="draftBody">浮窗需要保持轻量，出现时不切换应用。剪贴板、置顶笔记和画布都从同一个本地库读取内容。</textarea>
+                </label>
+                <div class="tag-row" aria-label="笔记标签">
+                  <button class="chip is-active" type="button" data-tag="产品">产品</button>
+                  <button class="chip" type="button" data-tag="本地">本地</button>
+                  <button class="chip" type="button" data-tag="会议">会议</button>
+                  <button class="chip" type="button" data-tag="Pin">Pin</button>
+                </div>
+              </section>
+
+              <section class="panel">
+                <header class="panel-head">
+                  <strong>近期笔记</strong>
+                  <span id="noteTotal">4</span>
+                </header>
+                <div class="note-list" id="noteList">
+                  <article class="note-row" data-search="状态栏 图标 高亮 规则 pin">
+                    <strong>状态栏图标高亮规则</strong>
+                    <p>静默时保留小圆点，有新内容时出现绿色脉冲。</p>
+                    <footer><span>#Pin</span><span>刚刚</span></footer>
+                  </article>
+                  <article class="note-row" data-search="快捷键 冲突 系统 设置">
+                    <strong>快捷键冲突处理</strong>
+                    <p>录入新快捷键时展示冲突来源。</p>
+                    <footer><span>#设置</span><span>12 分钟前</span></footer>
+                  </article>
+                  <article class="note-row" data-search="markdown 导出 本地">
+                    <strong>Markdown 导出结构</strong>
+                    <p>按标签、Pin、画布分组输出。</p>
+                    <footer><span>#本地</span><span>昨天</span></footer>
+                  </article>
+                  <article class="note-row" data-search="zen 写作 专注">
+                    <strong>Zen 写作草稿</strong>
+                    <p>进入后隐藏侧栏和状态面板。</p>
+                    <footer><span>#Zen</span><span>周二</span></footer>
+                  </article>
+                </div>
+              </section>
+            </div>
+
+            <section class="quick-preview" aria-label="浮窗行为预览">
+              <div class="mini-menubar">
+                <span class="status-dot"></span>
+                <strong>Steno</strong>
+                <span>⌘⇧Space</span>
+              </div>
+              <div class="floating-mini">
+                <header><span>产品评审补充</span><span>Pin ×</span></header>
+                <p>此刻在想什么？</p>
+                <div></div>
+              </div>
+              <div class="sticky-mini">
+                <strong>置顶待办</strong>
+                <span>确认浮窗失焦收起延迟</span>
+              </div>
+            </section>
+          </section>
+
+          <section class="view" data-view="clipboard">
+            <div class="split-layout">
+              <section class="panel">
+                <header class="panel-head">
+                  <strong>剪贴板历史</strong>
+                  <button class="icon-button" type="button" id="clearClipboard" title="清空筛选" aria-label="清空筛选">↺</button>
+                </header>
+                <label class="field field-inline">
+                  <span>搜索</span>
+                  <input id="clipSearch" type="search" placeholder="文字、链接、代码">
+                </label>
+                <div class="tag-row" aria-label="剪贴板筛选">
+                  <button class="chip is-active" type="button" data-clip-filter="all">全部</button>
+                  <button class="chip" type="button" data-clip-filter="文字">文字</button>
+                  <button class="chip" type="button" data-clip-filter="链接">链接</button>
+                  <button class="chip" type="button" data-clip-filter="代码">代码</button>
+                  <button class="chip" type="button" data-clip-filter="pinned">Pin</button>
+                </div>
+                <div class="clip-list" id="clipList">
+                  <button class="clip-item is-selected" type="button" data-type="文字" data-pinned="true" data-title="发布说明摘要" data-time="09:41" data-content="Steno 采用本地优先架构，速记、剪贴板历史和画布便签默认存储在设备上。">
+                    <strong>发布说明摘要</strong>
+                    <span>文字 · 09:41 · Pin</span>
+                  </button>
+                  <button class="clip-item" type="button" data-type="链接" data-pinned="false" data-title="参考演示视频" data-time="09:22" data-content="https://floatmemo.guantou.site/videos/memubar-active.mp4">
+                    <strong>参考演示视频</strong>
+                    <span>链接 · 09:22</span>
+                  </button>
+                  <button class="clip-item" type="button" data-type="代码" data-pinned="false" data-title="Markdown 导出脚本" data-time="08:58" data-content="exportNotes({ format: 'markdown', includePinned: true, destination: 'local' })">
+                    <strong>Markdown 导出脚本</strong>
+                    <span>代码 · 08:58</span>
+                  </button>
+                  <button class="clip-item" type="button" data-type="文字" data-pinned="false" data-title="评审待办" data-time="昨天" data-content="补充状态栏常驻、全局快捷键、画布缩放和 Zen 模式的点击反馈。">
+                    <strong>评审待办</strong>
+                    <span>文字 · 昨天</span>
+                  </button>
+                </div>
+              </section>
+
+              <section class="panel clip-detail">
+                <header class="panel-head">
+                  <div>
+                    <strong id="clipTitle">发布说明摘要</strong>
+                    <small id="clipMeta">文字 · 09:41</small>
+                  </div>
+                  <div class="panel-actions">
+                    <button class="icon-button is-active" type="button" id="pinClip" title="Pin" aria-label="Pin">⌖</button>
+                    <button class="button button-primary" type="button" id="copyClip">复制</button>
+                  </div>
+                </header>
+                <pre id="clipContent" class="content-box">Steno 采用本地优先架构，速记、剪贴板历史和画布便签默认存储在设备上。</pre>
+              </section>
+            </div>
+          </section>
+
+          <section class="view" data-view="pins">
+            <div class="pins-layout" id="pinBoard">
+              <article class="pin-note" data-search="待办 评审">
+                <header><strong>今日待办</strong><span>⌖</span></header>
+                <p>- 确认浮窗尺寸<br>- 补全快捷键设置<br>- 导出 Markdown</p>
+              </article>
+              <article class="pin-note pin-note-blue" data-search="常用 信息">
+                <header><strong>常用信息</strong><span>⌖</span></header>
+                <p>客服邮箱 support@steno.local<br>文档路径 ~/Documents/Steno</p>
+              </article>
+              <article class="pin-note pin-note-green" data-search="会议 纪要">
+                <header><strong>会议纪要模板</strong><span>⌖</span></header>
+                <p>目标：<br>决议：<br>后续负责人：</p>
+              </article>
+            </div>
+          </section>
+
+          <section class="view" data-view="canvas">
+            <div class="canvas-tools">
+              <div class="panel-actions">
+                <button class="button button-primary" type="button" id="newCanvasCard">新建便签</button>
+                <button class="button button-secondary" type="button" id="arrangeCanvas">智能排列</button>
+              </div>
+              <div class="segmented" aria-label="缩放">
+                <button type="button" id="zoomOut">−</button>
+                <span id="zoomValue">100%</span>
+                <button type="button" id="zoomIn">＋</button>
+              </div>
+            </div>
+            <section class="canvas-viewport" id="canvasViewport" aria-label="无限画布">
+              <div class="canvas-grid" id="canvasGrid">
+                <article class="canvas-card canvas-card-yellow" style="left: 72px; top: 72px;" data-search="状态栏 浮窗">
+                  <strong>状态栏</strong>
+                  <p>一键呼出，失焦收起。</p>
+                </article>
+                <article class="canvas-card canvas-card-blue" style="left: 330px; top: 126px;" data-search="剪贴板 搜索 标签">
+                  <strong>剪贴板</strong>
+                  <p>搜索、标签、Pin 收藏。</p>
+                </article>
+                <article class="canvas-card canvas-card-green" style="left: 210px; top: 306px;" data-search="本地 存储 导出">
+                  <strong>本地优先</strong>
+                  <p>SQLite + Markdown 导出。</p>
+                </article>
+                <article class="canvas-card canvas-card-red" style="left: 590px; top: 238px;" data-search="Zen 模式 写作">
+                  <strong>Zen 模式</strong>
+                  <p>隐藏干扰，只留文字。</p>
+                </article>
+              </div>
+            </section>
+          </section>
+
+          <section class="view" data-view="themes">
+            <div class="theme-layout">
+              <section class="panel">
+                <header class="panel-head"><strong>外观模式</strong></header>
+                <div class="segmented theme-mode" role="group" aria-label="主题模式">
+                  <button class="is-active" type="button" data-theme-mode="light">Light</button>
+                  <button type="button" data-theme-mode="dark">Dark</button>
+                  <button type="button" data-theme-mode="system">System</button>
+                </div>
+                <div class="swatch-grid" aria-label="颜色选择">
+                  <button class="swatch is-active" type="button" data-accent="#2f6f6b" style="--swatch:#2f6f6b" aria-label="松石绿"></button>
+                  <button class="swatch" type="button" data-accent="#b85f3a" style="--swatch:#b85f3a" aria-label="赤陶橙"></button>
+                  <button class="swatch" type="button" data-accent="#3554a4" style="--swatch:#3554a4" aria-label="钴蓝"></button>
+                  <button class="swatch" type="button" data-accent="#7a5d9d" style="--swatch:#7a5d9d" aria-label="灰紫"></button>
+                  <button class="swatch" type="button" data-accent="#2d7c4f" style="--swatch:#2d7c4f" aria-label="森林绿"></button>
+                  <button class="swatch" type="button" data-accent="#a23f52" style="--swatch:#a23f52" aria-label="浆果红"></button>
+                </div>
+              </section>
+              <section class="panel theme-preview">
+                <header class="panel-head"><strong>图标与卡片</strong><span id="accentLabel">松石绿</span></header>
+                <div class="preview-strip">
+                  <button class="icon-button" type="button">✎</button>
+                  <button class="icon-button" type="button">⌖</button>
+                  <button class="icon-button" type="button">▦</button>
+                  <button class="icon-button" type="button">◌</button>
+                </div>
+                <article class="note-row theme-card">
+                  <strong>个性主题示例</strong>
+                  <p>主题会影响状态栏标记、按钮、便签强调色。</p>
+                  <footer><span>#Theme</span><span>System</span></footer>
+                </article>
+              </section>
+            </div>
+          </section>
+
+          <section class="view" data-view="settings">
+            <div class="settings-layout">
+              <section class="panel">
+                <header class="panel-head"><strong>全局快捷键</strong><span id="hotkeyState">可编辑</span></header>
+                <button class="hotkey-recorder" type="button" id="hotkeyRecorder">
+                  <span>主窗口 / 浮窗</span>
+                  <strong id="hotkeyText">⌘ ⇧ Space</strong>
+                </button>
+                <div class="setting-row">
+                  <span>启动后常驻状态栏</span>
+                  <label class="switch"><input type="checkbox" checked><i></i></label>
+                </div>
+                <div class="setting-row">
+                  <span>失焦自动收起</span>
+                  <label class="switch"><input type="checkbox" checked id="autoCollapseToggle"><i></i></label>
+                </div>
+                <label class="range-field">
+                  <span>收起延迟 <b id="delayLabel">3.0s</b></span>
+                  <input id="delayRange" type="range" min="0" max="5" step="0.5" value="3">
+                </label>
+              </section>
+              <section class="panel">
+                <header class="panel-head"><strong>本地存储</strong><button class="button button-secondary" type="button" id="exportMarkdown">导出 .md</button></header>
+                <div class="path-row"><span>数据库</span><code>~/Library/Application Support/Steno/steno.db</code></div>
+                <div class="path-row"><span>备份</span><code>~/Documents/Steno/Backups</code></div>
+                <div class="setting-row">
+                  <span>跨平台目标</span>
+                  <select id="platformSelect" aria-label="跨平台目标">
+                    <option>macOS</option>
+                    <option>Windows</option>
+                    <option>Linux</option>
+                  </select>
+                </div>
+              </section>
+              <section class="panel">
+                <header class="panel-head"><strong>浮窗尺寸</strong></header>
+                <label class="range-field">
+                  <span>宽度 <b id="widthLabel">420px</b></span>
+                  <input id="widthRange" type="range" min="320" max="680" step="20" value="420">
+                </label>
+                <label class="range-field">
+                  <span>高度 <b id="heightLabel">360px</b></span>
+                  <input id="heightRange" type="range" min="240" max="540" step="20" value="360">
+                </label>
+              </section>
+            </div>
+          </section>
+
+          <section class="view" data-view="zen">
+            <section class="zen-card">
+              <header>
+                <span>Zen Mode</span>
+                <button class="button button-primary" type="button" id="enterZen">进入</button>
+              </header>
+              <textarea id="zenInlineText">只留下正在写的文字。这里的内容会进入本地草稿。</textarea>
+            </section>
+          </section>
+        </section>
+      </div>
+
+      <footer class="bottom-bar">
+        <div class="bottom-left">
+          <button class="icon-button" type="button" id="toggleThemeQuick" title="切换明暗" aria-label="切换明暗">◐</button>
+          <span id="syncState">本地保存 · 0 个云端账户</span>
+        </div>
+        <div class="bottom-actions">
+          <button class="button button-secondary" type="button" id="cancelAction">取消</button>
+          <button class="button button-primary" type="button" id="confirmAction">确认</button>
+          <button class="button button-secondary" type="button" id="resetAction">重置</button>
+        </div>
+      </footer>
+    </section>
+
+    <section class="floating-window is-visible" id="floatingWindow" aria-label="浮窗速记">
+      <header class="floating-titlebar" id="floatingDragHandle">
+        <input id="floatTitle" value="临时速记" aria-label="浮窗标题">
+        <div>
+          <button class="icon-button" type="button" id="floatPin" title="置顶" aria-label="置顶">⌖</button>
+          <button class="icon-button" type="button" id="floatMinimize" title="收起" aria-label="收起">−</button>
+          <button class="icon-button" type="button" id="floatClose" title="关闭" aria-label="关闭">×</button>
+        </div>
+      </header>
+      <textarea id="floatBody" aria-label="浮窗内容">从状态栏呼出，不切换应用。写完保存后自动收起。</textarea>
+      <footer>
+        <input id="floatTags" value="#idea #product" aria-label="浮窗标签">
+        <button class="button button-primary" type="button" id="floatSave">保存并收起</button>
+      </footer>
+      <span class="resize-grip" aria-hidden="true"></span>
+    </section>
+  </main>
+
+  <section class="zen-overlay" id="zenOverlay" aria-label="Zen 模式" hidden>
+    <header>
+      <span>Zen Mode</span>
+      <button class="icon-button" type="button" id="exitZen" title="退出" aria-label="退出">×</button>
+    </header>
+    <textarea id="zenText">只留下文字、光标和本地保存状态。</textarea>
+    <footer>
+      <span id="zenCount">18 字</span>
+      <span>本地草稿</span>
+    </footer>
+  </section>
+
+  <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+
+  <script src="assets/prototype.js"></script>
+</body>
+</html>
