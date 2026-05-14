@@ -9,7 +9,7 @@
 // - "标签筛选"用 chips 切换 selectedTags
 // - 空查询时显示最近 50 条（loadNotes(50)）作为默认展示
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
-import { NDropdown, NEmpty, NIcon, NInput, NTag, useMessage } from 'naive-ui';
+import { NButton, NDropdown, NEmpty, NIcon, NInput, NTag, useMessage } from 'naive-ui';
 
 import { useDb } from '@/composables/useDb';
 import { useWindow } from '@/composables/useWindow';
