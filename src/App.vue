@@ -7,7 +7,7 @@
 // NMessageProvider。页面型 mode 在 main 窗口里通过 `steno:navigate` 事件切换；
 // floating / sticky 仍由独立窗口 label 初始化。
 import { computed, onMounted, watch } from 'vue';
-import { NConfigProvider, NMessageProvider, darkTheme } from 'naive-ui';
+import { NConfigProvider, NMessageProvider, NModal, darkTheme } from 'naive-ui';
 import { useDark } from '@vueuse/core';
 
 import { useUiStore } from '@/stores/ui';
@@ -42,7 +42,6 @@ const shellNavItems = computed<
   { key: 'ocr', label: 'OCR', active: ui.mode === 'ocr' },
   { key: 'translate', label: '翻译', active: ui.mode === 'translate' },
   { key: 'search', label: '搜索', active: ui.mode === 'search' },
-  { key: 'settings', label: '设置', active: ui.mode === 'settings' },
 ]);
 
 const shellMeta = computed(() => {
@@ -55,8 +54,6 @@ const shellMeta = computed(() => {
       return { title: '画布', description: '拖拽、缩放与自由整理你的笔记' };
     case 'search':
       return { title: '搜索', description: '全文、标签与最近笔记检索' };
-    case 'settings':
-      return { title: '设置', description: '主题、快捷键、备份与数据目录' };
     case 'clipboard':
       return { title: '粘贴板', description: '功能规划中' };
     case 'todo':
@@ -94,7 +91,6 @@ const shellModes = new Set<WindowMode>([
   'note-editor',
   'canvas',
   'search',
-  'settings',
   'clipboard',
   'todo',
   'screenshot',
@@ -125,28 +121,41 @@ watch(
 <template>
   <NConfigProvider :theme="naiveTheme">
     <NMessageProvider>
-      <MainWorkbenchShell
-        v-if="shellModes.has(ui.mode)"
-        :title="shellMeta.title"
-        :description="shellMeta.description"
-        :nav-items="shellNavItems"
-      >
-        <MainView v-if="ui.mode === 'main'" />
-        <NoteEditorView v-else-if="ui.mode === 'note-editor'" />
-        <CanvasView v-else-if="ui.mode === 'canvas'" />
-        <SearchView v-else-if="ui.mode === 'search'" />
-        <SettingsView v-else-if="ui.mode === 'settings'" />
-        <PlaceholderView
-          v-else-if="placeholderMeta"
-          :title="placeholderMeta.title"
-          :description="placeholderMeta.description"
-        />
-      </MainWorkbenchShell>
+      <template v-if="shellModes.has(ui.mode)">
+        <MainWorkbenchShell
+          :title="shellMeta.title"
+          :description="shellMeta.description"
+          :nav-items="shellNavItems"
+        >
+          <template v-if="ui.mode === 'main'" #actions>
+            <MainView compact-actions />
+          </template>
+          <MainView v-if="ui.mode === 'main'" />
+          <NoteEditorView v-else-if="ui.mode === 'note-editor'" />
+          <CanvasView v-else-if="ui.mode === 'canvas'" />
+          <SearchView v-else-if="ui.mode === 'search'" />
+          <PlaceholderView
+            v-else-if="placeholderMeta"
+            :title="placeholderMeta.title"
+            :description="placeholderMeta.description"
+          />
+        </MainWorkbenchShell>
+        <NModal
+          :show="ui.settingsOpen"
+          preset="card"
+          :mask-closable="true"
+          :auto-focus="false"
+          @update:show="value => !value && ui.closeSettings()"
+        >
+          <SettingsView embedded @close="ui.closeSettings()" />
+        </NModal>
+      </template>
       <FloatingEditor v-else-if="ui.mode === 'floating'" />
       <StickyNote
         v-else-if="ui.mode === 'sticky' && ui.noteId"
         :note-id="ui.noteId"
       />
+      <SettingsView v-else-if="ui.mode === 'settings'" />
       <ZenMode v-else-if="ui.mode === 'zen'" />
       <section v-else class="mode-fallback">
         <h1>Steno · {{ ui.mode }}</h1>

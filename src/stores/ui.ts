@@ -140,7 +140,8 @@ function resolveInitialRoute(): ParsedRoute {
 export const useUiStore = defineStore('ui', () => {
   const initial = resolveInitialRoute();
   const windowLabel = resolveWindowLabel();
-  const mode = ref<WindowMode>(initial.mode);
+  const settingsOpen = ref(initial.mode === 'settings' && windowLabel !== 'settings');
+  const mode = ref<WindowMode>(settingsOpen.value ? 'main' : initial.mode);
   const noteId = ref<string | null>(initial.noteId);
   const zenReturnMode = ref<MainRouteMode | null>(null);
 
@@ -149,12 +150,24 @@ export const useUiStore = defineStore('ui', () => {
     nextNoteId: string | null = null,
     returnMode: MainRouteMode | null = null,
   ) {
+    if (nextMode === 'settings') {
+      if (windowLabel === 'settings') {
+        mode.value = 'settings';
+        noteId.value = null;
+      } else {
+        settingsOpen.value = true;
+      }
+      return;
+    }
+
+    settingsOpen.value = false;
     mode.value = nextMode;
     noteId.value = nextMode === 'zen' || nextMode === 'note-editor' ? nextNoteId : null;
     zenReturnMode.value = nextMode === 'zen' ? returnMode : null;
   }
 
   function navigateToMain() {
+    settingsOpen.value = false;
     navigateTo('main');
   }
 
@@ -167,12 +180,21 @@ export const useUiStore = defineStore('ui', () => {
     navigateTo(target ?? 'main');
   }
 
+  function closeSettings() {
+    settingsOpen.value = false;
+  }
+
   // hashchange 监听仅在 hash-fallback 路径有意义（dev 时浏览器手动改 URL）。
   // label 由 Tauri 在窗口创建时决定，不会运行时变化。
   if (typeof window !== 'undefined') {
     if (!windowLabel || windowLabel === 'main') {
       window.addEventListener('hashchange', () => {
         const next = parseFromHash(window.location.hash, window.location.search);
+        if (next.mode === 'settings') {
+          settingsOpen.value = true;
+          return;
+        }
+        settingsOpen.value = false;
         mode.value = next.mode;
         noteId.value = next.noteId;
       });
@@ -186,5 +208,14 @@ export const useUiStore = defineStore('ui', () => {
     }
   }
 
-  return { mode, noteId, navigateTo, navigateToMain, navigateToZenFromCanvas, exitZen };
+  return {
+    mode,
+    noteId,
+    settingsOpen,
+    navigateTo,
+    navigateToMain,
+    navigateToZenFromCanvas,
+    exitZen,
+    closeSettings,
+  };
 });

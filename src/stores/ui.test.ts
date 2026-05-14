@@ -122,4 +122,21 @@ describe('ui store', () => {
     expect(ui.mode).toBe('canvas');
     expect(ui.noteId).toBeNull();
   });
+
+  it('opens settings as a modal state without replacing the current workbench route', () => {
+    const ui = useUiStore();
+
+    ui.navigateTo('note-editor', 'note-1');
+    ui.navigateTo('settings');
+
+    expect(ui.mode).toBe('note-editor');
+    expect(ui.noteId).toBe('note-1');
+    expect(ui.settingsOpen).toBe(true);
+
+    ui.closeSettings();
+
+    expect(ui.mode).toBe('note-editor');
+    expect(ui.noteId).toBe('note-1');
+    expect(ui.settingsOpen).toBe(false);
+  });
 });
