@@ -50,12 +50,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', syncCompactViewport);
 });
 
-function onDragBarPointerDown(event: PointerEvent) {
-  const target = event.target as HTMLElement | null;
-  if (target?.closest('[data-no-drag="true"]')) return;
-  void win.startDragCurrent();
-}
-
 function onMinimize() {
   void win.minimizeCurrent();
 }
@@ -139,13 +133,13 @@ function iconPathFor(key: WindowMode) {
     :data-compact="compactViewport"
     :data-rail="effectiveRailState"
   >
-    <header class="workbench-titlebar topbar" @pointerdown="onDragBarPointerDown">
-      <div class="topbar-brand">
+    <header class="workbench-titlebar topbar" data-tauri-drag-region="true">
+      <div class="topbar-brand" data-tauri-drag-region="true">
         <div class="brand-mark">S</div>
         <span class="brand-name">Steno</span>
       </div>
 
-      <div class="topbar-center" data-no-drag="true">
+      <div class="topbar-center" data-tauri-drag-region="true">
         <button class="back-btn" type="button" aria-label="返回" @click.stop="onBack">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="m15 6-6 6 6 6" />
@@ -168,7 +162,11 @@ function iconPathFor(key: WindowMode) {
         <slot name="search" />
       </div>
 
-      <div class="workbench-window-controls window-controls" data-no-drag="true">
+      <div
+        class="workbench-window-controls window-controls"
+        data-tauri-drag-region="false"
+        data-no-drag="true"
+      >
         <button class="win-btn wc-btn" type="button" aria-label="最小化" @click.stop="onMinimize">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M5 12h14" />
@@ -275,7 +273,7 @@ function iconPathFor(key: WindowMode) {
             <h1>{{ title }}</h1>
             <p>{{ description }}</p>
           </div>
-          <div class="workbench-actions" data-no-drag="true">
+          <div class="workbench-actions" data-tauri-drag-region="false" data-no-drag="true">
             <slot name="actions" />
           </div>
         </header>
@@ -348,6 +346,8 @@ function iconPathFor(key: WindowMode) {
   min-height: 44px;
   border-bottom: 1px solid var(--border);
   background: color-mix(in oklch, var(--surface) 92%, var(--bg));
+  user-select: none;
+  -webkit-user-select: none;
   transition: grid-template-columns 0.22s ease;
 }
 
@@ -359,6 +359,8 @@ function iconPathFor(key: WindowMode) {
   min-width: 0;
   padding: 0 14px;
   border-right: 1px solid var(--border);
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .brand-mark {
@@ -396,6 +398,8 @@ function iconPathFor(key: WindowMode) {
   flex: 1;
   min-width: 0;
   padding: 0 14px;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .back-btn {

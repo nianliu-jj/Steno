@@ -95,7 +95,7 @@ describe('MainWorkbenchShell', () => {
     expect(navigateTo).toHaveBeenCalledWith('canvas');
   });
 
-  it('uses titlebar drag and window controls without overlapping behaviors', async () => {
+  it('marks the custom titlebar as a native drag region and keeps window controls interactive', async () => {
     const wrapper = mount(MainWorkbenchShell, {
       props: {
         title: '笔记列表',
@@ -104,15 +104,17 @@ describe('MainWorkbenchShell', () => {
       },
     });
 
-    wrapper
-      .find('.workbench-titlebar')
-      .element
-      .dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
     await wrapper.findAll('.win-btn')[0].trigger('click');
     await wrapper.findAll('.win-btn')[1].trigger('click');
     await wrapper.findAll('.win-btn')[2].trigger('click');
 
-    expect(startDragCurrent).toHaveBeenCalledOnce();
+    expect(wrapper.get('.workbench-titlebar').attributes('data-tauri-drag-region')).toBe('true');
+    expect(wrapper.get('.topbar-brand').attributes('data-tauri-drag-region')).toBe('true');
+    expect(wrapper.get('.topbar-center').attributes('data-tauri-drag-region')).toBe('true');
+    expect(wrapper.get('.workbench-window-controls').attributes('data-tauri-drag-region')).toBe(
+      'false',
+    );
+    expect(startDragCurrent).not.toHaveBeenCalled();
     expect(minimizeCurrent).toHaveBeenCalledOnce();
     expect(toggleMaximizeCurrent).toHaveBeenCalledOnce();
     expect(closeCurrent).toHaveBeenCalledOnce();

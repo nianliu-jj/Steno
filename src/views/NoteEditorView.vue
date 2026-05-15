@@ -88,10 +88,10 @@ async function onBack() {
   <div class="note-editor-root">
     <header class="note-editor-header">
       <div class="note-editor-meta">
-        <NText depth="3">{{ wordCount }} 字</NText>
-        <NText depth="3">{{ statusText }}</NText>
+        <NText depth="3" class="note-editor-meta-text">{{ wordCount }} 字</NText>
+        <NText depth="3" class="note-editor-meta-text">{{ statusText }}</NText>
       </div>
-      <NButton size="small" tertiary @click="onBack">
+      <NButton size="small" tertiary class="note-editor-back-button" @click="onBack">
         返回列表
       </NButton>
     </header>
@@ -137,6 +137,31 @@ async function onBack() {
   font-size: 12px;
 }
 
+.note-editor-meta-text {
+  --n-text-color: #5f564d !important;
+  color: #5f564d !important;
+}
+
+.note-editor-back-button {
+  --n-text-color: #6f5c4c !important;
+  --n-text-color-hover: #2f2923 !important;
+  --n-text-color-pressed: #2f2923 !important;
+  --n-text-color-focus: #2f2923 !important;
+  --n-color-hover: rgba(132, 82, 47, 0.1) !important;
+  --n-color-pressed: rgba(132, 82, 47, 0.16) !important;
+  --n-color-focus: rgba(132, 82, 47, 0.1) !important;
+  color: #6f5c4c !important;
+}
+
+.note-editor-back-button:hover,
+.note-editor-back-button:focus-visible {
+  color: #2f2923 !important;
+}
+
+.note-editor-back-button :deep(.n-button__content) {
+  color: inherit;
+}
+
 .note-editor-body {
   flex: 1;
   min-height: 0;
@@ -150,6 +175,13 @@ async function onBack() {
   padding: 0;
   font-size: 28px;
   font-weight: 600;
+  color: #2a2a2a !important;
+  caret-color: #2a2a2a;
+}
+
+.note-editor-title :deep(input::placeholder),
+.note-editor-title :deep(.n-input__placeholder) {
+  color: #7e7469 !important;
 }
 
 .note-editor-body :deep(.md-editor) {

@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { defineComponent, h } from 'vue';
 
 import NoteEditorView from './NoteEditorView.vue';
+import NoteEditorViewSource from './NoteEditorView.vue?raw';
 
 const getNote = vi.fn(() =>
   Promise.resolve({
@@ -100,5 +101,14 @@ describe('NoteEditorView', () => {
     await wrapper.find('textarea').setValue('新内容');
 
     expect(saveDraft).toHaveBeenCalled();
+  });
+
+  it('declares readable text colors for the light workbench editor surface', () => {
+    expect(NoteEditorViewSource).toContain('class="note-editor-meta-text"');
+    expect(NoteEditorViewSource).toContain('class="note-editor-back-button"');
+    expect(NoteEditorViewSource).toMatch(/color: #5f564d(?: !important)?;/);
+    expect(NoteEditorViewSource).toMatch(/color: #6f5c4c(?: !important)?;/);
+    expect(NoteEditorViewSource).toContain('caret-color: #2a2a2a;');
+    expect(NoteEditorViewSource).toMatch(/color: #7e7469(?: !important)?;/);
   });
 });
