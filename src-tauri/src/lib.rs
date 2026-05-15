@@ -35,6 +35,7 @@ pub fn run() {
             commands::open_zen_window,
             commands::reload_shortcuts,
             commands::export_note_markdown,
+            commands::export_note_html,
             commands::export_note_pdf,
             commands::get_data_paths,
         ])

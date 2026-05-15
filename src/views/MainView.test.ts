@@ -12,6 +12,9 @@ import type { Note } from '@/types/steno';
 
 const openQuicknote = vi.fn(() => Promise.resolve());
 const navigateTo = vi.fn();
+const exportNoteMarkdown = vi.fn(() => Promise.resolve('D:/exports/note.md'));
+const exportNoteHtml = vi.fn(() => Promise.resolve('D:/exports/note.html'));
+const exportNotePdf = vi.fn(() => Promise.resolve('D:/exports/note.pdf'));
 
 vi.mock('@/composables/useWindow', () => ({
   useWindow: () => ({
@@ -28,6 +31,10 @@ const loadNotes = vi.fn(() => Promise.resolve());
 const loadPinned = vi.fn(() => Promise.resolve());
 let notesState: Note[] = [];
 let loadingState = false;
+let notesStoreOverrides: {
+  saveDraft?: ReturnType<typeof vi.fn>;
+  removeNote?: ReturnType<typeof vi.fn>;
+} = {};
 
 vi.mock('@/stores/notes', () => ({
   useNotesStore: () => ({
@@ -38,7 +45,16 @@ vi.mock('@/stores/notes', () => ({
     loadPinned,
     pinNote: vi.fn(() => Promise.resolve()),
     unpinNote: vi.fn(() => Promise.resolve()),
-    removeNote: vi.fn(() => Promise.resolve()),
+    saveDraft: notesStoreOverrides.saveDraft ?? vi.fn(() => Promise.resolve(null)),
+    removeNote: notesStoreOverrides.removeNote ?? vi.fn(() => Promise.resolve()),
+  }),
+}));
+
+vi.mock('@/composables/useDb', () => ({
+  useDb: () => ({
+    exportNoteMarkdown,
+    exportNoteHtml,
+    exportNotePdf,
   }),
 }));
 
@@ -60,15 +76,41 @@ const WrappedMainView = defineComponent({
   },
 });
 
+function makeNote(overrides: Partial<Note> = {}): Note {
+  return {
+    id: 'note-1',
+    title: '默认标题',
+    content: '默认正文',
+    htmlContent: '<p>默认正文</p>',
+    tags: [],
+    isPinned: false,
+    pinnedWindowConfig: null,
+    canvasPosition: null,
+    createdAt: '2026-05-15T07:00:00.000Z',
+    updatedAt: '2026-05-15T07:05:00.000Z',
+    wordCount: 4,
+    ...overrides,
+  };
+}
+
+function installNotesStoreOverrides(overrides: typeof notesStoreOverrides) {
+  notesStoreOverrides = overrides;
+}
+
 describe('MainView', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     notesState = [];
     loadingState = false;
+    notesStoreOverrides = {};
     openQuicknote.mockClear();
     navigateTo.mockClear();
     loadNotes.mockClear();
     loadPinned.mockClear();
+    exportNoteMarkdown.mockClear();
+    exportNoteHtml.mockClear();
+    exportNotePdf.mockReset();
+    exportNotePdf.mockResolvedValue('D:/exports/note.pdf');
   });
 
   it('renders notes as layout v2 cards', async () => {
@@ -201,5 +243,129 @@ describe('MainView', () => {
 
     expect(navigateTo).toHaveBeenCalledWith('note-editor');
     expect(openQuicknote).toHaveBeenCalledOnce();
+  });
+
+  it('filters notes by multiple tag checkboxes including untagged notes', async () => {
+    notesState = [
+      makeNote({ id: 'a', title: 'Alpha', tags: ['work'] }),
+      makeNote({ id: 'b', title: 'Beta', tags: ['life', 'work'] }),
+      makeNote({ id: 'c', title: 'Gamma', tags: [] }),
+    ];
+
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    await wrapper.get('[data-testid="main-filter"]').trigger('click');
+    expect(wrapper.get('[data-testid="filter-option-work"]').text()).toContain('work');
+    expect(wrapper.get('[data-testid="filter-option-life"]').text()).toContain('life');
+    expect(wrapper.get('[data-testid="filter-option-untagged"]').text()).toContain('无标签');
+
+    await wrapper.get('[data-testid="filter-option-life"] input').setValue(true);
+    expect(wrapper.findAll('.note-card').map(card => card.text())).toEqual([
+      expect.stringContaining('Beta'),
+    ]);
+
+    await wrapper.get('[data-testid="filter-option-untagged"] input').setValue(true);
+    const cardTexts = wrapper.findAll('.note-card').map(card => card.text());
+    expect(cardTexts).toEqual([
+      expect.stringContaining('Beta'),
+      expect.stringContaining('Gamma'),
+    ]);
+
+    await wrapper.get('[data-testid="filter-select-all"] input').setValue(true);
+    expect(wrapper.findAll('.note-card')).toHaveLength(3);
+  });
+
+  it('prevents the default context menu and disables document actions on blank area', async () => {
+    notesState = [makeNote({ id: 'note-ctx', title: '右键文档', tags: ['ctx'] })];
+    const preventDefault = vi.fn();
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    await wrapper.get('.main-root').trigger('contextmenu', {
+      preventDefault,
+      clientX: 80,
+      clientY: 90,
+    });
+
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(wrapper.find('[data-testid="note-context-menu"]').exists()).toBe(true);
+    expect(wrapper.get('[data-testid="context-new"]').attributes('aria-disabled')).toBe('false');
+    expect(wrapper.get('[data-testid="context-edit"]').attributes('aria-disabled')).toBe('true');
+    expect(wrapper.get('[data-testid="context-tags"]').attributes('aria-disabled')).toBe('true');
+    expect(wrapper.get('[data-testid="context-export"]').attributes('aria-disabled')).toBe('true');
+    expect(wrapper.get('[data-testid="context-rename"]').attributes('aria-disabled')).toBe('true');
+    expect(wrapper.get('[data-testid="context-delete"]').attributes('aria-disabled')).toBe('true');
+  });
+
+  it('enables note context actions and calls new, edit, export, rename, tag, print, and delete handlers', async () => {
+    const saveDraft = vi.fn(input =>
+      Promise.resolve(makeNote({
+        id: input.id,
+        title: input.title ?? '右键文档',
+        content: input.content,
+        tags: input.tags,
+      })),
+    );
+    const removeNote = vi.fn(() => Promise.resolve());
+    installNotesStoreOverrides({ saveDraft, removeNote });
+    exportNotePdf.mockRejectedValue(new Error('PDF 不可用'));
+    const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
+    notesState = [makeNote({ id: 'note-ctx', title: '右键文档', tags: ['old'], content: '正文' })];
+
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+    await wrapper.get('.note-card').trigger('contextmenu', { preventDefault: vi.fn(), clientX: 120, clientY: 140 });
+
+    await wrapper.get('[data-testid="context-new"]').trigger('click');
+    expect(navigateTo).toHaveBeenCalledWith('note-editor');
+
+    await wrapper.get('.note-card').trigger('contextmenu', { preventDefault: vi.fn(), clientX: 120, clientY: 140 });
+    expect(wrapper.get('[data-testid="context-edit"]').attributes('aria-disabled')).toBe('false');
+    await wrapper.get('[data-testid="context-edit"]').trigger('click');
+    expect(navigateTo).toHaveBeenCalledWith('note-editor', 'note-ctx');
+
+    await wrapper.get('.note-card').trigger('contextmenu', { preventDefault: vi.fn(), clientX: 120, clientY: 140 });
+    await wrapper.get('[data-testid="context-tags"]').trigger('click');
+    await wrapper.get('[data-testid="main-tag-input-0"] input').setValue('updated');
+    await wrapper.get('[data-testid="main-tag-add"]').trigger('click');
+    await wrapper.get('[data-testid="main-tag-input-1"] input').setValue('temporary');
+    await wrapper.get('[data-testid="main-tag-delete-1"]').trigger('click');
+    await wrapper.get('[data-testid="main-tag-add"]').trigger('click');
+    await wrapper.get('[data-testid="main-tag-input-1"] input').setValue('new');
+    await wrapper.get('[data-testid="main-tags-confirm"]').trigger('click');
+    expect(saveDraft).toHaveBeenLastCalledWith(expect.objectContaining({
+      id: 'note-ctx',
+      title: '右键文档',
+      content: '正文',
+      tags: ['updated', 'new'],
+    }));
+
+    await wrapper.get('.note-card').trigger('contextmenu', { preventDefault: vi.fn(), clientX: 120, clientY: 140 });
+    await wrapper.get('[data-testid="context-rename"]').trigger('click');
+    await wrapper.get('[data-testid="main-rename-input"] input').setValue('新标题');
+    await wrapper.get('[data-testid="main-rename-confirm"]').trigger('click');
+    expect(saveDraft).toHaveBeenLastCalledWith(expect.objectContaining({
+      id: 'note-ctx',
+      title: '新标题',
+    }));
+
+    await wrapper.get('.note-card').trigger('contextmenu', { preventDefault: vi.fn(), clientX: 120, clientY: 140 });
+    await wrapper.get('[data-testid="context-export"]').trigger('click');
+    await wrapper.get('[data-testid="context-export-markdown"]').trigger('click');
+    await wrapper.get('[data-testid="context-export-html"]').trigger('click');
+    await wrapper.get('[data-testid="context-export-pdf"]').trigger('click');
+    expect(exportNoteMarkdown).toHaveBeenCalledWith('note-ctx');
+    expect(exportNoteHtml).toHaveBeenCalledWith('note-ctx');
+    expect(exportNotePdf).toHaveBeenCalledWith('note-ctx');
+
+    await wrapper.get('[data-testid="context-print"]').trigger('click');
+    expect(print).toHaveBeenCalledOnce();
+
+    await wrapper.get('.note-card').trigger('contextmenu', { preventDefault: vi.fn(), clientX: 120, clientY: 140 });
+    await wrapper.get('[data-testid="context-delete"]').trigger('click');
+    expect(removeNote).toHaveBeenCalledWith('note-ctx');
+
+    print.mockRestore();
   });
 });
