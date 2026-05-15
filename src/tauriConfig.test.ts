@@ -1,0 +1,25 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
+type TauriConfig = {
+  app?: {
+    windows?: Array<{
+      label?: string;
+      decorations?: boolean;
+    }>;
+  };
+};
+
+const config = JSON.parse(
+  readFileSync(resolve(process.cwd(), 'src-tauri/tauri.conf.json'), 'utf8'),
+) as TauriConfig;
+
+describe('tauri config', () => {
+  it('disables the system title bar on the main window so the custom header can drag', () => {
+    const mainWindow = config.app?.windows?.find(window => window.label === 'main');
+
+    expect(mainWindow?.decorations).toBe(false);
+  });
+});
