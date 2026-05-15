@@ -41,33 +41,7 @@ const shellNavItems = computed<
   { key: 'screenshot', label: '截图', active: ui.mode === 'screenshot' },
   { key: 'ocr', label: 'OCR', active: ui.mode === 'ocr' },
   { key: 'translate', label: '翻译', active: ui.mode === 'translate' },
-  { key: 'search', label: '搜索', active: ui.mode === 'search' },
 ]);
-
-const shellMeta = computed(() => {
-  switch (ui.mode) {
-    case 'main':
-      return { title: '笔记列表', description: '最近笔记与快捷入口' };
-    case 'note-editor':
-      return { title: '编辑笔记', description: '在主窗口中编辑完整笔记' };
-    case 'canvas':
-      return { title: '画布', description: '拖拽、缩放与自由整理你的笔记' };
-    case 'search':
-      return { title: '搜索', description: '全文、标签与最近笔记检索' };
-    case 'clipboard':
-      return { title: '粘贴板', description: '功能规划中' };
-    case 'todo':
-      return { title: '待办', description: '功能规划中' };
-    case 'screenshot':
-      return { title: '截图', description: '功能规划中' };
-    case 'ocr':
-      return { title: 'OCR', description: '功能规划中' };
-    case 'translate':
-      return { title: '翻译', description: '功能规划中' };
-    default:
-      return { title: '工作台', description: '主窗口工作台' };
-  }
-});
 
 const placeholderMeta = computed(() => {
   switch (ui.mode) {
@@ -122,14 +96,7 @@ watch(
   <NConfigProvider :theme="naiveTheme">
     <NMessageProvider>
       <template v-if="shellModes.has(ui.mode)">
-        <MainWorkbenchShell
-          :title="shellMeta.title"
-          :description="shellMeta.description"
-          :nav-items="shellNavItems"
-        >
-          <template v-if="ui.mode === 'main'" #actions>
-            <MainView compact-actions />
-          </template>
+        <MainWorkbenchShell :nav-items="shellNavItems">
           <MainView v-if="ui.mode === 'main'" />
           <NoteEditorView v-else-if="ui.mode === 'note-editor'" />
           <CanvasView v-else-if="ui.mode === 'canvas'" />

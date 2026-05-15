@@ -2,7 +2,11 @@
 
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { reactive } from 'vue';
+import { reactive, type PropType } from 'vue';
+
+type ShellNavItem = {
+  label: string;
+};
 
 const uiState = reactive({
   mode: 'main',
@@ -71,19 +75,20 @@ vi.mock('@/components/MainWorkbenchShell.vue', async () => {
   return {
     default: defineComponent({
       props: {
-        title: {
-          type: String,
-          required: true,
-        },
-        description: {
-          type: String,
+        navItems: {
+          type: Array as PropType<ShellNavItem[]>,
           required: true,
         },
       },
       setup(props, { slots }) {
         return () =>
-          h('div', { 'data-testid': 'shell', 'data-title': props.title }, [
-            h('div', { 'data-testid': 'shell-actions' }, slots.actions?.()),
+          h('div', { 'data-testid': 'shell' }, [
+            h('div', { 'data-testid': 'shell-nav-count' }, String(props.navItems.length)),
+            h(
+              'div',
+              { 'data-testid': 'shell-nav-labels' },
+              props.navItems.map(item => item.label).join('|'),
+            ),
             h('div', { 'data-testid': 'shell-default' }, slots.default?.()),
           ]);
       },
@@ -96,22 +101,7 @@ vi.mock('@/views/MainView.vue', async () => {
 
   return {
     default: defineComponent({
-      props: {
-        compactActions: {
-          type: Boolean,
-          default: false,
-        },
-      },
-      setup(props) {
-        return () =>
-          h(
-            'div',
-            {
-              'data-testid': props.compactActions ? 'main-actions' : 'main-view',
-            },
-            props.compactActions ? 'main-actions' : 'main-view',
-          );
-      },
+      setup: () => () => h('div', { 'data-testid': 'main-view' }, 'main-view'),
     }),
   };
 });
@@ -221,8 +211,10 @@ describe('App', () => {
     const wrapper = mount(App);
 
     expect(wrapper.find('[data-testid="shell"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="main-actions"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="main-view"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="main-actions"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="shell-nav-labels"]').text()).toBe('笔记列表|画布|粘贴板|待办|截图|OCR|翻译');
+    expect(wrapper.get('[data-testid="shell-nav-labels"]').text()).not.toContain('搜索');
+    expect(wrapper.findAll('[data-testid="main-view"]')).toHaveLength(1);
     expect(wrapper.find('[data-testid="settings-modal"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="settings-view-embedded"]').exists()).toBe(true);
 

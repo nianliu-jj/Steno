@@ -2,7 +2,6 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { useWindow } from '@/composables/useWindow';
-import { useNotesStore } from '@/stores/notes';
 import { useUiStore } from '@/stores/ui';
 import type { WindowMode } from '@/types/steno';
 
@@ -14,14 +13,11 @@ interface NavItem {
 }
 
 const props = defineProps<{
-  title: string;
-  description: string;
   navItems?: NavItem[];
 }>();
 
 const win = useWindow();
 const ui = useUiStore();
-const notes = useNotesStore();
 const compactBreakpoint = 720;
 const railState = ref<'expanded' | 'collapsed'>('expanded');
 const languageIndex = ref(0);
@@ -32,18 +28,10 @@ const compactViewport = ref(
 const effectiveRailState = computed(() =>
   compactViewport.value ? 'collapsed' : railState.value,
 );
-const pinnedChips = computed(() =>
-  notes.pinned.slice(0, 5).map(note => ({
-    id: note.id,
-    type: 'note',
-    text: summarizePinnedNote(note.title, note.content),
-  })),
-);
 
 onMounted(() => {
   syncCompactViewport();
   window.addEventListener('resize', syncCompactViewport);
-  void notes.loadPinned();
 });
 
 onBeforeUnmount(() => {
@@ -94,11 +82,6 @@ function onToggleRail() {
 function syncCompactViewport() {
   if (typeof window === 'undefined') return;
   compactViewport.value = window.innerWidth < compactBreakpoint;
-}
-
-function summarizePinnedNote(title: string, content: string) {
-  const text = title.trim() || content.replace(/\s+/g, ' ').trim();
-  return text ? text.slice(0, 80) : '无标题';
 }
 
 function iconPathFor(key: WindowMode) {
@@ -268,48 +251,11 @@ function iconPathFor(key: WindowMode) {
       </aside>
 
       <main class="workbench-main">
-        <header class="workbench-page-header">
-          <div>
-            <h1>{{ title }}</h1>
-            <p>{{ description }}</p>
-          </div>
-          <div class="workbench-actions" data-tauri-drag-region="false" data-no-drag="true">
-            <slot name="actions" />
-          </div>
-        </header>
-
         <section class="workbench-content">
           <slot />
         </section>
       </main>
     </div>
-
-    <footer class="bottombar">
-      <div class="pin-label">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path d="m14 4 6 6-4 1-5 5-1 4-6-6 4-1 5-5z" />
-        </svg>
-        置顶内容
-      </div>
-      <div class="pin-strip">
-        <button
-          v-for="chip in pinnedChips"
-          :key="chip.id"
-          class="pin-chip"
-          type="button"
-          :title="chip.text"
-        >
-          <span class="type">{{ chip.type }}</span>
-          <span class="text">{{ chip.text }}</span>
-        </button>
-        <span v-if="pinnedChips.length === 0" class="pin-chip pin-chip--empty">
-          暂无置顶内容
-        </span>
-      </div>
-      <div class="pin-tail">
-        <span>{{ pinnedChips.length }}/5</span>
-      </div>
-    </footer>
   </div>
 </template>
 
@@ -665,145 +611,10 @@ function iconPathFor(key: WindowMode) {
   flex-direction: column;
 }
 
-.workbench-page-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 20px 24px 14px;
-  border-bottom: 1px solid rgba(55, 46, 36, 0.1);
-  background: #fffdf8;
-}
-
-.workbench-page-header h1 {
-  margin: 0 0 4px;
-  font-size: 22px;
-  font-weight: 600;
-}
-
-.workbench-page-header p {
-  margin: 0;
-  font-size: 12px;
-  color: #6e6256;
-}
-
-.workbench-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .workbench-content {
   flex: 1;
   min-height: 0;
   overflow: auto;
-}
-
-.bottombar {
-  height: 40px;
-  min-height: 40px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  overflow: hidden;
-  padding: 0 14px;
-  border-top: 1px solid var(--border);
-  background: var(--surface-2);
-}
-
-.pin-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  padding-right: 12px;
-  border-right: 1px solid var(--border);
-  color: var(--muted);
-  font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.pin-label svg {
-  width: 16px;
-  height: 16px;
-}
-
-.pin-strip {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  padding: 6px 0;
-}
-
-.pin-strip::-webkit-scrollbar {
-  display: none;
-}
-
-.pin-chip {
-  max-width: 280px;
-  height: 26px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  padding: 0 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--fg);
-  font-size: 12px;
-  cursor: pointer;
-  transition:
-    border-color 0.12s,
-    background 0.12s,
-    color 0.12s;
-}
-
-.pin-chip:hover {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.pin-chip--empty {
-  color: var(--muted);
-  cursor: default;
-}
-
-.pin-chip--empty:hover {
-  border-color: var(--border);
-  background: var(--surface);
-  color: var(--muted);
-}
-
-.pin-chip .type {
-  color: var(--faint);
-  font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
-  font-size: 9.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.pin-chip .text {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pin-tail {
-  flex-shrink: 0;
-  padding-left: 10px;
-  border-left: 1px solid var(--border);
-  color: var(--muted);
-  font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
-  font-size: 11px;
 }
 
 @media (max-width: 720px) {
@@ -836,43 +647,5 @@ function iconPathFor(key: WindowMode) {
     gap: 4px;
   }
 
-  .workbench-page-header {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 12px;
-    padding: 16px 16px 12px;
-  }
-
-  .workbench-page-header p {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .workbench-actions {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-
-  .workbench-content {
-    padding-inline: 0;
-  }
-
-  .bottombar {
-    gap: 8px;
-    padding: 0 10px;
-  }
-
-  .pin-label {
-    padding-right: 8px;
-  }
-
-  .pin-chip {
-    max-width: min(240px, 60vw);
-  }
-
-  .pin-tail {
-    padding-left: 8px;
-  }
 }
 </style>

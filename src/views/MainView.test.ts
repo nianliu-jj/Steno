@@ -6,8 +6,8 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, h } from 'vue';
 
-import MainWorkbenchShell from '@/components/MainWorkbenchShell.vue';
 import MainView from './MainView.vue';
+import MainViewSource from './MainView.vue?raw';
 import type { Note } from '@/types/steno';
 
 const openQuicknote = vi.fn(() => Promise.resolve());
@@ -21,19 +21,6 @@ vi.mock('@/composables/useWindow', () => ({
     openSettings: vi.fn(() => Promise.resolve()),
     closeStickyNote: vi.fn(() => Promise.resolve()),
     openStickyNote: vi.fn(() => Promise.resolve()),
-  }),
-}));
-
-vi.mock('@/views/SettingsView.vue', () => ({
-  default: defineComponent({
-    emits: ['close'],
-    setup(_, { emit }) {
-      return () =>
-        h('div', { 'data-testid': 'settings-panel' }, [
-          h('span', '设置面板'),
-          h('button', { onClick: () => emit('close') }, '关闭'),
-        ]);
-    },
   }),
 }));
 
@@ -61,15 +48,6 @@ vi.mock('@/stores/ui', () => ({
   }),
 }));
 
-vi.mock('@/stores/settings', () => ({
-  useSettingsStore: () => ({
-    state: {
-      mainWindowShortcut: 'Ctrl+Shift+N',
-      quicknoteShortcut: 'Ctrl+Shift+M',
-    },
-  }),
-}));
-
 const WrappedMainView = defineComponent({
   setup() {
     return () =>
@@ -77,30 +55,6 @@ const WrappedMainView = defineComponent({
         default: () =>
           h(NMessageProvider, null, {
             default: () => h(MainView),
-          }),
-      });
-  },
-});
-
-const WrappedMainViewWithShell = defineComponent({
-  setup() {
-    return () =>
-      h(NConfigProvider, null, {
-        default: () =>
-          h(NMessageProvider, null, {
-            default: () =>
-              h(
-                MainWorkbenchShell,
-                {
-                  title: '笔记列表',
-                  description: '最近笔记与快捷入口',
-                  navItems: [{ key: 'main', label: '笔记列表', active: true }],
-                },
-                {
-                  actions: () => h(MainView, { compactActions: true }),
-                  default: () => h('div', 'stub'),
-                },
-              ),
           }),
       });
   },
@@ -115,16 +69,6 @@ describe('MainView', () => {
     navigateTo.mockClear();
     loadNotes.mockClear();
     loadPinned.mockClear();
-  });
-
-  it('does not display global shortcuts on the main page', async () => {
-    const wrapper = mount(WrappedMainView);
-    await flushPromises();
-
-    expect(wrapper.text()).not.toContain('全局快捷键');
-    expect(wrapper.text()).not.toContain('Ctrl+Shift+N');
-    expect(wrapper.text()).not.toContain('Ctrl+Shift+M');
-    expect(wrapper.text()).not.toContain('Steno');
   });
 
   it('renders notes as layout v2 cards', async () => {
@@ -154,7 +98,7 @@ describe('MainView', () => {
   });
 
   it('maps note store fields to title, preview, tags, updated time, and pin marker', async () => {
-    const updatedAt = '2026-05-14T10:03:00.000Z';
+    const updatedAt = new Date().toISOString();
     notesState = [
       {
         id: 'note-2',
@@ -205,6 +149,14 @@ describe('MainView', () => {
     expect(wrapper.text()).toContain('⌘ K');
     expect(wrapper.find('.empty-primary').text()).toContain('新建笔记');
     expect(wrapper.find('.notes-grid').exists()).toBe(false);
+    const mainRoot = wrapper.get('.main-root');
+    expect(mainRoot.element.firstElementChild).toBe(wrapper.get('.main-toolbar').element);
+    expect(mainRoot.element.lastElementChild).toBe(wrapper.get('.empty-state').element);
+    expect(MainViewSource).toContain('.main-root');
+    expect(MainViewSource).toContain('padding: 18px 20px 20px;');
+    expect(MainViewSource).toContain('padding: 14px 14px 16px;');
+    expect(loadNotes).toHaveBeenCalledWith(50);
+    expect(loadPinned).not.toHaveBeenCalled();
   });
 
   it('opens the note editor from the empty-state new note entry', async () => {
@@ -217,7 +169,7 @@ describe('MainView', () => {
     expect(openQuicknote).not.toHaveBeenCalled();
   });
 
-  it('renders compact action controls for filter, new note, and quicknote access', async () => {
+  it('renders the main toolbar by default and keeps action behavior working', async () => {
     notesState = [
       {
         id: 'note-3',
@@ -234,12 +186,15 @@ describe('MainView', () => {
       },
     ];
 
-    const wrapper = mount(WrappedMainViewWithShell);
+    const wrapper = mount(WrappedMainView);
     await flushPromises();
 
+    expect(wrapper.find('.main-toolbar').exists()).toBe(true);
     expect(wrapper.get('[data-testid="main-filter"]').text()).toContain('筛选');
     expect(wrapper.get('[data-testid="main-new-note"]').text()).toContain('新建笔记');
     expect(wrapper.get('[data-testid="main-new-quicknote"]').text()).toContain('速记');
+    expect(wrapper.find('.notes-grid').exists()).toBe(true);
+    expect(wrapper.find('.empty-state').exists()).toBe(false);
 
     await wrapper.get('[data-testid="main-new-note"]').trigger('click');
     await wrapper.get('[data-testid="main-new-quicknote"]').trigger('click');

@@ -13,13 +13,6 @@ const startDragCurrent = vi.fn();
 const minimizeCurrent = vi.fn();
 const toggleMaximizeCurrent = vi.fn();
 const closeCurrent = vi.fn();
-const loadPinned = vi.fn(() => Promise.resolve());
-let pinnedNotes: Array<{
-  id: string;
-  title: string;
-  content: string;
-  isPinned: boolean;
-}> = [];
 
 vi.mock('@/stores/ui', () => ({
   useUiStore: () => ({
@@ -37,13 +30,6 @@ vi.mock('@/composables/useWindow', () => ({
   }),
 }));
 
-vi.mock('@/stores/notes', () => ({
-  useNotesStore: () => ({
-    pinned: pinnedNotes,
-    loadPinned,
-  }),
-}));
-
 describe('MainWorkbenchShell', () => {
   beforeEach(() => {
     Object.defineProperty(window, 'innerWidth', {
@@ -51,21 +37,17 @@ describe('MainWorkbenchShell', () => {
       value: 1024,
       writable: true,
     });
-    pinnedNotes = [];
     navigateTo.mockClear();
     navigateToMain.mockClear();
     startDragCurrent.mockClear();
     minimizeCurrent.mockClear();
     toggleMaximizeCurrent.mockClear();
     closeCurrent.mockClear();
-    loadPinned.mockClear();
   });
 
   it('renders the workbench frame and slot content', () => {
     const wrapper = mount(MainWorkbenchShell, {
       props: {
-        title: '笔记列表',
-        description: '24 篇 · 本地存储',
         navItems: [{ key: 'main', label: '笔记列表', active: true }],
       },
       slots: {
@@ -73,16 +55,14 @@ describe('MainWorkbenchShell', () => {
       },
     });
 
-    expect(wrapper.text()).toContain('笔记列表');
-    expect(wrapper.text()).toContain('24 篇 · 本地存储');
+    expect(wrapper.find('.workbench-page-header').exists()).toBe(false);
+    expect(wrapper.find('.bottombar').exists()).toBe(false);
     expect(wrapper.find('.page-body').exists()).toBe(true);
   });
 
-  it('navigates from the sidebar when a nav item is clicked', async () => {
+  it('navigates from the sidebar main item with navigateToMain and other items with navigateTo', async () => {
     const wrapper = mount(MainWorkbenchShell, {
       props: {
-        title: '笔记列表',
-        description: '24 篇 · 本地存储',
         navItems: [
           { key: 'main', label: '笔记列表', active: true },
           { key: 'canvas', label: '画布', active: false },
@@ -90,16 +70,17 @@ describe('MainWorkbenchShell', () => {
       },
     });
 
+    await wrapper.find('[data-nav="main"]').trigger('click');
     await wrapper.find('[data-nav="canvas"]').trigger('click');
 
+    expect(navigateToMain).toHaveBeenCalledOnce();
+    expect(navigateToMain).toHaveBeenCalledWith();
     expect(navigateTo).toHaveBeenCalledWith('canvas');
   });
 
   it('marks the custom titlebar as a native drag region and keeps window controls interactive', async () => {
     const wrapper = mount(MainWorkbenchShell, {
       props: {
-        title: '笔记列表',
-        description: '24 篇 · 本地存储',
         navItems: [{ key: 'main', label: '笔记列表', active: true }],
       },
     });
@@ -123,8 +104,6 @@ describe('MainWorkbenchShell', () => {
   it('renders v2 titlebar controls and excludes interactive controls from drag', async () => {
     const wrapper = mount(MainWorkbenchShell, {
       props: {
-        title: '笔记列表',
-        description: '24 篇 · 本地存储',
         navItems: [{ key: 'main', label: '笔记列表', active: true }],
       },
     });
@@ -152,8 +131,6 @@ describe('MainWorkbenchShell', () => {
   it('renders rail navigation with active state, counts, and footer actions', async () => {
     const wrapper = mount(MainWorkbenchShell, {
       props: {
-        title: '笔记列表',
-        description: '24 篇 · 本地存储',
         navItems: [
           { key: 'main', label: '笔记列表', active: true, count: '24' },
           { key: 'canvas', label: '画布', active: false, count: '3' },
@@ -190,49 +167,16 @@ describe('MainWorkbenchShell', () => {
     expect(wrapper.get('.workbench-root').attributes('data-rail')).toBe('expanded');
   });
 
-  it('renders bottom pinned content from pinned notes with an empty placeholder fallback', () => {
-    pinnedNotes = [
-      {
-        id: 'note-1',
-        title: 'Rust 生命周期笔记',
-        content: '函数中的生命周期标注影响返回值的存活范围',
-        isPinned: true,
-      },
-      {
-        id: 'note-2',
-        title: '',
-        content: 'cargo tauri build --features clipboard-watch',
-        isPinned: true,
-      },
-    ];
-
+  it('does not load pinned notes or render legacy footer chrome', () => {
     const wrapper = mount(MainWorkbenchShell, {
       props: {
-        title: '笔记列表',
-        description: '24 篇 · 本地存储',
         navItems: [{ key: 'main', label: '笔记列表', active: true }],
       },
     });
 
-    expect(loadPinned).toHaveBeenCalledOnce();
-    expect(wrapper.find('.bottombar').exists()).toBe(true);
-    expect(wrapper.get('.pin-label').text()).toContain('置顶内容');
-    expect(wrapper.findAll('.pin-chip')).toHaveLength(2);
-    expect(wrapper.text()).toContain('Rust 生命周期笔记');
-    expect(wrapper.text()).toContain('cargo tauri build --features clipboard-watch');
-    expect(wrapper.get('.pin-tail').text()).toContain('2/5');
-
-    pinnedNotes = [];
-    const emptyWrapper = mount(MainWorkbenchShell, {
-      props: {
-        title: '笔记列表',
-        description: '24 篇 · 本地存储',
-        navItems: [{ key: 'main', label: '笔记列表', active: true }],
-      },
-    });
-
-    expect(emptyWrapper.get('.pin-chip--empty').text()).toBe('暂无置顶内容');
-    expect(emptyWrapper.get('.pin-tail').text()).toContain('0/5');
+    expect(wrapper.find('.bottombar').exists()).toBe(false);
+    expect(wrapper.find('.pin-chip').exists()).toBe(false);
+    expect(wrapper.find('.workbench-page-header').exists()).toBe(false);
   });
 
   it('applies narrow-screen collapse behavior and keeps responsive truncation rules', async () => {
@@ -244,8 +188,6 @@ describe('MainWorkbenchShell', () => {
 
     const wrapper = mount(MainWorkbenchShell, {
       props: {
-        title: '这是一个很长很长的主窗口标题，用来验证窄屏时的布局收缩',
-        description: '这是一段很长很长的描述文案，用来验证窄屏时的布局不会发生文字重叠',
         navItems: [
           { key: 'main', label: '笔记列表', active: true, count: '24' },
           { key: 'canvas', label: '画布', active: false, count: '3' },
@@ -270,13 +212,9 @@ describe('MainWorkbenchShell', () => {
     expect(wrapper.get('[data-testid="rail-collapse"]').attributes('aria-expanded')).toBe('true');
 
     expect(MainWorkbenchShellSource).toContain('@media (max-width: 720px)');
-    expect(MainWorkbenchShellSource).toContain('--rail-w: var(--rail-w-collapsed);');
-    expect(MainWorkbenchShellSource).toContain('.brand-name,');
-    expect(MainWorkbenchShellSource).toContain('.rail-label,');
-    expect(MainWorkbenchShellSource).toContain('.rail-count');
-    expect(MainWorkbenchShellSource).toContain('.workbench-page-header');
-    expect(MainWorkbenchShellSource).toContain('flex-direction: column;');
-    expect(MainWorkbenchShellSource).toContain('.pin-chip');
-    expect(MainWorkbenchShellSource).toContain('max-width: min(240px, 60vw);');
+    expect(MainWorkbenchShellSource).not.toContain('.workbench-page-header');
+    expect(MainWorkbenchShellSource).not.toContain('.pin-chip');
+    expect(MainWorkbenchShellSource).toContain('.workbench-content');
+    expect(MainWorkbenchShellSource).toContain('overflow: auto;');
   });
 });

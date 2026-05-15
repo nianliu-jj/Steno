@@ -9,24 +9,13 @@ import { useNotesStore } from '@/stores/notes';
 import { useUiStore } from '@/stores/ui';
 import type { Note } from '@/types/steno';
 
-const props = withDefaults(
-  defineProps<{
-    compactActions?: boolean;
-  }>(),
-  {
-    compactActions: false,
-  },
-);
-
 const notes = useNotesStore();
 const ui = useUiStore();
 const win = useWindow();
 const message = useMessage();
 
 onMounted(() => {
-  if (props.compactActions) return;
   void notes.loadNotes(50);
-  void notes.loadPinned();
 });
 
 const recentNotes = computed(() => notes.notes.slice(0, 30));
@@ -104,29 +93,29 @@ function formatUpdatedAt(iso: string): string {
 </script>
 
 <template>
-  <div v-if="props.compactActions" class="main-toolbar" data-testid="main-toolbar">
-    <button class="toolbar-btn" type="button" data-testid="main-filter">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <path d="M3 5h18M6 12h12M10 19h4" />
-      </svg>
-      筛选
-    </button>
-    <button class="toolbar-btn toolbar-btn--ghost" type="button" data-testid="main-new-quicknote" @click="onNewQuickNote">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <path d="M12 20h9" />
-        <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z" />
-      </svg>
-      速记
-    </button>
-    <button class="toolbar-btn toolbar-btn--primary" type="button" data-testid="main-new-note" @click="onNewNote">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <path d="M12 5v14M5 12h14" />
-      </svg>
-      新建笔记
-    </button>
-  </div>
+  <div class="main-root">
+    <div class="main-toolbar" data-testid="main-toolbar">
+      <button class="toolbar-btn" type="button" data-testid="main-filter">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M3 5h18M6 12h12M10 19h4" />
+        </svg>
+        筛选
+      </button>
+      <button class="toolbar-btn toolbar-btn--ghost" type="button" data-testid="main-new-quicknote" @click="onNewQuickNote">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z" />
+        </svg>
+        速记
+      </button>
+      <button class="toolbar-btn toolbar-btn--primary" type="button" data-testid="main-new-note" @click="onNewNote">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        新建笔记
+      </button>
+    </div>
 
-  <div v-else class="main-root">
     <section v-if="recentNotes.length > 0" class="notes-grid">
       <article
         v-for="note in recentNotes"
@@ -183,7 +172,7 @@ function formatUpdatedAt(iso: string): string {
 
 <style scoped>
 .main-toolbar {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
@@ -236,7 +225,11 @@ function formatUpdatedAt(iso: string): string {
 }
 
 .main-root {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   min-height: 100%;
+  padding: 18px 20px 20px;
   color: #2a2a2a;
   font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
@@ -350,10 +343,12 @@ function formatUpdatedAt(iso: string): string {
 }
 
 .empty-state {
-  min-height: 420px;
+  flex: 1 1 auto;
+  min-height: 240px;
   display: grid;
-  place-items: center;
-  padding: 40px 24px;
+  justify-items: center;
+  align-content: start;
+  padding: 6px 24px 24px;
 }
 
 .empty-inner {
@@ -448,5 +443,11 @@ function formatUpdatedAt(iso: string): string {
   font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 10px;
   line-height: 1;
+}
+
+@media (max-width: 720px) {
+  .main-root {
+    padding: 14px 14px 16px;
+  }
 }
 </style>

@@ -1,0 +1,416 @@
+<style>
+  .cards.layout-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .layout-card {
+    overflow: hidden;
+  }
+
+  .layout-card .card-body {
+    display: grid;
+    gap: 10px;
+  }
+
+  .tag-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    height: 24px;
+    padding: 0 10px;
+    border: 1px solid rgba(148, 129, 111, 0.2);
+    border-radius: 999px;
+    background: rgba(255, 250, 245, 0.9);
+    color: #7a6657;
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .tag.recommended {
+    border-color: rgba(198, 110, 63, 0.35);
+    background: rgba(198, 110, 63, 0.1);
+    color: #9a512d;
+  }
+
+  .mini-app {
+    position: relative;
+    min-height: 360px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #f8f2ea 0%, #f7efe7 100%);
+    box-shadow: inset 0 0 0 1px rgba(152, 131, 112, 0.12);
+    overflow: hidden;
+  }
+
+  .mini-topbar {
+    height: 44px;
+    display: grid;
+    grid-template-columns: 150px 1fr 96px;
+    align-items: center;
+    border-bottom: 1px solid rgba(152, 131, 112, 0.16);
+    background: rgba(255, 251, 247, 0.92);
+  }
+
+  .mini-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    border-right: 1px solid rgba(152, 131, 112, 0.16);
+    font-size: 12px;
+    font-weight: 600;
+    color: #271f18;
+  }
+
+  .mini-brand-mark {
+    width: 20px;
+    height: 20px;
+    display: grid;
+    place-items: center;
+    border-radius: 6px;
+    background: #c66e3f;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .mini-search {
+    height: 28px;
+    margin: 0 16px;
+    border: 1px solid rgba(152, 131, 112, 0.16);
+    border-radius: 8px;
+    background: #fbf7f2;
+  }
+
+  .mini-wc {
+    justify-self: end;
+    width: 64px;
+    height: 12px;
+    margin-right: 14px;
+    border-radius: 999px;
+    background:
+      radial-gradient(circle at 6px 6px, #b4a294 0 3px, transparent 4px),
+      radial-gradient(circle at 28px 6px, #b4a294 0 3px, transparent 4px),
+      radial-gradient(circle at 50px 6px, #b4a294 0 3px, transparent 4px);
+  }
+
+  .mini-body {
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    min-height: 316px;
+  }
+
+  .mini-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 10px;
+    border-right: 1px solid rgba(152, 131, 112, 0.16);
+    background: rgba(255, 250, 245, 0.88);
+  }
+
+  .mini-nav {
+    height: 30px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.22);
+  }
+
+  .mini-nav.active {
+    background: rgba(213, 186, 160, 0.32);
+    box-shadow: inset 0 0 0 1px rgba(152, 131, 112, 0.12);
+  }
+
+  .mini-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 18px;
+  }
+
+  .utility-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .utility-left,
+  .utility-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .micro-pill,
+  .action-pill,
+  .accent-pill {
+    height: 28px;
+    border-radius: 9px;
+  }
+
+  .micro-pill {
+    min-width: 74px;
+    background: rgba(255, 255, 255, 0.78);
+    box-shadow: inset 0 0 0 1px rgba(152, 131, 112, 0.12);
+  }
+
+  .action-pill {
+    min-width: 48px;
+    background: rgba(255, 255, 255, 0.78);
+    box-shadow: inset 0 0 0 1px rgba(152, 131, 112, 0.12);
+  }
+
+  .accent-pill {
+    min-width: 78px;
+    background: #c66e3f;
+    box-shadow: inset 0 0 0 1px rgba(198, 110, 63, 0.4);
+  }
+
+  .hairline {
+    height: 1px;
+    background: rgba(152, 131, 112, 0.14);
+  }
+
+  .note-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .note-grid.one-col {
+    grid-template-columns: 1fr;
+  }
+
+  .note-card {
+    min-height: 124px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow:
+      inset 0 0 0 1px rgba(152, 131, 112, 0.16),
+      0 8px 18px rgba(78, 58, 38, 0.04);
+  }
+
+  .note-card.pinned {
+    background: rgba(249, 236, 216, 0.92);
+  }
+
+  .stack {
+    display: grid;
+    gap: 10px;
+  }
+
+  .floating-cta {
+    position: absolute;
+    right: 18px;
+    bottom: 18px;
+    width: 54px;
+    height: 54px;
+    border-radius: 18px;
+    background: #c66e3f;
+    box-shadow: 0 14px 30px rgba(198, 110, 63, 0.22);
+  }
+
+  .corner-actions {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    display: flex;
+    gap: 8px;
+  }
+
+  .corner-actions .action-pill {
+    width: 40px;
+    min-width: 40px;
+  }
+
+  .section-note {
+    color: #7a6657;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  @media (max-width: 1100px) {
+    .cards.layout-cards {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<h2>移除顶部标题区和底部置顶栏后的主界面方向</h2>
+<p class="subtitle">
+  我按你的截图先做了三种骨架方案，默认也一并去掉左侧的“搜索”入口，避免和顶栏全局搜索重复。
+  重点看信息层级、留白和主内容是否更顺。
+</p>
+
+<div class="cards layout-cards">
+  <div class="card layout-card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mini-app">
+        <div class="mini-topbar">
+          <div class="mini-brand">
+            <div class="mini-brand-mark">S</div>
+            <span>Steno</span>
+          </div>
+          <div class="mini-search"></div>
+          <div class="mini-wc"></div>
+        </div>
+        <div class="mini-body">
+          <div class="mini-sidebar">
+            <div class="mini-nav active"></div>
+            <div class="mini-nav"></div>
+            <div class="mini-nav"></div>
+            <div class="mini-nav"></div>
+            <div class="mini-nav"></div>
+            <div class="mini-nav"></div>
+            <div class="mini-nav"></div>
+            <div style="flex:1"></div>
+            <div class="mini-nav" style="height:26px"></div>
+          </div>
+          <div class="mini-content">
+            <div class="utility-row">
+              <div class="utility-left">
+                <div class="micro-pill" style="min-width:88px"></div>
+                <div class="micro-pill" style="min-width:58px"></div>
+              </div>
+              <div class="utility-right">
+                <div class="action-pill"></div>
+                <div class="action-pill" style="min-width:58px"></div>
+                <div class="accent-pill"></div>
+              </div>
+            </div>
+            <div class="hairline"></div>
+            <div class="note-grid">
+              <div class="note-card pinned"></div>
+              <div class="note-card"></div>
+              <div class="note-card"></div>
+              <div class="note-card"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="tag-row">
+        <span class="tag recommended">推荐</span>
+        <span class="tag">平衡</span>
+      </div>
+      <h3>A. 轻工具条首行</h3>
+      <p class="section-note">
+        去掉大标题区后，用一条低高度工具条承接筛选和新建动作，下面直接进入笔记网格。页面不再有“块状页头”，但主区域仍有稳定起点。
+      </p>
+    </div>
+  </div>
+
+  <div class="card layout-card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mini-app">
+        <div class="mini-topbar">
+          <div class="mini-brand">
+            <div class="mini-brand-mark">S</div>
+            <span>Steno</span>
+          </div>
+          <div class="mini-search"></div>
+          <div class="mini-wc"></div>
+        </div>
+        <div class="mini-body">
+          <div class="mini-sidebar">
+            <div class="mini-nav active"></div>
+            <div class="mini-nav"></div>
+            <div class="mini-nav"></div>
+            <div class="mini-nav"></div>
+            <div class="mini-nav"></div>
+            <div class="mini-nav"></div>
+            <div class="mini-nav"></div>
+            <div style="flex:1"></div>
+            <div class="mini-nav" style="height:26px"></div>
+          </div>
+          <div class="mini-content" style="padding-top:22px">
+            <div class="corner-actions">
+              <div class="action-pill"></div>
+              <div class="action-pill"></div>
+              <div class="accent-pill" style="min-width:84px"></div>
+            </div>
+            <div class="note-grid" style="margin-top:22px">
+              <div class="note-card pinned"></div>
+              <div class="note-card"></div>
+              <div class="note-card"></div>
+              <div class="note-card"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="tag-row">
+        <span class="tag">极简</span>
+        <span class="tag">更安静</span>
+      </div>
+      <h3>B. 直接进入内容</h3>
+      <p class="section-note">
+        主内容一打开就是笔记卡片，动作按钮悬在右上角。界面最干净，但“这是哪个页面”“还能做什么”的提示最弱，适合你想要很强的沉浸感。
+      </p>
+    </div>
+  </div>
+
+  <div class="card layout-card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mini-app">
+        <div class="mini-topbar">
+          <div class="mini-brand">
+            <div class="mini-brand-mark">S</div>
+            <span>Steno</span>
+          </div>
+          <div class="mini-search"></div>
+          <div class="mini-wc"></div>
+        </div>
+        <div class="mini-body">
+          <div class="mini-sidebar">
+            <div class="mini-nav active"></div>
+            <div class="mini-nav"></div>
+            <div class="mini-nav"></div>
+            <div class="mini-nav"></div>
+            <div class="mini-nav"></div>
+            <div class="mini-nav"></div>
+            <div class="mini-nav"></div>
+            <div style="flex:1"></div>
+            <div class="mini-nav" style="height:26px"></div>
+          </div>
+          <div class="mini-content">
+            <div class="utility-row">
+              <div class="utility-left">
+                <div class="micro-pill" style="min-width:72px"></div>
+              </div>
+              <div class="utility-right">
+                <div class="accent-pill" style="min-width:88px"></div>
+              </div>
+            </div>
+            <div class="stack">
+              <div class="note-card pinned" style="min-height:88px"></div>
+              <div class="note-grid">
+                <div class="note-card"></div>
+                <div class="note-card"></div>
+                <div class="note-card"></div>
+                <div class="note-card"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="tag-row">
+        <span class="tag">强调置顶</span>
+        <span class="tag">结构变化更大</span>
+      </div>
+      <h3>C. 置顶并入内容区</h3>
+      <p class="section-note">
+        底部置顶栏移除后，把置顶信息提升为内容区首卡，下面再接普通笔记网格。功能保留得更完整，但页面结构改动会比前两种更明显。
+      </p>
+    </div>
+  </div>
+</div>
