@@ -1,9 +1,10 @@
 <script setup lang="ts">
 // 主窗口落地页（mode === 'main'）。
 // 当前作为工作台内容页渲染：原型 v2 的笔记卡片网格和空状态。
-import { computed, onMounted } from 'vue';
-import { NButton, useMessage } from 'naive-ui';
+import { computed, onMounted, ref } from 'vue';
+import { NButton, NInput, useMessage } from 'naive-ui';
 
+import { useDb } from '@/composables/useDb';
 import { useWindow } from '@/composables/useWindow';
 import { useNotesStore } from '@/stores/notes';
 import { useUiStore } from '@/stores/ui';
@@ -13,12 +14,94 @@ const notes = useNotesStore();
 const ui = useUiStore();
 const win = useWindow();
 const message = useMessage();
+const db = useDb();
+
+const untaggedFilterValue = '__untagged__';
 
 onMounted(() => {
   void notes.loadNotes(50);
 });
 
 const recentNotes = computed(() => notes.notes.slice(0, 30));
+const filterOpen = ref(false);
+const selectedFilterValues = ref<string[]>([]);
+
+const filterOptions = computed(() => {
+  const tags = new Set<string>();
+  for (const note of recentNotes.value) {
+    for (const tag of note.tags) {
+      const trimmed = tag.trim();
+      if (trimmed) tags.add(trimmed);
+    }
+  }
+  return [
+    ...Array.from(tags)
+      .sort((a, b) => a.localeCompare(b, 'zh-CN'))
+      .map(tag => ({ value: tag, label: tag, testId: `filter-option-${tag}` })),
+    { value: untaggedFilterValue, label: '无标签', testId: 'filter-option-untagged' },
+  ];
+});
+
+const allFilterValues = computed(() => filterOptions.value.map(option => option.value));
+const isAllFiltersSelected = computed(
+  () =>
+    allFilterValues.value.length > 0 &&
+    allFilterValues.value.every(value => selectedFilterValues.value.includes(value)),
+);
+
+const visibleNotes = computed(() => {
+  const selected = new Set(selectedFilterValues.value);
+  if (selected.size === 0 || allFilterValues.value.every(value => selected.has(value))) {
+    return recentNotes.value;
+  }
+
+  return recentNotes.value.filter((note) => {
+    const tags = normalizedTags(note);
+    const matchesTag = tags.some(tag => selected.has(tag));
+    const matchesUntagged = tags.length === 0 && selected.has(untaggedFilterValue);
+    return matchesTag || matchesUntagged;
+  });
+});
+
+const contextMenu = ref<{
+  visible: boolean;
+  x: number;
+  y: number;
+  note: Note | null;
+  exportOpen: boolean;
+}>({
+  visible: false,
+  x: 0,
+  y: 0,
+  note: null,
+  exportOpen: false,
+});
+
+const contextTargetNote = computed(() => contextMenu.value.note);
+const contextHasTarget = computed(() => contextTargetNote.value !== null);
+
+const tagDialogVisible = ref(false);
+const tagDialogNote = ref<Note | null>(null);
+const tagDraftRows = ref<string[]>([]);
+const renameDialogVisible = ref(false);
+const renameDialogNote = ref<Note | null>(null);
+const renameDraft = ref('');
+
+function normalizedTags(note: Note): string[] {
+  return note.tags.map(tag => tag.trim()).filter(Boolean);
+}
+
+function onToggleAllFilters(checked: boolean) {
+  selectedFilterValues.value = checked ? [...allFilterValues.value] : [];
+}
+
+function onToggleAllFiltersChange(event: Event) {
+  onToggleAllFilters((event.target as HTMLInputElement).checked);
+}
+
+function toggleFilterMenu() {
+  filterOpen.value = !filterOpen.value;
+}
 
 async function onNewQuickNote() {
   try {
@@ -34,6 +117,158 @@ function onNewNote() {
 
 function onOpenNoteEditor(note: Note) {
   ui.navigateTo('note-editor', note.id);
+}
+
+function closeContextMenu() {
+  contextMenu.value.visible = false;
+  contextMenu.value.exportOpen = false;
+}
+
+function openContextMenu(event: MouseEvent, note: Note | null) {
+  event.preventDefault();
+  contextMenu.value = {
+    visible: true,
+    x: event.clientX,
+    y: event.clientY,
+    note,
+    exportOpen: false,
+  };
+}
+
+function onContextMenuBlank(event: MouseEvent) {
+  openContextMenu(event, null);
+}
+
+function onContextMenuNote(event: MouseEvent, note: Note) {
+  openContextMenu(event, note);
+}
+
+function onContextNewNote() {
+  closeContextMenu();
+  onNewNote();
+}
+
+function onContextEdit() {
+  const note = contextTargetNote.value;
+  if (!note) return;
+  closeContextMenu();
+  onOpenNoteEditor(note);
+}
+
+function onContextTags() {
+  const note = contextTargetNote.value;
+  if (!note) return;
+  tagDialogNote.value = note;
+  tagDraftRows.value = note.tags.length ? [...note.tags] : [''];
+  tagDialogVisible.value = true;
+  closeContextMenu();
+}
+
+function onContextRename() {
+  const note = contextTargetNote.value;
+  if (!note) return;
+  renameDialogNote.value = note;
+  renameDraft.value = note.title;
+  renameDialogVisible.value = true;
+  closeContextMenu();
+}
+
+function onToggleExportSubmenu() {
+  if (!contextTargetNote.value) return;
+  contextMenu.value.exportOpen = !contextMenu.value.exportOpen;
+}
+
+async function onContextExport(format: 'markdown' | 'html' | 'pdf') {
+  const note = contextTargetNote.value;
+  if (!note) return;
+  try {
+    const path = format === 'markdown'
+      ? await db.exportNoteMarkdown(note.id)
+      : format === 'html'
+        ? await db.exportNoteHtml(note.id)
+        : await db.exportNotePdf(note.id);
+    message.success(`已导出：${path}`);
+  } catch (e) {
+    message.error(String(e));
+  }
+}
+
+function onContextPrint() {
+  window.print();
+}
+
+async function onContextDelete() {
+  const note = contextTargetNote.value;
+  if (!note) return;
+  closeContextMenu();
+  await onDelete(note);
+}
+
+function onCloseTagDialog() {
+  tagDialogVisible.value = false;
+  tagDialogNote.value = null;
+  tagDraftRows.value = [];
+}
+
+function onAddTagRow() {
+  tagDraftRows.value.push('');
+}
+
+function onDeleteTagRow(index: number) {
+  tagDraftRows.value.splice(index, 1);
+  if (tagDraftRows.value.length === 0) {
+    tagDraftRows.value.push('');
+  }
+}
+
+function parseTagRows(rows: string[]): string[] {
+  return Array.from(
+    new Set(
+      rows
+        .map(tag => tag.replace(/^#+/, '').trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function buildSaveRequest(note: Note, overrides: Partial<Pick<Note, 'title' | 'tags'>>) {
+  return {
+    id: note.id,
+    title: overrides.title ?? note.title,
+    content: note.content,
+    tags: overrides.tags ?? note.tags,
+    isPinned: note.isPinned,
+    pinnedWindowConfig: note.pinnedWindowConfig ?? null,
+    canvasPosition: note.canvasPosition ?? null,
+  };
+}
+
+async function onConfirmTagDialog() {
+  const note = tagDialogNote.value;
+  if (!note) return;
+  try {
+    await notes.saveDraft(buildSaveRequest(note, { tags: parseTagRows(tagDraftRows.value) }));
+    onCloseTagDialog();
+  } catch (e) {
+    message.error(String(e));
+  }
+}
+
+function onCloseRenameDialog() {
+  renameDialogVisible.value = false;
+  renameDialogNote.value = null;
+  renameDraft.value = '';
+}
+
+async function onConfirmRenameDialog() {
+  const note = renameDialogNote.value;
+  if (!note) return;
+  try {
+    await notes.saveDraft(buildSaveRequest(note, { title: renameDraft.value }));
+    onCloseRenameDialog();
+  } catch (e) {
+    message.error(String(e));
+  }
 }
 
 async function onTogglePin(note: Note) {
@@ -93,14 +328,39 @@ function formatUpdatedAt(iso: string): string {
 </script>
 
 <template>
-  <div class="main-root">
+  <div class="main-root" @click="closeContextMenu" @contextmenu="onContextMenuBlank">
     <div class="main-toolbar" data-testid="main-toolbar">
-      <button class="toolbar-btn" type="button" data-testid="main-filter">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path d="M3 5h18M6 12h12M10 19h4" />
-        </svg>
-        筛选
-      </button>
+      <div class="filter-wrap" @click.stop>
+        <button class="toolbar-btn" type="button" data-testid="main-filter" @click="toggleFilterMenu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M3 5h18M6 12h12M10 19h4" />
+          </svg>
+          筛选
+        </button>
+        <div v-if="filterOpen" class="filter-menu" data-testid="filter-menu">
+          <label class="filter-option filter-option--all" data-testid="filter-select-all">
+            <input
+              type="checkbox"
+              :checked="isAllFiltersSelected"
+              @change="onToggleAllFiltersChange"
+            >
+            <span>全选</span>
+          </label>
+          <label
+            v-for="option in filterOptions"
+            :key="option.value"
+            class="filter-option"
+            :data-testid="option.testId"
+          >
+            <input
+              v-model="selectedFilterValues"
+              type="checkbox"
+              :value="option.value"
+            >
+            <span>{{ option.label }}</span>
+          </label>
+        </div>
+      </div>
       <button class="toolbar-btn toolbar-btn--ghost" type="button" data-testid="main-new-quicknote" @click="onNewQuickNote">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <path d="M12 20h9" />
@@ -116,13 +376,14 @@ function formatUpdatedAt(iso: string): string {
       </button>
     </div>
 
-    <section v-if="recentNotes.length > 0" class="notes-grid">
+    <section v-if="visibleNotes.length > 0" class="notes-grid">
       <article
-        v-for="note in recentNotes"
+        v-for="note in visibleNotes"
         :key="note.id"
         class="note-card"
         :class="{ 'paper-1': note.isPinned }"
         @dblclick="onOpenNoteEditor(note)"
+        @contextmenu.stop="onContextMenuNote($event, note)"
       >
         <div class="note-head">
           <span v-if="note.isPinned" class="note-pin"></span>
@@ -167,6 +428,171 @@ function formatUpdatedAt(iso: string): string {
         </div>
       </div>
     </section>
+
+    <div
+      v-if="contextMenu.visible"
+      class="note-context-menu"
+      data-testid="note-context-menu"
+      role="menu"
+      :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
+      @click.stop
+      @contextmenu.stop.prevent
+    >
+      <button
+        class="context-item"
+        type="button"
+        data-testid="context-new"
+        aria-disabled="false"
+        role="menuitem"
+        @click="onContextNewNote"
+      >
+        新建
+      </button>
+      <button
+        class="context-item"
+        type="button"
+        data-testid="context-edit"
+        :disabled="!contextHasTarget"
+        :aria-disabled="!contextHasTarget"
+        role="menuitem"
+        @click="onContextEdit"
+      >
+        编辑
+      </button>
+      <button
+        class="context-item"
+        type="button"
+        data-testid="context-tags"
+        :disabled="!contextHasTarget"
+        :aria-disabled="!contextHasTarget"
+        role="menuitem"
+        @click="onContextTags"
+      >
+        标签
+      </button>
+      <div class="context-export-wrap">
+        <button
+          class="context-item context-item--with-arrow"
+          type="button"
+          data-testid="context-export"
+          :disabled="!contextHasTarget"
+          :aria-disabled="!contextHasTarget"
+          role="menuitem"
+          @click="onToggleExportSubmenu"
+        >
+          导出为
+          <span aria-hidden="true">›</span>
+        </button>
+        <div v-if="contextMenu.exportOpen && contextHasTarget" class="context-submenu" role="menu">
+          <button class="context-item" type="button" data-testid="context-export-markdown" role="menuitem" @click="onContextExport('markdown')">
+            Markdown
+          </button>
+          <button class="context-item" type="button" data-testid="context-export-html" role="menuitem" @click="onContextExport('html')">
+            Html
+          </button>
+          <button class="context-item" type="button" data-testid="context-export-pdf" role="menuitem" @click="onContextExport('pdf')">
+            PDF
+          </button>
+        </div>
+      </div>
+      <button
+        class="context-item"
+        type="button"
+        data-testid="context-print"
+        aria-disabled="false"
+        role="menuitem"
+        @click="onContextPrint"
+      >
+        打印
+      </button>
+      <button
+        class="context-item"
+        type="button"
+        data-testid="context-rename"
+        :disabled="!contextHasTarget"
+        :aria-disabled="!contextHasTarget"
+        role="menuitem"
+        @click="onContextRename"
+      >
+        重命名
+      </button>
+      <button
+        class="context-item context-item--danger"
+        type="button"
+        data-testid="context-delete"
+        :disabled="!contextHasTarget"
+        :aria-disabled="!contextHasTarget"
+        role="menuitem"
+        @click="onContextDelete"
+      >
+        删除
+      </button>
+    </div>
+
+    <div
+      v-if="tagDialogVisible"
+      class="main-dialog-backdrop"
+      @click.self="onCloseTagDialog"
+      @keydown.esc="onCloseTagDialog"
+    >
+      <section class="main-dialog" role="dialog" aria-modal="true" aria-labelledby="main-tags-title" @click.stop>
+        <h2 id="main-tags-title" class="main-dialog-title">标签</h2>
+        <div class="tag-editor">
+          <div v-for="(_, index) in tagDraftRows" :key="index" class="tag-row">
+            <NInput
+              v-model:value="tagDraftRows[index]"
+              size="small"
+              placeholder="输入标签"
+              :aria-label="`标签 ${index + 1}`"
+              :data-testid="`main-tag-input-${index}`"
+            />
+            <NButton
+              quaternary
+              circle
+              size="small"
+              :aria-label="`删除标签 ${index + 1}`"
+              :data-testid="`main-tag-delete-${index}`"
+              @click="onDeleteTagRow(index)"
+            >
+              ×
+            </NButton>
+          </div>
+          <NButton size="small" tertiary data-testid="main-tag-add" @click="onAddTagRow">
+            添加标签
+          </NButton>
+        </div>
+        <div class="main-dialog-actions">
+          <NButton size="small" @click="onCloseTagDialog">取消</NButton>
+          <NButton size="small" type="primary" data-testid="main-tags-confirm" @click="onConfirmTagDialog">
+            保存
+          </NButton>
+        </div>
+      </section>
+    </div>
+
+    <div
+      v-if="renameDialogVisible"
+      class="main-dialog-backdrop"
+      @click.self="onCloseRenameDialog"
+      @keydown.esc="onCloseRenameDialog"
+    >
+      <section class="main-dialog" role="dialog" aria-modal="true" aria-labelledby="main-rename-title" @click.stop>
+        <h2 id="main-rename-title" class="main-dialog-title">重命名</h2>
+        <NInput
+          v-model:value="renameDraft"
+          size="small"
+          placeholder="输入文档名称"
+          aria-label="文档名称"
+          data-testid="main-rename-input"
+        />
+        <div class="main-dialog-actions">
+          <NButton size="small" @click="onCloseRenameDialog">取消</NButton>
+          <NButton size="small" type="primary" data-testid="main-rename-confirm" @click="onConfirmRenameDialog">
+            保存
+          </NButton>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -176,6 +602,10 @@ function formatUpdatedAt(iso: string): string {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.filter-wrap {
+  position: relative;
 }
 
 .toolbar-btn {
@@ -224,6 +654,51 @@ function formatUpdatedAt(iso: string): string {
   background: oklch(58% 0.13 42);
 }
 
+.filter-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  width: 178px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px;
+  border: 1px solid oklch(86% 0.014 78);
+  border-radius: 8px;
+  background: oklch(99% 0.006 78);
+  box-shadow: 0 12px 30px oklch(24% 0.02 70 / 0.14);
+}
+
+.filter-option {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 7px;
+  border-radius: 6px;
+  color: oklch(24% 0.02 70);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.filter-option:hover {
+  background: oklch(96% 0.014 78);
+}
+
+.filter-option input {
+  width: 14px;
+  height: 14px;
+  accent-color: oklch(61% 0.13 42);
+}
+
+.filter-option--all {
+  margin-bottom: 3px;
+  border-bottom: 1px solid oklch(90% 0.01 78);
+  border-radius: 6px 6px 2px 2px;
+  font-weight: 600;
+}
+
 .main-root {
   display: flex;
   flex-direction: column;
@@ -232,6 +707,123 @@ function formatUpdatedAt(iso: string): string {
   padding: 18px 20px 20px;
   color: #2a2a2a;
   font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.note-context-menu {
+  position: fixed;
+  z-index: 40;
+  width: 172px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid oklch(84% 0.014 78);
+  border-radius: 8px;
+  background: oklch(99% 0.006 78);
+  box-shadow: 0 16px 42px oklch(24% 0.02 70 / 0.18);
+}
+
+.context-item {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: oklch(22% 0.02 70);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-item:hover:not(:disabled) {
+  background: oklch(96% 0.014 78);
+}
+
+.context-item:disabled {
+  color: oklch(58% 0.01 70);
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.context-item--danger:not(:disabled) {
+  color: oklch(48% 0.16 28);
+}
+
+.context-item--with-arrow {
+  justify-content: space-between;
+  width: 100%;
+}
+
+.context-export-wrap {
+  position: relative;
+}
+
+.context-submenu {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 6px);
+  width: 128px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid oklch(84% 0.014 78);
+  border-radius: 8px;
+  background: oklch(99% 0.006 78);
+  box-shadow: 0 12px 30px oklch(24% 0.02 70 / 0.14);
+}
+
+.main-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: oklch(18% 0.02 70 / 0.24);
+}
+
+.main-dialog {
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid oklch(84% 0.014 78);
+  border-radius: 8px;
+  background: oklch(99% 0.006 78);
+  box-shadow: 0 18px 48px oklch(24% 0.02 70 / 0.16);
+}
+
+.main-dialog-title {
+  margin: 0;
+  color: oklch(22% 0.02 70);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.tag-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tag-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 8px;
+}
+
+.main-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .notes-grid {

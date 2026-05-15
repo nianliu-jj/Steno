@@ -20,12 +20,25 @@ use crate::models::Note;
 pub enum ExportError {
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
-    #[error("PDF 适配器在当前平台不可用：MVP 仅支持 Markdown 导出，PDF 请通过浏览器打印或外部工具完成。")]
+    #[error(
+        "PDF 适配器在当前平台不可用：MVP 仅支持 Markdown 导出，PDF 请通过浏览器打印或外部工具完成。"
+    )]
     PdfUnavailable,
 }
 
 pub fn export_markdown(note: &Note, output_path: &Path) -> Result<(), ExportError> {
     let body = render_markdown(note);
+    if let Some(parent) = output_path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+    std::fs::write(output_path, body)?;
+    Ok(())
+}
+
+pub fn export_html(note: &Note, output_path: &Path) -> Result<(), ExportError> {
+    let body = render_html(note);
     if let Some(parent) = output_path.parent() {
         if !parent.as_os_str().is_empty() {
             std::fs::create_dir_all(parent)?;
@@ -102,6 +115,21 @@ fn render_markdown(note: &Note) -> String {
     buf
 }
 
+fn render_html(note: &Note) -> String {
+    let title = html_escape(&note.title);
+    format!(
+        "<!doctype html>\n<html lang=\"zh-CN\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>{title}</title>\n<style>body{{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;line-height:1.65;max-width:760px;margin:40px auto;padding:0 20px;color:#242424;}}main{{display:block;}}</style>\n</head>\n<body>\n<main>\n<h1>{title}</h1>\n{}\n</main>\n</body>\n</html>\n",
+        note.html_content
+    )
+}
+
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
 /// YAML scalar 简易转义：含特殊字符时加双引号并转义反斜杠/引号。
 fn yaml_escape(s: &str) -> String {
     let needs_quote = s
@@ -159,6 +187,19 @@ mod tests {
     }
 
     #[test]
+    fn export_html_writes_full_html_document() {
+        let tmp = std::env::temp_dir().join(format!("steno-export-{}.html", uuid::Uuid::new_v4()));
+        export_html(&make_note(), &tmp).expect("write html");
+        let content = std::fs::read_to_string(&tmp).expect("read html");
+        assert!(content.contains("<!doctype html>"));
+        assert!(content.contains("<title>笔记标题</title>"));
+        assert!(content.contains("<main>"));
+        assert!(content.contains("<p>...</p>"));
+        assert!(content.contains("</html>"));
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
     fn export_pdf_reports_unavailable() {
         let res = export_pdf(&make_note(), Path::new("/tmp/x.pdf"));
         assert!(matches!(res, Err(ExportError::PdfUnavailable)));
@@ -195,7 +236,10 @@ mod tests {
     #[test]
     fn build_output_path_joins_dir_and_filename() {
         let path = build_output_path(Path::new("/tmp/exports"), &make_note(), "md");
-        assert_eq!(path.file_name().and_then(|s| s.to_str()), Some("笔记标题-abcdef12.md"));
+        assert_eq!(
+            path.file_name().and_then(|s| s.to_str()),
+            Some("笔记标题-abcdef12.md")
+        );
         assert_eq!(path.parent(), Some(Path::new("/tmp/exports")));
     }
 }

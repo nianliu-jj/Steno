@@ -87,6 +87,11 @@ export function useDb() {
     return invoke<string>('export_note_markdown', { id });
   }
 
+  /** 成功时返回写入的完整 HTML 文件路径。失败时 invoke 抛错。 */
+  function exportNoteHtml(id: string) {
+    return invoke<string>('export_note_html', { id });
+  }
+
   /** MVP 当前总是失败，返回的错误用于前端展示"PDF 不可用"提示。 */
   function exportNotePdf(id: string) {
     return invoke<string>('export_note_pdf', { id });
@@ -114,6 +119,7 @@ export function useDb() {
     setSetting,
     reloadShortcuts,
     exportNoteMarkdown,
+    exportNoteHtml,
     exportNotePdf,
     getDataPaths,
   };
