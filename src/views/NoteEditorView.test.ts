@@ -2,11 +2,13 @@
 
 import { flushPromises, mount } from '@vue/test-utils';
 import { NConfigProvider, NMessageProvider } from 'naive-ui';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, h } from 'vue';
 
 import NoteEditorView from './NoteEditorView.vue';
 import NoteEditorViewSource from './NoteEditorView.vue?raw';
+
+let autosaveStatus = 'saved';
 
 const getNote = vi.fn(() =>
   Promise.resolve({
@@ -53,7 +55,7 @@ vi.mock('@/composables/useMarkdown', () => ({
 
 vi.mock('@/composables/useAutosave', () => ({
   useAutosave: (saver: (payload: unknown) => Promise<unknown>) => ({
-    status: { value: 'idle' },
+    status: { value: autosaveStatus },
     savedAt: { value: null },
     error: { value: null },
     scheduleSave: (payload: unknown) => void saver(payload),
@@ -83,13 +85,19 @@ const WrappedNoteEditorView = defineComponent({
 });
 
 describe('NoteEditorView', () => {
+  beforeEach(() => {
+    autosaveStatus = 'saved';
+    getNote.mockClear();
+    saveDraft.mockClear();
+  });
+
   it('loads the target note into the main-window editor', async () => {
     const wrapper = mount(WrappedNoteEditorView);
     await flushPromises();
 
     expect(getNote).toHaveBeenCalledWith('note-1');
-    expect((wrapper.find('.note-editor-title input').element as HTMLInputElement).value)
-      .toBe('Rust 生命周期笔记');
+    expect(wrapper.get('.note-editor-title-text').text()).toBe('Rust 生命周期笔记');
+    expect(wrapper.find('.note-editor-title input').exists()).toBe(false);
     expect((wrapper.find('textarea').element as HTMLTextAreaElement).value)
       .toContain('函数中的生命周期标注影响返回值。');
   });
@@ -101,6 +109,84 @@ describe('NoteEditorView', () => {
     await wrapper.find('textarea').setValue('新内容');
 
     expect(saveDraft).toHaveBeenCalled();
+  });
+
+  it('moves note tags and save metadata into the editor footer', async () => {
+    const wrapper = mount(WrappedNoteEditorView);
+    await flushPromises();
+
+    expect(wrapper.find('.note-editor-header .note-editor-meta').exists()).toBe(false);
+
+    const footerTags = wrapper.get('.note-editor-footer-tags');
+    expect(footerTags.text()).toContain('#rust');
+
+    const footerMeta = wrapper.get('.note-editor-footer-meta');
+    expect(footerMeta.text()).toContain('16 字');
+    expect(footerMeta.text()).toContain('已保存');
+  });
+
+  it('switches the header title into an editable input from the title icon button', async () => {
+    const wrapper = mount(WrappedNoteEditorView);
+    await flushPromises();
+
+    expect(wrapper.find('.note-editor-header .note-editor-title-input input').exists()).toBe(false);
+    expect(wrapper.find('.note-editor-body .note-editor-title').exists()).toBe(false);
+
+    await wrapper.get('[data-testid="note-title-edit"]').trigger('click');
+
+    const headerTitle = wrapper.get('.note-editor-header .note-editor-title-input input');
+    expect((headerTitle.element as HTMLInputElement).value).toBe('Rust 生命周期笔记');
+
+    await headerTitle.setValue('迁移后的标题');
+    await headerTitle.trigger('keydown.enter');
+
+    expect(saveDraft).toHaveBeenLastCalledWith(expect.objectContaining({
+      id: 'note-1',
+      title: '迁移后的标题',
+    }));
+    expect(wrapper.get('.note-editor-title-text').text()).toBe('迁移后的标题');
+  });
+
+  it('edits document tags as one single-line input per row from the tag dialog', async () => {
+    const wrapper = mount(WrappedNoteEditorView);
+    await flushPromises();
+
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
+
+    await wrapper.get('[data-testid="note-tags-edit"]').trigger('click');
+
+    const dialog = wrapper.get('[role="dialog"]');
+    expect(dialog.text()).toContain('编辑标签');
+    expect(dialog.find('.note-editor-tags-input textarea').exists()).toBe(false);
+
+    const firstInput = dialog.get('[data-testid="note-tag-input-0"] input');
+    expect((firstInput.element as HTMLInputElement).value).toBe('rust');
+
+    await firstInput.setValue('rust-updated');
+    await dialog.get('[data-testid="note-tag-add"]').trigger('click');
+    await dialog.get('[data-testid="note-tag-input-1"] input').setValue('vue');
+    await dialog.get('[data-testid="note-tag-delete-1"]').trigger('click');
+    await dialog.get('[data-testid="note-tag-add"]').trigger('click');
+    await dialog.get('[data-testid="note-tag-input-1"] input').setValue('标签');
+    await dialog.get('[data-testid="note-tags-confirm"]').trigger('click');
+
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
+    expect(saveDraft).toHaveBeenLastCalledWith(expect.objectContaining({
+      id: 'note-1',
+      tags: ['rust-updated', '标签'],
+    }));
+    expect(wrapper.get('.note-editor-footer-tags').text()).toContain('#rust-updated');
+    expect(wrapper.get('.note-editor-footer-tags').text()).toContain('#标签');
+  });
+
+  it('declares readable local colors for the tag editing dialog controls', () => {
+    expect(NoteEditorViewSource).toContain('class="note-editor-dialog-cancel"');
+    expect(NoteEditorViewSource).toContain('--n-text-color: #2a2a2a');
+    expect(NoteEditorViewSource).toContain('--n-placeholder-color: #8a7c70');
+    expect(NoteEditorViewSource).toContain('--n-color: #fffdf9');
+    expect(NoteEditorViewSource).toContain('-webkit-text-fill-color: #2a2a2a');
+    expect(NoteEditorViewSource).toContain('--n-text-color: #6f5c4c');
+    expect(NoteEditorViewSource).toContain('--n-color-hover: rgba(55, 46, 36, 0.08)');
   });
 
   it('declares readable text colors for the light workbench editor surface', () => {
