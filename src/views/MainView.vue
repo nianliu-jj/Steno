@@ -27,31 +27,35 @@ const filterOpen = ref(false);
 const selectedFilterValues = ref<string[]>([]);
 
 const filterOptions = computed(() => {
-  const tags = new Set<string>();
+  const tagCounts = new Map<string, number>();
+  let untaggedCount = 0;
+
   for (const note of recentNotes.value) {
-    for (const tag of note.tags) {
-      const trimmed = tag.trim();
-      if (trimmed) tags.add(trimmed);
+    const tags = normalizedTags(note);
+    if (tags.length === 0) {
+      untaggedCount++;
+      continue;
+    }
+
+    for (const tag of new Set(tags)) {
+      tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
     }
   }
+
   return [
-    ...Array.from(tags)
-      .sort((a, b) => a.localeCompare(b, 'zh-CN'))
-      .map(tag => ({ value: tag, label: tag, testId: `filter-option-${tag}` })),
-    { value: untaggedFilterValue, label: '无标签', testId: 'filter-option-untagged' },
+    { value: untaggedFilterValue, label: '无标签', count: untaggedCount, testId: 'filter-option-untagged' },
+    ...Array.from(tagCounts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-CN'))
+      .map(([tag, count]) => ({ value: tag, label: `#${tag}`, count, testId: `filter-option-${tag}` })),
   ];
 });
 
-const allFilterValues = computed(() => filterOptions.value.map(option => option.value));
-const isAllFiltersSelected = computed(
-  () =>
-    allFilterValues.value.length > 0 &&
-    allFilterValues.value.every(value => selectedFilterValues.value.includes(value)),
-);
+const totalNoteCount = computed(() => recentNotes.value.length);
+const isAllFiltersSelected = computed(() => selectedFilterValues.value.length === 0);
 
 const visibleNotes = computed(() => {
   const selected = new Set(selectedFilterValues.value);
-  if (selected.size === 0 || allFilterValues.value.every(value => selected.has(value))) {
+  if (selected.size === 0) {
     return recentNotes.value;
   }
 
@@ -62,6 +66,9 @@ const visibleNotes = computed(() => {
     return matchesTag || matchesUntagged;
   });
 });
+const visibleNoteCount = computed(() => visibleNotes.value.length);
+const filterStatText = computed(() => `${visibleNoteCount.value} / ${totalNoteCount.value} 篇`);
+const activeFilterCount = computed(() => selectedFilterValues.value.length);
 
 const contextMenu = ref<{
   visible: boolean;
@@ -92,11 +99,25 @@ function normalizedTags(note: Note): string[] {
 }
 
 function onToggleAllFilters(checked: boolean) {
-  selectedFilterValues.value = checked ? [...allFilterValues.value] : [];
+  if (checked || selectedFilterValues.value.length > 0) {
+    selectedFilterValues.value = [];
+  }
 }
 
 function onToggleAllFiltersChange(event: Event) {
   onToggleAllFilters((event.target as HTMLInputElement).checked);
+}
+
+function onResetFilters() {
+  selectedFilterValues.value = [];
+}
+
+function onApplyFilters() {
+  filterOpen.value = false;
+}
+
+function isFilterValueSelected(value: string) {
+  return selectedFilterValues.value.includes(value);
 }
 
 function toggleFilterMenu() {
@@ -336,29 +357,64 @@ function formatUpdatedAt(iso: string): string {
             <path d="M3 5h18M6 12h12M10 19h4" />
           </svg>
           筛选
+          <span v-if="activeFilterCount > 0" class="filter-badge">{{ activeFilterCount }}</span>
         </button>
-        <div v-if="filterOpen" class="filter-menu" data-testid="filter-menu">
-          <label class="filter-option filter-option--all" data-testid="filter-select-all">
-            <input
-              type="checkbox"
-              :checked="isAllFiltersSelected"
-              @change="onToggleAllFiltersChange"
+        <div v-if="filterOpen" class="filter-menu" data-testid="filter-menu" role="menu">
+          <header class="filter-menu__header">
+            <strong>按标签筛选</strong>
+            <button type="button" class="filter-menu__reset" data-testid="filter-clear" @click="onResetFilters">
+              重置
+            </button>
+          </header>
+          <div class="filter-list">
+            <label
+              class="filter-row filter-row--all"
+              :class="{ 'filter-row--checked': isAllFiltersSelected }"
+              data-testid="filter-select-all"
             >
-            <span>全选</span>
-          </label>
-          <label
-            v-for="option in filterOptions"
-            :key="option.value"
-            class="filter-option"
-            :data-testid="option.testId"
-          >
-            <input
-              v-model="selectedFilterValues"
-              type="checkbox"
-              :value="option.value"
+              <input
+                type="checkbox"
+                :checked="isAllFiltersSelected"
+                @change="onToggleAllFiltersChange"
+              >
+              <span class="filter-row__check" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </span>
+              <span class="filter-row__name">全部笔记</span>
+              <span class="filter-row__count">{{ totalNoteCount }}</span>
+            </label>
+            <label
+              v-for="option in filterOptions"
+              :key="option.value"
+              class="filter-row"
+              :class="{
+                'filter-row--checked': isFilterValueSelected(option.value),
+                'filter-row--untagged': option.value === untaggedFilterValue,
+              }"
+              :data-testid="option.testId"
             >
-            <span>{{ option.label }}</span>
-          </label>
+              <input
+                v-model="selectedFilterValues"
+                type="checkbox"
+                :value="option.value"
+              >
+              <span class="filter-row__check" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </span>
+              <span class="filter-row__name">{{ option.label }}</span>
+              <span class="filter-row__count">{{ option.count }}</span>
+            </label>
+          </div>
+          <footer class="filter-menu__footer">
+            <span data-testid="filter-stat">{{ filterStatText }}</span>
+            <button type="button" data-testid="filter-apply" @click="onApplyFilters">
+              完成
+            </button>
+          </footer>
         </div>
       </div>
       <button class="toolbar-btn toolbar-btn--ghost" type="button" data-testid="main-new-quicknote" @click="onNewQuickNote">
@@ -654,49 +710,191 @@ function formatUpdatedAt(iso: string): string {
   background: oklch(58% 0.13 42);
 }
 
+.filter-badge {
+  min-width: 16px;
+  height: 16px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: oklch(61% 0.13 42);
+  color: white;
+  font-size: 10.5px;
+  line-height: 1;
+}
+
 .filter-menu {
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
-  z-index: 20;
-  width: 178px;
+  z-index: 40;
+  width: min(400px, calc(100vw - 40px));
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 7px;
   border: 1px solid oklch(86% 0.014 78);
-  border-radius: 8px;
+  border-radius: 10px;
   background: oklch(99% 0.006 78);
-  box-shadow: 0 12px 30px oklch(24% 0.02 70 / 0.14);
+  box-shadow: 0 14px 34px oklch(24% 0.02 70 / 0.16);
+  overflow: hidden;
+  font-size: 12.5px;
 }
 
-.filter-option {
-  min-height: 30px;
+.filter-menu__header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 7px;
-  border-radius: 6px;
-  color: oklch(24% 0.02 70);
-  font-size: 12.5px;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid oklch(89% 0.012 78);
+  background: oklch(98% 0.008 78);
+}
+
+.filter-menu__header strong {
+  color: oklch(20% 0.02 70);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.filter-menu__reset {
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: oklch(48% 0.018 70);
+  font: inherit;
+  font-size: 13px;
   cursor: pointer;
 }
 
-.filter-option:hover {
+.filter-menu__reset:hover {
   background: oklch(96% 0.014 78);
+  color: oklch(61% 0.13 42);
 }
 
-.filter-option input {
-  width: 14px;
-  height: 14px;
-  accent-color: oklch(61% 0.13 42);
+.filter-list {
+  max-height: 360px;
+  padding: 10px 20px 12px;
+  overflow-y: auto;
 }
 
-.filter-option--all {
-  margin-bottom: 3px;
-  border-bottom: 1px solid oklch(90% 0.01 78);
-  border-radius: 6px 6px 2px 2px;
+.filter-row {
+  position: relative;
+  min-height: 49px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 4px;
+  color: oklch(20% 0.02 70);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s ease;
+}
+
+.filter-row:hover {
+  background: oklch(97% 0.01 78);
+}
+
+.filter-row input {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.filter-row input:focus-visible + .filter-row__check {
+  outline: 2px solid oklch(76% 0.11 42);
+  outline-offset: 2px;
+}
+
+.filter-row__check {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 2px solid oklch(80% 0.012 78);
+  border-radius: 7px;
+  background: oklch(99% 0.006 78);
+  color: white;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.filter-row__check svg {
+  width: 15px;
+  height: 15px;
+  opacity: 0;
+}
+
+.filter-row--checked .filter-row__check {
+  border-color: oklch(61% 0.13 42);
+  background: oklch(61% 0.13 42);
+}
+
+.filter-row--checked .filter-row__check svg {
+  opacity: 1;
+}
+
+.filter-row__name {
+  flex: 1;
+  min-width: 0;
+  color: oklch(20% 0.02 70);
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.filter-row--untagged .filter-row__name {
+  color: oklch(55% 0.018 70);
+  font-style: italic;
+}
+
+.filter-row__count {
+  color: oklch(62% 0.015 78);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.filter-row--all {
+  min-height: 54px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid oklch(89% 0.012 78);
+}
+
+.filter-row--all .filter-row__name {
   font-weight: 600;
+}
+
+.filter-menu__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-top: 1px solid oklch(89% 0.012 78);
+  background: oklch(98% 0.008 78);
+  color: oklch(42% 0.018 70);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+}
+
+.filter-menu__footer button {
+  min-width: 66px;
+  height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: oklch(61% 0.13 42);
+  color: white;
+  font: inherit;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.filter-menu__footer button:hover {
+  background: oklch(58% 0.13 42);
 }
 
 .main-root {

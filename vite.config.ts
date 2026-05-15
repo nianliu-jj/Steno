@@ -26,7 +26,7 @@ export default defineConfig(configEnv => {
     envPrefix: ['VITE_', 'TAURI_'],
     server: {
       host: '0.0.0.0',
-      port: 1420,
+      port: 21420,
       strictPort: true,
       open: false
     },

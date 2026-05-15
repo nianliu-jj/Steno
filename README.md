@@ -149,7 +149,7 @@ steno/
 
 | 命令 | 说明 |
 |---|---|
-| `pnpm dev` | 启动 Vite dev server（端口 1420） |
+| `pnpm dev` | 启动 Vite dev server（端口 21420） |
 | `pnpm build` | `vue-tsc --noEmit` + 构建前端到 `dist/` |
 | `pnpm tauri:dev` | 启动 Tauri 开发窗口（含 cargo build） |
 | `pnpm tauri:build` | 生产打包应用 |

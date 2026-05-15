@@ -256,14 +256,24 @@ describe('MainView', () => {
     await flushPromises();
 
     await wrapper.get('[data-testid="main-filter"]').trigger('click');
-    expect(wrapper.get('[data-testid="filter-option-work"]').text()).toContain('work');
-    expect(wrapper.get('[data-testid="filter-option-life"]').text()).toContain('life');
+    expect(wrapper.get('[data-testid="filter-menu"]').text()).toContain('按标签筛选');
+    expect(wrapper.get('[data-testid="filter-select-all"]').text()).toContain('全部笔记');
+    expect(wrapper.get('[data-testid="filter-select-all"]').text()).toContain('3');
+    expect((wrapper.get('[data-testid="filter-select-all"] input').element as HTMLInputElement).checked).toBe(true);
+    expect(wrapper.get('[data-testid="filter-option-work"]').text()).toContain('#work');
+    expect(wrapper.get('[data-testid="filter-option-work"]').text()).toContain('2');
+    expect(wrapper.get('[data-testid="filter-option-life"]').text()).toContain('#life');
+    expect(wrapper.get('[data-testid="filter-option-life"]').text()).toContain('1');
     expect(wrapper.get('[data-testid="filter-option-untagged"]').text()).toContain('无标签');
+    expect(wrapper.get('[data-testid="filter-option-untagged"]').text()).toContain('1');
+    expect(wrapper.get('[data-testid="filter-stat"]').text()).toBe('3 / 3 篇');
 
     await wrapper.get('[data-testid="filter-option-life"] input').setValue(true);
     expect(wrapper.findAll('.note-card').map(card => card.text())).toEqual([
       expect.stringContaining('Beta'),
     ]);
+    expect((wrapper.get('[data-testid="filter-select-all"] input').element as HTMLInputElement).checked).toBe(false);
+    expect(wrapper.get('[data-testid="filter-stat"]').text()).toBe('1 / 3 篇');
 
     await wrapper.get('[data-testid="filter-option-untagged"] input').setValue(true);
     const cardTexts = wrapper.findAll('.note-card').map(card => card.text());
@@ -271,9 +281,15 @@ describe('MainView', () => {
       expect.stringContaining('Beta'),
       expect.stringContaining('Gamma'),
     ]);
+    expect(wrapper.get('[data-testid="filter-stat"]').text()).toBe('2 / 3 篇');
 
-    await wrapper.get('[data-testid="filter-select-all"] input').setValue(true);
+    await wrapper.get('[data-testid="filter-clear"]').trigger('click');
     expect(wrapper.findAll('.note-card')).toHaveLength(3);
+    expect((wrapper.get('[data-testid="filter-select-all"] input').element as HTMLInputElement).checked).toBe(true);
+
+    await wrapper.get('[data-testid="filter-option-work"] input').setValue(true);
+    await wrapper.get('[data-testid="filter-apply"]').trigger('click');
+    expect(wrapper.find('[data-testid="filter-menu"]').exists()).toBe(false);
   });
 
   it('prevents the default context menu and disables document actions on blank area', async () => {
