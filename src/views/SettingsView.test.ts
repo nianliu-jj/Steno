@@ -6,6 +6,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, h } from 'vue';
 
+import { THEME_MODE_CHANGED_EVENT } from '@/theme';
 import SettingsView from './SettingsView.vue';
 import SettingsViewSource from './SettingsView.vue?raw';
 
@@ -20,6 +21,11 @@ const reloadShortcuts = vi.fn(() => Promise.resolve());
 const updateSetting = vi.fn(() => Promise.resolve());
 const loadSettings = vi.fn(() => Promise.resolve());
 const navigateToMain = vi.fn();
+const emitThemeModeChanged = vi.fn(() => Promise.resolve());
+
+vi.mock('@tauri-apps/api/event', () => ({
+  emit: (...args: Parameters<typeof emitThemeModeChanged>) => emitThemeModeChanged(...args),
+}));
 
 vi.mock('@/composables/useDb', () => ({
   useDb: () => ({
@@ -88,6 +94,7 @@ describe('SettingsView', () => {
     updateSetting.mockClear();
     loadSettings.mockClear();
     navigateToMain.mockClear();
+    emitThemeModeChanged.mockClear();
   });
 
   it('renders the v2 header, category tabs, and footer actions', async () => {
@@ -162,6 +169,18 @@ describe('SettingsView', () => {
 
     expect(view.emitted('close')).toHaveLength(3);
     expect(navigateToMain).not.toHaveBeenCalled();
+  });
+
+  it('broadcasts theme mode changes after the setting is saved', async () => {
+    const wrapper = mountSettingsView();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="settings-tab-appearance"]').trigger('click');
+    await wrapper.get('input[value="dark"]').setValue();
+    await flushPromises();
+
+    expect(updateSetting).toHaveBeenCalledWith('themeMode', 'dark');
+    expect(emitThemeModeChanged).toHaveBeenCalledWith(THEME_MODE_CHANGED_EVENT, { mode: 'dark' });
   });
 
   it('keeps the v2 panel sizing, dark theme hook, and narrow-screen responsive rules', () => {

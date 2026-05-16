@@ -2,7 +2,9 @@
 
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { reactive, type PropType } from 'vue';
+import { nextTick, reactive, ref, type PropType } from 'vue';
+
+import { THEME_MODE_CHANGED_EVENT } from '@/theme';
 
 type ShellNavItem = {
   label: string;
@@ -20,9 +22,17 @@ const settingsState = reactive({
 });
 
 const loadSettings = vi.fn(() => Promise.resolve());
+const darkModeRef = ref(false);
+const tauriListen = vi.fn();
+let themeModeChangedHandler: ((event: { payload: { mode: 'light' | 'dark' | 'system' } }) => void) | null =
+  null;
 
 vi.mock('@vueuse/core', () => ({
-  useDark: () => ({ value: false }),
+  useDark: () => darkModeRef,
+}));
+
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: (...args: Parameters<typeof tauriListen>) => tauriListen(...args),
 }));
 
 vi.mock('naive-ui', async () => {
@@ -202,6 +212,37 @@ describe('App', () => {
     uiState.closeSettings.mockClear();
     settingsState.themeMode = 'system';
     loadSettings.mockClear();
+    darkModeRef.value = false;
+    themeModeChangedHandler = null;
+    tauriListen.mockReset();
+    tauriListen.mockImplementation((eventName, handler) => {
+      if (eventName === THEME_MODE_CHANGED_EVENT) {
+        themeModeChangedHandler = handler;
+      }
+      return Promise.resolve(vi.fn());
+    });
+  });
+
+  it('renders a root app shell with shared theme css variables', () => {
+    const wrapper = mount(App);
+
+    const appShell = wrapper.get('[data-testid="app-shell"]');
+    const style = appShell.attributes('style');
+
+    expect(style).toContain('--app-bg:');
+    expect(style).toContain('--app-accent:');
+  });
+
+  it('syncs theme mode and dark class when the theme change event is received', async () => {
+    const wrapper = mount(App);
+
+    expect(tauriListen).toHaveBeenCalledWith(THEME_MODE_CHANGED_EVENT, expect.any(Function));
+
+    themeModeChangedHandler?.({ payload: { mode: 'dark' } });
+    await nextTick();
+
+    expect(settingsState.themeMode).toBe('dark');
+    expect(wrapper.get('[data-testid="app-shell"]').classes()).toContain('dark');
   });
 
   it('keeps the current workbench page in the background and opens settings as an embedded modal', async () => {
