@@ -11,7 +11,14 @@ import StickyNote from './StickyNote.vue';
 import type { Note, SaveNoteRequest } from '@/types/steno';
 
 const getNote = vi.fn<() => Promise<Note | null>>();
-const saveDraft = vi.fn<(payload: SaveNoteRequest) => Promise<void>>(() => Promise.resolve());
+const saveDraft = vi.fn<(payload: SaveNoteRequest) => Promise<Note | null>>(payload =>
+  Promise.resolve(createNote({
+    title: payload.title ?? '置顶便签',
+    content: payload.content,
+    tags: payload.tags,
+    pinnedWindowConfig: payload.pinnedWindowConfig ?? createNote().pinnedWindowConfig,
+  })),
+);
 const updatePinnedConfig = vi.fn(() => Promise.resolve());
 const unpinNote = vi.fn(() => Promise.resolve());
 const startDragCurrent = vi.fn(() => Promise.resolve());
@@ -20,6 +27,16 @@ const setCurrentPosition = vi.fn(() => Promise.resolve());
 const closeStickyNote = vi.fn(() => Promise.resolve());
 const closeCurrent = vi.fn(() => Promise.resolve());
 const hideCurrent = vi.fn(() => Promise.resolve());
+
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
 
 vi.mock('@/composables/useDb', () => ({
   useDb: () => ({
@@ -49,6 +66,7 @@ vi.mock('@/composables/useWindow', () => ({
 vi.mock('@/composables/useMarkdown', () => ({
   useMarkdown: () => ({
     renderHtml: (value: string) => `<p>${value}</p>`,
+    countWords: (value: string) => value.replace(/\n/g, '').length,
   }),
 }));
 
@@ -181,6 +199,42 @@ describe('StickyNote', () => {
     expect(startDragCurrent).toHaveBeenCalledTimes(1);
   });
 
+  it('标题编辑态按 Enter 会提交保存', async () => {
+    const wrapper = await mountStickyNote();
+
+    await wrapper.find('[data-testid="title-edit-button"]').trigger('click');
+    await wrapper.find('[data-testid="title-input"]').setValue('回车保存');
+    await wrapper.find('[data-testid="title-input"]').trigger('keydown', {
+      key: 'Enter',
+      code: 'Enter',
+    });
+    await flushPromises();
+
+    expect(saveDraft).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'sticky-note-1',
+      title: '回车保存',
+    }));
+    expect(wrapper.find('[data-testid="title-text"]').text()).toBe('回车保存');
+  });
+
+  it('标题编辑态按 Esc 会取消修改并恢复原标题', async () => {
+    const wrapper = await mountStickyNote();
+
+    await wrapper.find('[data-testid="title-edit-button"]').trigger('click');
+    await wrapper.find('[data-testid="title-input"]').setValue('Esc 取消');
+    await wrapper.find('[data-testid="title-input"]').trigger('keydown', {
+      key: 'Escape',
+      code: 'Escape',
+    });
+    await flushPromises();
+
+    expect(saveDraft).not.toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Esc 取消',
+    }));
+    expect(wrapper.find('[data-testid="title-input"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="title-text"]').text()).toBe('置顶便签');
+  });
+
   it('保存标题前会先 flush 正文 autosave，再用新标题调用 saveDraft', async () => {
     vi.useFakeTimers();
     getNote.mockResolvedValue(createNote({ content: '旧正文' }));
@@ -211,6 +265,246 @@ describe('StickyNote', () => {
       title: '新标题',
       content: '旧正文\n新增一行',
     });
+  });
+
+  it('标题未修改时点击保存也会先 flush 正文 autosave', async () => {
+    vi.useFakeTimers();
+    getNote.mockResolvedValue(createNote({ content: '旧正文' }));
+
+    const wrapper = await mountStickyNote();
+
+    await wrapper.find('.sticky-content').trigger('dblclick');
+    await wrapper.find('.md-editor__textarea').setValue('旧正文\n新增一行');
+
+    await wrapper.find('[data-testid="title-edit-button"]').trigger('click');
+    await wrapper.find('[data-testid="title-save-button"]').trigger('click');
+    await flushPromises();
+
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+    expect(saveDraft.mock.calls[0]?.[0]).toMatchObject({
+      id: 'sticky-note-1',
+      title: '置顶便签',
+      content: '旧正文\n新增一行',
+    });
+    expect(wrapper.find('[data-testid="title-input"]').exists()).toBe(false);
+  });
+
+  it('正文 autosave 已在保存中时，标题保存会排队等待前一个保存完成', async () => {
+    vi.useFakeTimers();
+    const firstSave = createDeferred<Note | null>();
+    saveDraft
+      .mockImplementationOnce(() => firstSave.promise)
+      .mockImplementation(() => Promise.resolve(null));
+
+    const wrapper = await mountStickyNote();
+
+    await wrapper.find('.sticky-content').trigger('dblclick');
+    await wrapper.find('.md-editor__textarea').setValue('第一行\n第二行');
+    vi.advanceTimersByTime(1000);
+    await flushPromises();
+
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+
+    await wrapper.find('[data-testid="title-edit-button"]').trigger('click');
+    await wrapper.find('[data-testid="title-input"]').setValue('排队标题');
+    const saveClick = wrapper.find('[data-testid="title-save-button"]').trigger('click');
+    await flushPromises();
+
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+
+    firstSave.resolve(null);
+    await saveClick;
+    await flushPromises();
+
+    expect(saveDraft).toHaveBeenCalledTimes(2);
+    expect(saveDraft.mock.calls[1]?.[0]).toMatchObject({
+      id: 'sticky-note-1',
+      title: '排队标题',
+      content: '第一行\n第二行',
+    });
+  });
+
+  it('标题保存进行中时，后续正文 autosave 仍会携带新标题，避免标题回退', async () => {
+    vi.useFakeTimers();
+    const titleSave = createDeferred<Note | null>();
+    saveDraft
+      .mockImplementationOnce(() => titleSave.promise)
+      .mockImplementation(() => Promise.resolve(null));
+
+    const wrapper = await mountStickyNote();
+
+    await wrapper.find('[data-testid="title-edit-button"]').trigger('click');
+    await wrapper.find('[data-testid="title-input"]').setValue('不会回退的标题');
+    const saveClick = wrapper.find('[data-testid="title-save-button"]').trigger('click');
+    await flushPromises();
+
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+    expect(saveDraft.mock.calls[0]?.[0]).toMatchObject({
+      id: 'sticky-note-1',
+      title: '不会回退的标题',
+      content: '第一行',
+    });
+
+    await wrapper.find('.sticky-content').trigger('dblclick');
+    await wrapper.find('.md-editor__textarea').setValue('第一行\n后续正文');
+    vi.advanceTimersByTime(1000);
+    await flushPromises();
+
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+
+    titleSave.resolve(null);
+    await saveClick;
+    await flushPromises();
+
+    expect(saveDraft).toHaveBeenCalledTimes(2);
+    expect(saveDraft.mock.calls[1]?.[0]).toMatchObject({
+      id: 'sticky-note-1',
+      title: '不会回退的标题',
+      content: '第一行\n后续正文',
+    });
+  });
+
+  it('标题保存等待 flush 期间再次编辑正文，后续 autosave 也会携带新标题', async () => {
+    vi.useFakeTimers();
+    const firstSave = createDeferred<Note | null>();
+    saveDraft
+      .mockImplementationOnce(() => firstSave.promise)
+      .mockImplementation(() => Promise.resolve(null));
+
+    const wrapper = await mountStickyNote();
+
+    await wrapper.find('.sticky-content').trigger('dblclick');
+    await wrapper.find('.md-editor__textarea').setValue('第一行\n旧待保存');
+
+    await wrapper.find('[data-testid="title-edit-button"]').trigger('click');
+    await wrapper.find('[data-testid="title-input"]').setValue('flush 前锁定标题');
+    const saveClick = wrapper.find('[data-testid="title-save-button"]').trigger('click');
+    await flushPromises();
+
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+    expect(saveDraft.mock.calls[0]?.[0]).toMatchObject({
+      id: 'sticky-note-1',
+      title: '置顶便签',
+      content: '第一行\n旧待保存',
+    });
+
+    await wrapper.find('.md-editor__textarea').setValue('第一行\n旧待保存\n继续写');
+    vi.advanceTimersByTime(1000);
+    await flushPromises();
+
+    firstSave.resolve(null);
+    await saveClick;
+    await flushPromises();
+
+    expect(saveDraft).toHaveBeenCalledTimes(3);
+    expect(saveDraft.mock.calls[1]?.[0]).toMatchObject({
+      id: 'sticky-note-1',
+      title: 'flush 前锁定标题',
+      content: '第一行\n旧待保存\n继续写',
+    });
+    expect(saveDraft.mock.calls[2]?.[0]).toMatchObject({
+      id: 'sticky-note-1',
+      title: 'flush 前锁定标题',
+      content: '第一行\n旧待保存\n继续写',
+    });
+  });
+
+  it('标题保存失败后，如果排队中的正文 autosave 成功落库新标题，会同步修正本地标题状态', async () => {
+    vi.useFakeTimers();
+    const titleSave = createDeferred<Note | null>();
+    saveDraft
+      .mockImplementationOnce(() => titleSave.promise)
+      .mockImplementation(payload =>
+        Promise.resolve(createNote({
+          title: payload.title ?? '置顶便签',
+          content: payload.content,
+          tags: payload.tags,
+          pinnedWindowConfig: payload.pinnedWindowConfig ?? createNote().pinnedWindowConfig,
+        })),
+      );
+
+    const wrapper = await mountStickyNote();
+
+    await wrapper.find('[data-testid="title-edit-button"]').trigger('click');
+    await wrapper.find('[data-testid="title-input"]').setValue('失败后由正文追平');
+    const saveClick = wrapper.find('[data-testid="title-save-button"]').trigger('click');
+    await flushPromises();
+
+    await wrapper.find('.sticky-content').trigger('dblclick');
+    await wrapper.find('.md-editor__textarea').setValue('第一行\n正文追平标题');
+    await wrapper.find('[data-testid="title-input"]').trigger('blur');
+    vi.advanceTimersByTime(1000);
+    await flushPromises();
+
+    titleSave.reject(new Error('title save failed'));
+    await saveClick;
+    await flushPromises();
+
+    expect(saveDraft).toHaveBeenCalledTimes(2);
+    expect(saveDraft.mock.calls[1]?.[0]).toMatchObject({
+      id: 'sticky-note-1',
+      title: '失败后由正文追平',
+      content: '第一行\n正文追平标题',
+    });
+
+    vi.advanceTimersByTime(1000);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="title-text"]').text()).toBe('失败后由正文追平');
+    expect(wrapper.find('[data-testid="footer-meta"]').text()).toContain('已保存');
+  });
+
+  it('如果等待 flush 期间排队的正文 autosave 先成功，后续标题保存失败不会把状态打回 error', async () => {
+    vi.useFakeTimers();
+    const firstSave = createDeferred<Note | null>();
+    saveDraft
+      .mockImplementationOnce(() => firstSave.promise)
+      .mockImplementationOnce(payload =>
+        Promise.resolve(createNote({
+          title: payload.title ?? '置顶便签',
+          content: payload.content,
+          tags: payload.tags,
+          pinnedWindowConfig: payload.pinnedWindowConfig ?? createNote().pinnedWindowConfig,
+        })),
+      )
+      .mockImplementationOnce(() => Promise.reject(new Error('late title failure')));
+
+    const wrapper = await mountStickyNote();
+
+    await wrapper.find('.sticky-content').trigger('dblclick');
+    await wrapper.find('.md-editor__textarea').setValue('第一行\n旧待保存');
+
+    await wrapper.find('[data-testid="title-edit-button"]').trigger('click');
+    await wrapper.find('[data-testid="title-input"]').setValue('失败不能覆盖已保存');
+    const saveClick = wrapper.find('[data-testid="title-save-button"]').trigger('click');
+    await flushPromises();
+
+    await wrapper.find('.md-editor__textarea').setValue('第一行\n旧待保存\n继续写');
+    await wrapper.find('[data-testid="title-input"]').trigger('blur');
+    vi.advanceTimersByTime(1000);
+    await flushPromises();
+
+    firstSave.resolve(createNote({
+      title: '置顶便签',
+      content: '第一行\n旧待保存',
+    }));
+    await saveClick;
+    await flushPromises();
+
+    expect(saveDraft).toHaveBeenCalledTimes(3);
+    expect(saveDraft.mock.calls[1]?.[0]).toMatchObject({
+      id: 'sticky-note-1',
+      title: '失败不能覆盖已保存',
+      content: '第一行\n旧待保存\n继续写',
+    });
+    expect(saveDraft.mock.calls[2]?.[0]).toMatchObject({
+      id: 'sticky-note-1',
+      title: '失败不能覆盖已保存',
+      content: '第一行\n旧待保存\n继续写',
+    });
+    expect(wrapper.find('[data-testid="title-text"]').text()).toBe('失败不能覆盖已保存');
+    expect(wrapper.find('[data-testid="footer-meta"]').text()).toContain('已保存');
+    expect(wrapper.find('[data-testid="footer-meta"]').text()).not.toContain('保存失败');
   });
 
   it('底部右侧显示字数、行数和保存状态，空内容至少显示 1 行', async () => {
@@ -252,13 +546,35 @@ describe('StickyNote', () => {
     expect(wrapper.find('.sticky-opacity').exists()).toBe(false);
   });
 
+  it('footer 在只读态和正文编辑态都仅保留字号控制与统计信息', async () => {
+    const wrapper = await mountStickyNote();
+
+    const assertFooter = () => {
+      const footer = wrapper.find('.sticky-footer');
+      const buttons = footer.findAll('button');
+
+      expect(buttons).toHaveLength(1);
+      expect(buttons[0]?.classes()).toContain('sticky-styler-btn');
+      expect(footer.find('[data-testid="footer-meta"]').exists()).toBe(true);
+      expect(footer.text()).not.toContain('完成');
+      expect(footer.find('.sticky-done-btn').exists()).toBe(false);
+    };
+
+    assertFooter();
+
+    await wrapper.find('.sticky-content').trigger('dblclick');
+    await flushPromises();
+
+    assertFooter();
+  });
+
   it('消费共享主题变量，而不是 color 或 opacity 配置驱动视觉', () => {
     const source = readFileSync('src/components/StickyNote.vue', 'utf8');
 
     expect(source).toContain('var(--app-surface)');
-    expect(source).toContain('var(--app-fg)');
+    expect(source).toContain('var(--app-text)');
     expect(source).toContain('var(--app-border)');
-    expect(source).toMatch(/var\(--app-(text-muted|muted)\)/);
+    expect(source).toContain('var(--app-text-muted)');
     expect(source).not.toContain("'--sticky-bg': config.value.color");
     expect(source).not.toContain("'--sticky-opacity': String(config.value.opacity)");
   });

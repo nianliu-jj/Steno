@@ -34,27 +34,61 @@ const FONT_OPTIONS = [
 const db = useDb();
 const notes = useNotesStore();
 const win = useWindow();
-const { renderHtml } = useMarkdown();
+const { renderHtml, countWords } = useMarkdown();
+
+let noteSaveQueue: Promise<unknown> = Promise.resolve();
+
+function enqueueNoteSave(payload: SaveNoteRequest) {
+  const run = noteSaveQueue.then(() => notes.saveDraft(payload));
+  noteSaveQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
 
 const loaded = ref(false);
 const editing = ref(false);
 const savedTitle = ref('');
 const titleDraft = ref('');
 const titleEditing = ref(false);
+const pendingSavedTitle = ref<string | null>(null);
 const content = ref('');
 const tags = ref<string[]>([]);
 const config = ref<PinnedWindowConfig>({ ...DEFAULT_CONFIG });
 const titleSaveStatus = ref<AutosaveStatus | null>(null);
 
+function syncSavedTitle(nextTitle: string) {
+  savedTitle.value = nextTitle;
+  if (!titleEditing.value) {
+    titleDraft.value = nextTitle;
+  }
+}
+
 const renderedHtml = computed(() => renderHtml(content.value));
-const lineCount = computed(() => Math.max(1, content.value.split('\n').length));
-const wordCount = computed(() => content.value.replace(/\n/g, '').length);
+const lineCount = computed(() => Math.max(1, content.value.split(/\r?\n/).length));
+const wordCount = computed(() => countWords(content.value));
+const titleForContentSave = computed(() => pendingSavedTitle.value ?? savedTitle.value);
 const rootStyle = computed(() => ({
   '--sticky-font-size': `${config.value.fontSize}px`,
 }));
 
 const contentSave = useAutosave(async (payload: SaveNoteRequest) => {
-  await notes.saveDraft(payload);
+  const saved = await enqueueNoteSave(payload);
+  if (!saved) return;
+
+  const nextTitle = saved.title;
+  if (nextTitle !== savedTitle.value) {
+    syncSavedTitle(nextTitle);
+  }
+
+  if (
+    (pendingSavedTitle.value && nextTitle === pendingSavedTitle.value)
+    || (titleSaveStatus.value === 'error' && payload.title && nextTitle === payload.title)
+  ) {
+    pendingSavedTitle.value = null;
+    titleSaveStatus.value = 'saved';
+  }
 });
 
 const configSave = useAutosave<PinnedWindowConfig>(
@@ -64,14 +98,27 @@ const configSave = useAutosave<PinnedWindowConfig>(
   { delayMs: 300 },
 );
 
-const visibleSaveStatus = computed<AutosaveStatus>(() => {
+const visibleSaveStatus = computed<AutosaveStatus | 'editing'>(() => {
+  if (titleSaveStatus.value === 'saving') {
+    return 'saving';
+  }
+  if (titleSaveStatus.value === 'error') {
+    return 'error';
+  }
+  if (titleEditing.value) {
+    return 'editing';
+  }
   if (contentSave.status.value !== 'idle') {
     return contentSave.status.value;
   }
-  return titleSaveStatus.value ?? 'idle';
+  if (titleSaveStatus.value === 'saved') {
+    return 'saved';
+  }
+  return 'idle';
 });
 const saveStatusLabel = computed(() => {
   switch (visibleSaveStatus.value) {
+    case 'editing':
     case 'scheduled':
       return '编辑中';
     case 'saving':
@@ -90,7 +137,7 @@ watch(content, () => {
   titleSaveStatus.value = null;
   contentSave.scheduleSave({
     id: props.noteId,
-    title: savedTitle.value || undefined,
+    title: titleForContentSave.value || undefined,
     content: content.value,
     tags: tags.value,
     isPinned: true,
@@ -184,18 +231,21 @@ function cancelTitleEdit() {
 
 async function saveTitle() {
   const nextTitle = titleDraft.value.trim();
-  if (nextTitle === savedTitle.value) {
-    titleEditing.value = false;
-    titleDraft.value = savedTitle.value;
-    titleSaveStatus.value = null;
-    return;
-  }
-
-  titleSaveStatus.value = 'saving';
-  await contentSave.flushSave();
-
+  const hasTitleChange = nextTitle !== savedTitle.value;
+  pendingSavedTitle.value = hasTitleChange ? nextTitle : null;
   try {
-    await notes.saveDraft({
+    await contentSave.flushSave();
+    if (!hasTitleChange) {
+      titleEditing.value = false;
+      titleDraft.value = savedTitle.value;
+      pendingSavedTitle.value = null;
+      titleSaveStatus.value = null;
+      return;
+    }
+
+    pendingSavedTitle.value = nextTitle;
+    titleSaveStatus.value = 'saving';
+    const saved = await enqueueNoteSave({
       id: props.noteId,
       title: nextTitle || undefined,
       content: content.value,
@@ -203,11 +253,19 @@ async function saveTitle() {
       isPinned: true,
       pinnedWindowConfig: config.value,
     });
-    savedTitle.value = nextTitle;
-    titleDraft.value = nextTitle;
+    syncSavedTitle(saved?.title ?? nextTitle);
+    pendingSavedTitle.value = null;
     titleEditing.value = false;
     titleSaveStatus.value = 'saved';
   } catch (error) {
+    if (savedTitle.value === nextTitle) {
+      titleDraft.value = nextTitle;
+      pendingSavedTitle.value = null;
+      titleEditing.value = false;
+      titleSaveStatus.value = 'saved';
+      return;
+    }
+    pendingSavedTitle.value = null;
     titleSaveStatus.value = 'error';
     console.error('[sticky] save title failed:', error);
   }
@@ -377,14 +435,6 @@ async function onCloseClick() {
       <div data-testid="footer-meta" class="sticky-footer-meta">
         {{ wordCount }} 字 / {{ lineCount }} 行 / {{ saveStatusLabel }}
       </div>
-      <button
-        v-if="editing"
-        class="sticky-done-btn"
-        title="完成编辑"
-        @click="exitEdit"
-      >
-        完成
-      </button>
     </footer>
   </div>
 </template>
@@ -396,12 +446,12 @@ async function onCloseClick() {
   height: 100vh;
   width: 100vw;
   background: var(--app-surface);
-  color: var(--app-fg);
+  color: var(--app-text);
   border: 1px solid var(--app-border);
   border-radius: 8px;
   overflow: hidden;
   font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--app-fg) 14%, transparent);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--app-text) 14%, transparent);
 }
 
 .sticky-header {
@@ -411,7 +461,7 @@ async function onCloseClick() {
   min-height: 32px;
   padding: 4px 8px;
   border-bottom: 1px solid var(--app-border);
-  background: color-mix(in srgb, var(--app-surface) 82%, var(--app-muted) 18%);
+  background: color-mix(in srgb, var(--app-surface) 82%, var(--app-text-muted) 18%);
   -webkit-user-select: none;
   user-select: none;
   cursor: grab;
@@ -434,7 +484,7 @@ async function onCloseClick() {
   min-width: 0;
   font-size: 12px;
   font-weight: 600;
-  color: var(--app-fg);
+  color: var(--app-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -446,7 +496,7 @@ async function onCloseClick() {
   height: 24px;
   padding: 0 8px;
   font-size: 12px;
-  color: var(--app-fg);
+  color: var(--app-text);
   background: var(--app-surface);
   border: 1px solid var(--app-border);
   border-radius: 4px;
@@ -454,28 +504,26 @@ async function onCloseClick() {
 }
 
 .sticky-title-input:focus {
-  border-color: var(--app-fg);
+  border-color: var(--app-text);
 }
 
 .sticky-title-button,
-.sticky-styler-btn,
-.sticky-done-btn {
+.sticky-styler-btn {
   height: 22px;
   min-width: 22px;
   padding: 0 6px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--app-fg);
-  background: color-mix(in srgb, var(--app-surface) 70%, var(--app-muted) 30%);
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-surface) 70%, var(--app-text-muted) 30%);
   border: 1px solid var(--app-border);
   border-radius: 4px;
   cursor: pointer;
 }
 
 .sticky-title-button:hover,
-.sticky-styler-btn:hover,
-.sticky-done-btn:hover {
-  background: color-mix(in srgb, var(--app-surface) 50%, var(--app-muted) 50%);
+.sticky-styler-btn:hover {
+  background: color-mix(in srgb, var(--app-surface) 50%, var(--app-text-muted) 50%);
 }
 
 .sticky-title-button {
@@ -488,12 +536,12 @@ async function onCloseClick() {
   display: flex;
   align-items: center;
   gap: 4px;
-  color: var(--app-fg);
+  color: var(--app-text);
 }
 
 .sticky-icon-button {
-  color: var(--app-fg);
-  background: color-mix(in srgb, var(--app-surface) 72%, var(--app-muted) 28%);
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-surface) 72%, var(--app-text-muted) 28%);
   border: 1px solid var(--app-border);
 }
 
@@ -508,14 +556,14 @@ async function onCloseClick() {
 }
 
 .sticky-content--editing {
-  background: color-mix(in srgb, var(--app-surface) 76%, var(--app-muted) 24%);
+  background: color-mix(in srgb, var(--app-surface) 76%, var(--app-text-muted) 24%);
 }
 
 .sticky-preview {
   flex: 1;
   padding: 8px 12px;
   overflow: auto;
-  color: var(--app-fg);
+  color: var(--app-text);
 }
 
 .sticky-preview :deep(h1),
@@ -543,7 +591,7 @@ async function onCloseClick() {
 
 .sticky-preview :deep(code),
 .sticky-preview :deep(pre) {
-  background: color-mix(in srgb, var(--app-surface) 65%, var(--app-muted) 35%);
+  background: color-mix(in srgb, var(--app-surface) 65%, var(--app-text-muted) 35%);
   border-radius: 4px;
 }
 
