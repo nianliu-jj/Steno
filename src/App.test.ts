@@ -2,7 +2,16 @@
 
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { reactive, type PropType } from 'vue';
+import { nextTick, reactive, type PropType } from 'vue';
+
+import { THEME_MODE_CHANGED_EVENT, sharedThemeTokens } from '@/theme';
+
+const appMocks = vi.hoisted(() => ({
+  preferredDarkRef: null as { value: boolean } | null,
+  tauriListen: vi.fn(),
+  tauriEmit: vi.fn(),
+  themeModeChangedHandler: null as ((event: { payload: { mode: 'light' | 'dark' | 'system' } }) => void) | null,
+}));
 
 type ShellNavItem = {
   label: string;
@@ -21,8 +30,18 @@ const settingsState = reactive({
 
 const loadSettings = vi.fn(() => Promise.resolve());
 
-vi.mock('@vueuse/core', () => ({
-  useDark: () => ({ value: false }),
+vi.mock('@vueuse/core', async () => {
+  const { ref } = await import('vue');
+  appMocks.preferredDarkRef = ref(false);
+
+  return {
+    usePreferredDark: () => appMocks.preferredDarkRef,
+  };
+});
+
+vi.mock('@tauri-apps/api/event', () => ({
+  emit: (...args: Parameters<typeof appMocks.tauriEmit>) => appMocks.tauriEmit(...args),
+  listen: (...args: Parameters<typeof appMocks.tauriListen>) => appMocks.tauriListen(...args),
 }));
 
 vi.mock('naive-ui', async () => {
@@ -194,6 +213,16 @@ vi.mock('@/views/ZenMode.vue', async () => {
 
 import App from './App.vue';
 
+function expectDocumentTheme(variant: 'light' | 'dark') {
+  expect(document.documentElement.style.getPropertyValue('--app-bg')).toBe(
+    sharedThemeTokens[variant].appBg,
+  );
+  expect(document.documentElement.style.getPropertyValue('--app-accent')).toBe(
+    sharedThemeTokens[variant].appAccent,
+  );
+  expect(document.documentElement.classList.contains('dark')).toBe(variant === 'dark');
+}
+
 describe('App', () => {
   beforeEach(() => {
     uiState.mode = 'main';
@@ -202,6 +231,75 @@ describe('App', () => {
     uiState.closeSettings.mockClear();
     settingsState.themeMode = 'system';
     loadSettings.mockClear();
+    appMocks.preferredDarkRef!.value = false;
+    appMocks.themeModeChangedHandler = null;
+    appMocks.tauriEmit.mockReset();
+    appMocks.tauriListen.mockReset();
+    appMocks.tauriListen.mockImplementation((eventName, handler) => {
+      if (eventName === THEME_MODE_CHANGED_EVENT) {
+        appMocks.themeModeChangedHandler = handler;
+      }
+      return Promise.resolve(vi.fn());
+    });
+
+    document.documentElement.classList.remove('dark');
+    document.documentElement.style.removeProperty('--app-bg');
+    document.documentElement.style.removeProperty('--app-accent');
+  });
+
+  it('renders a root app shell with shared theme css variables', () => {
+    const wrapper = mount(App);
+
+    const appShell = wrapper.get('[data-testid="app-shell"]');
+    const style = appShell.attributes('style');
+
+    expect(style).toContain('--app-bg:');
+    expect(style).toContain('--app-accent:');
+    expectDocumentTheme('light');
+
+    wrapper.unmount();
+
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
+    expect(document.documentElement.style.getPropertyValue('--app-bg')).toBe('');
+    expect(document.documentElement.style.getPropertyValue('--app-accent')).toBe('');
+  });
+
+  it('restores system theme following after a forced mode is cleared by the theme change event', async () => {
+    appMocks.preferredDarkRef!.value = true;
+    const wrapper = mount(App);
+
+    expect(appMocks.tauriListen).toHaveBeenCalledWith(THEME_MODE_CHANGED_EVENT, expect.any(Function));
+    expect(wrapper.get('[data-testid="app-shell"]').classes()).toContain('dark');
+    expect(wrapper.get('[data-testid="app-shell"]').attributes('style')).toContain(sharedThemeTokens.dark.appBg);
+    expectDocumentTheme('dark');
+
+    appMocks.themeModeChangedHandler?.({ payload: { mode: 'light' } });
+    await nextTick();
+
+    expect(settingsState.themeMode).toBe('light');
+    expect(wrapper.get('[data-testid="app-shell"]').classes()).not.toContain('dark');
+    expect(wrapper.get('[data-testid="app-shell"]').attributes('style')).toContain(sharedThemeTokens.light.appBg);
+    expectDocumentTheme('light');
+
+    appMocks.themeModeChangedHandler?.({ payload: { mode: 'system' } });
+    await nextTick();
+
+    expect(settingsState.themeMode).toBe('system');
+    expect(wrapper.get('[data-testid="app-shell"]').classes()).toContain('dark');
+    expect(wrapper.get('[data-testid="app-shell"]').attributes('style')).toContain(sharedThemeTokens.dark.appBg);
+    expectDocumentTheme('dark');
+
+    appMocks.preferredDarkRef!.value = false;
+    await nextTick();
+
+    expect(wrapper.get('[data-testid="app-shell"]').classes()).not.toContain('dark');
+    expect(wrapper.get('[data-testid="app-shell"]').attributes('style')).toContain(sharedThemeTokens.light.appBg);
+    expectDocumentTheme('light');
+
+    wrapper.unmount();
+
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
+    expect(document.documentElement.style.getPropertyValue('--app-bg')).toBe('');
   });
 
   it('keeps the current workbench page in the background and opens settings as an embedded modal', async () => {

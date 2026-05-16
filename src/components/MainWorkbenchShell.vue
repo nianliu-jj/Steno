@@ -261,23 +261,14 @@ function iconPathFor(key: WindowMode) {
 
 <style scoped>
 .workbench-root {
-  --bg: oklch(97% 0.014 78);
-  --surface: oklch(99% 0.006 78);
-  --surface-2: oklch(98% 0.008 78);
-  --fg: oklch(20% 0.02 70);
-  --muted: oklch(49% 0.018 70);
-  --faint: oklch(70% 0.014 70);
-  --border: oklch(88% 0.012 78);
-  --accent: oklch(61% 0.13 42);
-  --accent-soft: oklch(94% 0.034 42);
   --rail-w: 220px;
   --rail-w-collapsed: 58px;
   display: flex;
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  background: var(--bg);
-  color: var(--fg);
+  background: var(--app-bg);
+  color: var(--app-text);
   font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
@@ -290,8 +281,8 @@ function iconPathFor(key: WindowMode) {
   grid-template-columns: var(--rail-w) 1fr auto;
   align-items: center;
   min-height: 44px;
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in oklch, var(--surface) 92%, var(--bg));
+  border-bottom: 1px solid var(--app-border);
+  background: color-mix(in srgb, var(--app-surface) 92%, var(--app-bg));
   user-select: none;
   -webkit-user-select: none;
   transition: grid-template-columns 0.22s ease;
@@ -304,7 +295,7 @@ function iconPathFor(key: WindowMode) {
   height: 100%;
   min-width: 0;
   padding: 0 14px;
-  border-right: 1px solid var(--border);
+  border-right: 1px solid var(--app-border);
   user-select: none;
   -webkit-user-select: none;
 }
@@ -316,7 +307,7 @@ function iconPathFor(key: WindowMode) {
   place-items: center;
   flex-shrink: 0;
   border-radius: 6px;
-  background: var(--accent);
+  background: var(--app-accent);
   color: white;
   font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
   font-size: 12px;
@@ -357,7 +348,7 @@ function iconPathFor(key: WindowMode) {
   border: none;
   border-radius: 7px;
   background: transparent;
-  color: var(--muted);
+  color: var(--app-text-muted);
   cursor: pointer;
   transition:
     background 0.15s,
@@ -365,8 +356,8 @@ function iconPathFor(key: WindowMode) {
 }
 
 .back-btn:hover {
-  background: var(--bg);
-  color: var(--fg);
+  background: var(--app-bg);
+  color: var(--app-text);
 }
 
 .topbar svg {
@@ -384,18 +375,18 @@ function iconPathFor(key: WindowMode) {
   gap: 9px;
   min-width: 0;
   padding: 0 11px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--app-border);
   border-radius: 8px;
-  background: var(--bg);
-  color: var(--muted);
+  background: var(--app-bg);
+  color: var(--app-text-muted);
   transition:
     border-color 0.15s,
     background 0.15s;
 }
 
 .search-bar:focus-within {
-  border-color: var(--accent);
-  background: var(--surface);
+  border-color: var(--app-accent);
+  background: var(--app-surface);
 }
 
 .search-bar input {
@@ -404,14 +395,14 @@ function iconPathFor(key: WindowMode) {
   border: 0;
   outline: 0;
   background: transparent;
-  color: var(--fg);
+  color: var(--app-text);
   font: inherit;
   font-size: 13px;
   cursor: pointer;
 }
 
 .search-bar input::placeholder {
-  color: var(--faint);
+  color: var(--app-text-faint);
 }
 
 .kbd {
@@ -421,10 +412,10 @@ function iconPathFor(key: WindowMode) {
   align-items: center;
   justify-content: center;
   padding: 0 5px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--app-border);
   border-radius: 4px;
-  background: var(--surface);
-  color: var(--muted);
+  background: var(--app-surface);
+  color: var(--app-text-muted);
   font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
   font-size: 10px;
   line-height: 1;
@@ -446,7 +437,7 @@ function iconPathFor(key: WindowMode) {
   border: none;
   border-radius: 5px;
   background: transparent;
-  color: var(--muted);
+  color: var(--app-text-muted);
   cursor: pointer;
   transition:
     background 0.15s,
@@ -454,12 +445,12 @@ function iconPathFor(key: WindowMode) {
 }
 
 .win-btn:hover {
-  background: var(--bg);
-  color: var(--fg);
+  background: var(--app-bg);
+  color: var(--app-text);
 }
 
 .win-btn[data-act="close"]:hover {
-  background: oklch(60% 0.2 25);
+  background: var(--app-danger);
   color: white;
 }
 
@@ -472,8 +463,8 @@ function iconPathFor(key: WindowMode) {
 .workbench-sidebar {
   width: var(--rail-w);
   min-width: var(--rail-w);
-  border-right: 1px solid var(--border);
-  background: var(--surface-2);
+  border-right: 1px solid var(--app-border);
+  background: var(--app-surface-muted);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -502,7 +493,7 @@ function iconPathFor(key: WindowMode) {
   border: none;
   border-radius: 7px;
   background: transparent;
-  color: var(--muted);
+  color: var(--app-text-muted);
   font-size: 13px;
   font-weight: 500;
   text-align: left;
@@ -514,13 +505,13 @@ function iconPathFor(key: WindowMode) {
 }
 
 .workbench-nav-item:hover {
-  background: var(--bg);
-  color: var(--fg);
+  background: var(--app-bg);
+  color: var(--app-text);
 }
 
 .workbench-nav-item--active {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
 }
 
 .rail-icon {
@@ -537,13 +528,13 @@ function iconPathFor(key: WindowMode) {
 
 .rail-count {
   margin-left: auto;
-  color: var(--faint);
+  color: var(--app-text-faint);
   font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
   font-size: 11px;
 }
 
 .workbench-nav-item--active .rail-count {
-  color: var(--accent);
+  color: var(--app-accent);
 }
 
 .workbench-root[data-rail="collapsed"] .workbench-nav-item {
@@ -561,8 +552,8 @@ function iconPathFor(key: WindowMode) {
   align-items: center;
   justify-content: space-between;
   padding: 8px 10px;
-  border-top: 1px solid var(--border);
-  background: var(--surface);
+  border-top: 1px solid var(--app-border);
+  background: var(--app-surface);
 }
 
 .rail-foot-btn {
@@ -573,7 +564,7 @@ function iconPathFor(key: WindowMode) {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--muted);
+  color: var(--app-text-muted);
   cursor: pointer;
   transition:
     background 0.12s,
@@ -581,8 +572,8 @@ function iconPathFor(key: WindowMode) {
 }
 
 .rail-foot-btn:hover {
-  background: var(--bg);
-  color: var(--fg);
+  background: var(--app-bg);
+  color: var(--app-text);
 }
 
 .rail-foot-btn svg {
