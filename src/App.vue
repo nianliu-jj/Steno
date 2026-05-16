@@ -6,14 +6,20 @@
 // MainView 内部使用 Naive UI 的 useMessage，因此根节点需要套
 // NMessageProvider。页面型 mode 在 main 窗口里通过 `steno:navigate` 事件切换；
 // floating / sticky 仍由独立窗口 label 初始化。
-import { computed, onBeforeUnmount, onMounted, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted } from 'vue';
 import { NConfigProvider, NMessageProvider, NModal, darkTheme } from 'naive-ui';
-import { useDark } from '@vueuse/core';
+import { usePreferredDark } from '@vueuse/core';
 import { listen } from '@tauri-apps/api/event';
 
-import { sharedThemeTokens, THEME_MODE_CHANGED_EVENT, themeTokensToCssVars } from '@/theme';
+import {
+  resolveThemeVariant,
+  sharedThemeTokens,
+  THEME_MODE_CHANGED_EVENT,
+  themeTokensToCssVars,
+  type ThemeModeChangedPayload,
+} from '@/theme';
 import { useUiStore } from '@/stores/ui';
-import { useSettingsStore, type ThemeMode } from '@/stores/settings';
+import { useSettingsStore } from '@/stores/settings';
 import FloatingEditor from '@/components/FloatingEditor.vue';
 import MainWorkbenchShell from '@/components/MainWorkbenchShell.vue';
 import StickyNote from '@/components/StickyNote.vue';
@@ -29,11 +35,15 @@ import type { WindowMode } from '@/types/steno';
 const ui = useUiStore();
 const settings = useSettingsStore();
 
-const isDark = useDark();
+const preferredDark = usePreferredDark();
+const themeVariant = computed(() =>
+  resolveThemeVariant(settings.state.themeMode, preferredDark.value),
+);
+const isDark = computed(() => themeVariant.value === 'dark');
 
 const naiveTheme = computed(() => (isDark.value ? darkTheme : null));
 const sharedThemeStyle = computed(() =>
-  themeTokensToCssVars(isDark.value ? sharedThemeTokens.dark : sharedThemeTokens.light),
+  themeTokensToCssVars(sharedThemeTokens[themeVariant.value]),
 );
 
 const shellNavItems = computed<
@@ -84,27 +94,8 @@ onMounted(() => {
 
 let unlistenThemeModeChanged: (() => void) | null = null;
 
-function applyThemeMode(mode: ThemeMode) {
-  if (mode === 'light') {
-    isDark.value = false;
-  } else if (mode === 'dark') {
-    isDark.value = true;
-  }
-}
-
-// themeMode 优先级：用户在 SettingsView 显式切换 → 覆盖 system；'system' 时
-// 跟随 useDark 默认（matchMedia）。
-watch(
-  () => settings.state.themeMode,
-  mode => {
-    applyThemeMode(mode);
-    // system 留给 useDark 自己跟随系统
-  },
-  { immediate: true },
-);
-
 onMounted(async () => {
-  unlistenThemeModeChanged = await listen<{ mode: ThemeMode }>(
+  unlistenThemeModeChanged = await listen<ThemeModeChangedPayload>(
     THEME_MODE_CHANGED_EVENT,
     event => {
       settings.state.themeMode = event.payload.mode;

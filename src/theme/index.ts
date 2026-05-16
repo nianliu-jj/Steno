@@ -1,3 +1,7 @@
+import { emit } from '@tauri-apps/api/event';
+
+import type { ThemeMode } from '@/stores/settings';
+
 export const THEME_MODE_CHANGED_EVENT = 'steno:theme-mode-changed';
 
 export type SharedThemeTokenName =
@@ -15,6 +19,10 @@ export type SharedThemeTokenName =
   | 'appDanger';
 
 type SharedThemeTokens = Record<SharedThemeTokenName, string>;
+export type SharedThemeVariant = keyof typeof sharedThemeTokens;
+export type ThemeModeChangedPayload = {
+  mode: ThemeMode;
+};
 
 export const sharedThemeTokens: Record<'light' | 'dark', SharedThemeTokens> = {
   light: {
@@ -47,6 +55,17 @@ export const sharedThemeTokens: Record<'light' | 'dark', SharedThemeTokens> = {
   },
 };
 
+export function resolveThemeVariant(
+  mode: ThemeMode,
+  preferredDark: boolean,
+): SharedThemeVariant {
+  if (mode === 'system') {
+    return preferredDark ? 'dark' : 'light';
+  }
+
+  return mode;
+}
+
 export function themeTokensToCssVars(tokens: SharedThemeTokens): Record<string, string> {
   return Object.fromEntries(
     Object.entries(tokens).map(([key, value]) => [
@@ -56,11 +75,17 @@ export function themeTokensToCssVars(tokens: SharedThemeTokens): Record<string, 
   );
 }
 
+export async function broadcastThemeModeChanged(mode: ThemeMode): Promise<void> {
+  await emit(THEME_MODE_CHANGED_EVENT, {
+    mode,
+  } satisfies ThemeModeChangedPayload);
+}
+
 export const themeVars = {
   colors: {
     primary: sharedThemeTokens.light.appAccent,
     primaryHover: sharedThemeTokens.light.appAccentHover,
     primaryPressed: sharedThemeTokens.light.appAccentPressed,
-    primarySuppl: sharedThemeTokens.dark.appAccent,
+    primarySuppl: sharedThemeTokens.light.appAccentSoft,
   },
 };

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 // 设置面板。主窗口内由 NModal 承载；独立 settings 模式下作为整页兜底展示。
 import { computed, onMounted, ref } from 'vue';
-import { emit as emitTauriEvent } from '@tauri-apps/api/event';
 import {
   NButton,
   NInput,
@@ -15,7 +14,7 @@ import {
 } from 'naive-ui';
 
 import { useDb } from '@/composables/useDb';
-import { THEME_MODE_CHANGED_EVENT } from '@/theme';
+import { broadcastThemeModeChanged } from '@/theme';
 import { useSettingsStore, type EditorMode, type ThemeMode } from '@/stores/settings';
 import { useUiStore } from '@/stores/ui';
 
@@ -47,9 +46,15 @@ const activeSection = ref<SettingsSection>('general');
 async function onThemeChange(value: ThemeMode) {
   try {
     await settings.update('themeMode', value);
-    await emitTauriEvent(THEME_MODE_CHANGED_EVENT, { mode: value });
   } catch (e) {
     message.error(`主题保存失败：${String(e)}`);
+    return;
+  }
+
+  try {
+    await broadcastThemeModeChanged(value);
+  } catch (e) {
+    message.warning(`主题已保存，但同步失败：${String(e)}`);
   }
 }
 
