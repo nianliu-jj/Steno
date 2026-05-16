@@ -64,11 +64,16 @@ const configSave = useAutosave<PinnedWindowConfig>(
   { delayMs: 300 },
 );
 
-const visibleSaveStatus = computed<AutosaveStatus>(() => titleSaveStatus.value ?? contentSave.status.value);
+const visibleSaveStatus = computed<AutosaveStatus>(() => {
+  if (contentSave.status.value !== 'idle') {
+    return contentSave.status.value;
+  }
+  return titleSaveStatus.value ?? 'idle';
+});
 const saveStatusLabel = computed(() => {
   switch (visibleSaveStatus.value) {
     case 'scheduled':
-      return '待保存';
+      return '编辑中';
     case 'saving':
       return '保存中';
     case 'saved':
@@ -82,6 +87,7 @@ const saveStatusLabel = computed(() => {
 
 watch(content, () => {
   if (!loaded.value) return;
+  titleSaveStatus.value = null;
   contentSave.scheduleSave({
     id: props.noteId,
     title: savedTitle.value || undefined,
@@ -181,6 +187,7 @@ async function saveTitle() {
   if (nextTitle === savedTitle.value) {
     titleEditing.value = false;
     titleDraft.value = savedTitle.value;
+    titleSaveStatus.value = null;
     return;
   }
 
@@ -230,6 +237,9 @@ function onTitleInput(event: Event) {
 async function onHeaderPointerdown(event: PointerEvent) {
   if (event.button !== 0) return;
   if ((event.target as HTMLElement | null)?.closest('button, input')) return;
+  if (titleEditing.value) {
+    cancelTitleEdit();
+  }
   event.preventDefault();
   try {
     await win.startDragCurrent();
@@ -279,7 +289,9 @@ async function onCloseClick() {
             @mousedown.prevent
             @click="saveTitle"
           >
-            保存
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">
+              <path d="M17 3H5a2 2 0 0 0-2 2v14l4-4h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-1 8H8v-2h8zm0-3H8V6h8z" />
+            </svg>
           </button>
         </template>
         <template v-else>
@@ -292,7 +304,9 @@ async function onCloseClick() {
             title="编辑标题"
             @click="startTitleEdit"
           >
-            编辑
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">
+              <path d="M3 17.25V21h3.75l11-11.03-3.75-3.75zM20.71 7.04a1.002 1.002 0 0 0 0-1.42L18.37 3.29a1.002 1.002 0 0 0-1.42 0L15.12 5.12l3.75 3.75z" />
+            </svg>
           </button>
         </template>
       </div>
@@ -447,7 +461,8 @@ async function onCloseClick() {
 .sticky-styler-btn,
 .sticky-done-btn {
   height: 22px;
-  padding: 0 8px;
+  min-width: 22px;
+  padding: 0 6px;
   font-size: 11px;
   font-weight: 600;
   color: var(--app-fg);
@@ -461,6 +476,12 @@ async function onCloseClick() {
 .sticky-styler-btn:hover,
 .sticky-done-btn:hover {
   background: color-mix(in srgb, var(--app-surface) 50%, var(--app-muted) 50%);
+}
+
+.sticky-title-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .sticky-actions {

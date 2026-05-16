@@ -145,13 +145,15 @@ describe('StickyNote', () => {
 
     expect(wrapper.find('[data-testid="title-text"]').text()).toBe('置顶便签');
     expect(wrapper.find('[data-testid="title-input"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="title-edit-button"] svg').exists()).toBe(true);
 
     await wrapper.find('[data-testid="title-edit-button"]').trigger('click');
 
     expect(wrapper.find('[data-testid="title-input"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="title-save-button"] svg').exists()).toBe(true);
   });
 
-  it('标题输入失焦会取消修改并恢复原标题，不触发标题保存', async () => {
+  it('标题输入失焦或点击 header 空白会取消修改并恢复原标题，不触发标题保存', async () => {
     const wrapper = await mountStickyNote();
 
     await wrapper.find('[data-testid="title-edit-button"]').trigger('click');
@@ -165,6 +167,18 @@ describe('StickyNote', () => {
     expect(wrapper.find('[data-testid="title-input"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="title-text"]').text()).toBe('置顶便签');
     expect(payloads.some(payload => payload?.title === '临时标题')).toBe(false);
+
+    await wrapper.find('[data-testid="title-edit-button"]').trigger('click');
+    const secondInput = wrapper.find('[data-testid="title-input"]');
+    await secondInput.setValue('点空白取消');
+    wrapper.find('.sticky-header').element.dispatchEvent(new PointerEvent('pointerdown', { button: 0, bubbles: true }));
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="title-input"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="title-text"]').text()).toBe('置顶便签');
+    const nextPayloads = saveDraft.mock.calls.map(([payload]) => payload as SaveNoteRequest | undefined);
+    expect(nextPayloads.some(payload => payload?.title === '点空白取消')).toBe(false);
+    expect(startDragCurrent).toHaveBeenCalledTimes(1);
   });
 
   it('保存标题前会先 flush 正文 autosave，再用新标题调用 saveDraft', async () => {
@@ -205,7 +219,30 @@ describe('StickyNote', () => {
 
     const footerMeta = wrapper.find('[data-testid="footer-meta"]').text();
 
-    expect(footerMeta).toMatch(/\d+\s*字\s*\/\s*1\s*行\s*\//);
+    expect(footerMeta).toBe('0 字 / 1 行 / 未修改');
+  });
+
+  it('标题保存后正文再次编辑时，底部状态会重新反映 autosave 实时状态', async () => {
+    vi.useFakeTimers();
+    const wrapper = await mountStickyNote();
+
+    await wrapper.find('[data-testid="title-edit-button"]').trigger('click');
+    await wrapper.find('[data-testid="title-input"]').setValue('新标题');
+    await wrapper.find('[data-testid="title-save-button"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="footer-meta"]').text()).toContain('已保存');
+
+    await wrapper.find('.sticky-content').trigger('dblclick');
+    await wrapper.find('.md-editor__textarea').setValue('第一行\n第二行');
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="footer-meta"]').text()).toBe('6 字 / 2 行 / 编辑中');
+
+    vi.advanceTimersByTime(1000);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="footer-meta"]').text()).toBe('6 字 / 2 行 / 已保存');
   });
 
   it('底部不再渲染颜色选择器和亮度滑块', async () => {
