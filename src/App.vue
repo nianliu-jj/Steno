@@ -6,7 +6,7 @@
 // MainView 内部使用 Naive UI 的 useMessage，因此根节点需要套
 // NMessageProvider。页面型 mode 在 main 窗口里通过 `steno:navigate` 事件切换；
 // floating / sticky 仍由独立窗口 label 初始化。
-import { computed, onBeforeUnmount, onMounted } from 'vue';
+import { computed, onBeforeUnmount, onMounted, watchEffect } from 'vue';
 import { NConfigProvider, NMessageProvider, NModal, darkTheme } from 'naive-ui';
 import { usePreferredDark } from '@vueuse/core';
 import { listen } from '@tauri-apps/api/event';
@@ -45,6 +45,38 @@ const naiveTheme = computed(() => (isDark.value ? darkTheme : null));
 const sharedThemeStyle = computed(() =>
   themeTokensToCssVars(sharedThemeTokens[themeVariant.value]),
 );
+
+watchEffect(onCleanup => {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
+  const root = document.documentElement;
+  const previousDark = root.classList.contains('dark');
+  const previousStyles = new Map<string, string>();
+
+  for (const key of Object.keys(sharedThemeStyle.value)) {
+    previousStyles.set(key, root.style.getPropertyValue(key));
+  }
+
+  root.classList.toggle('dark', isDark.value);
+
+  for (const [key, value] of Object.entries(sharedThemeStyle.value)) {
+    root.style.setProperty(key, value);
+  }
+
+  onCleanup(() => {
+    root.classList.toggle('dark', previousDark);
+
+    for (const [key, value] of previousStyles) {
+      if (value) {
+        root.style.setProperty(key, value);
+      } else {
+        root.style.removeProperty(key);
+      }
+    }
+  });
+});
 
 const shellNavItems = computed<
   { key: WindowMode; label: string; active: boolean }[]

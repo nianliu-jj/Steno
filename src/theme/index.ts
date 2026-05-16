@@ -23,6 +23,12 @@ export type SharedThemeVariant = keyof typeof sharedThemeTokens;
 export type ThemeModeChangedPayload = {
   mode: ThemeMode;
 };
+type LegacyThemeColorVars = {
+  primary: string;
+  primaryHover: string;
+  primaryPressed: string;
+  primarySuppl: string;
+};
 
 export const sharedThemeTokens: Record<'light' | 'dark', SharedThemeTokens> = {
   light: {
@@ -81,11 +87,15 @@ export async function broadcastThemeModeChanged(mode: ThemeMode): Promise<void> 
   } satisfies ThemeModeChangedPayload);
 }
 
+function legacyThemeColorVarsFromTokens(tokens: SharedThemeTokens): LegacyThemeColorVars {
+  return {
+    primary: tokens.appAccent,
+    primaryHover: tokens.appAccentHover,
+    primaryPressed: tokens.appAccentPressed,
+    primarySuppl: tokens.appAccentSoft,
+  };
+}
+
 export const themeVars = {
-  colors: {
-    primary: sharedThemeTokens.light.appAccent,
-    primaryHover: sharedThemeTokens.light.appAccentHover,
-    primaryPressed: sharedThemeTokens.light.appAccentPressed,
-    primarySuppl: sharedThemeTokens.light.appAccentSoft,
-  },
+  colors: legacyThemeColorVarsFromTokens(sharedThemeTokens.light),
 };
