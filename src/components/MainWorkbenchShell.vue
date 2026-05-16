@@ -307,7 +307,7 @@ function iconPathFor(key: WindowMode) {
   place-items: center;
   flex-shrink: 0;
   border-radius: 6px;
-  background: var(--accent);
+  background: var(--app-accent);
   color: white;
   font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
   font-size: 12px;

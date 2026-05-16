@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick, reactive, ref, type PropType } from 'vue';
 
 import { THEME_MODE_CHANGED_EVENT } from '@/theme';
+import MainWorkbenchShellSource from '@/components/MainWorkbenchShell.vue?raw';
 
 type ShellNavItem = {
   label: string;
@@ -272,5 +273,10 @@ describe('App', () => {
     expect(wrapper.find('[data-testid="shell"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="settings-modal"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="settings-view"]').exists()).toBe(true);
+  });
+
+  it('uses shared app theme variables in the workbench shell styles', () => {
+    expect(MainWorkbenchShellSource).toContain('var(--app-accent)');
+    expect(MainWorkbenchShellSource).not.toContain('var(--accent)');
   });
 });
