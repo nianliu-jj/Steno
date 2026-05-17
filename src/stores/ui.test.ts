@@ -103,6 +103,17 @@ describe('ui store', () => {
     expect(ui.noteId).toBeNull();
   });
 
+  it('returns to the same note editor after opening Zen from the editor page', () => {
+    const ui = useUiStore();
+
+    ui.navigateTo('note-editor', 'note-1');
+    ui.navigateToZenFromEditor('note-1');
+    ui.exitZen();
+
+    expect(ui.mode).toBe('note-editor');
+    expect(ui.noteId).toBe('note-1');
+  });
+
   it('navigates to placeholder pages in the main window', () => {
     const ui = useUiStore();
 

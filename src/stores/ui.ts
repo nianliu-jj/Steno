@@ -138,12 +138,12 @@ export const useUiStore = defineStore('ui', () => {
   const settingsOpen = ref(initial.mode === 'settings' && windowLabel !== 'settings');
   const mode = ref<WindowMode>(settingsOpen.value ? 'main' : initial.mode);
   const noteId = ref<string | null>(initial.noteId);
-  const zenReturnMode = ref<MainRouteMode | null>(null);
+  const zenReturnRoute = ref<{ mode: MainRouteMode; noteId: string | null } | null>(null);
 
   function navigateTo(
     nextMode: MainRouteMode,
     nextNoteId: string | null = null,
-    returnMode: MainRouteMode | null = null,
+    returnRoute: { mode: MainRouteMode; noteId: string | null } | null = null,
   ) {
     if (nextMode === 'settings') {
       if (windowLabel === 'settings') {
@@ -158,7 +158,7 @@ export const useUiStore = defineStore('ui', () => {
     settingsOpen.value = false;
     mode.value = nextMode;
     noteId.value = nextMode === 'zen' || nextMode === 'note-editor' ? nextNoteId : null;
-    zenReturnMode.value = nextMode === 'zen' ? returnMode : null;
+    zenReturnRoute.value = nextMode === 'zen' ? returnRoute : null;
   }
 
   function navigateToMain() {
@@ -167,12 +167,20 @@ export const useUiStore = defineStore('ui', () => {
   }
 
   function navigateToZenFromCanvas(nextNoteId: string) {
-    navigateTo('zen', nextNoteId, 'canvas');
+    navigateTo('zen', nextNoteId, { mode: 'canvas', noteId: null });
+  }
+
+  function navigateToZenFromEditor(nextNoteId: string | null) {
+    navigateTo('zen', nextNoteId, { mode: 'note-editor', noteId: nextNoteId });
   }
 
   function exitZen() {
-    const target = zenReturnMode.value;
-    navigateTo(target ?? 'main');
+    const target = zenReturnRoute.value;
+    if (target) {
+      navigateTo(target.mode, target.noteId);
+      return;
+    }
+    navigateTo('main');
   }
 
   function closeSettings() {
@@ -210,6 +218,7 @@ export const useUiStore = defineStore('ui', () => {
     navigateTo,
     navigateToMain,
     navigateToZenFromCanvas,
+    navigateToZenFromEditor,
     exitZen,
     closeSettings,
   };

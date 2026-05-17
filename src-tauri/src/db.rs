@@ -151,6 +151,10 @@ impl Db {
             ("themeMode", "system"),
             ("editorMode", "split"),
             ("backupEveryChanges", "10"),
+            ("noteEditorOutlineWidth", "280"),
+            ("noteEditorOutlineOpen", "false"),
+            ("zenOutlineWidth", "300"),
+            ("zenOutlineOpen", "true"),
         ];
         let now = chrono::Utc::now().to_rfc3339();
         for (k, v) in defaults {
@@ -672,6 +676,27 @@ mod tests {
         assert_eq!(
             db.get_setting("blurCloseDelayMs").unwrap().as_deref(),
             Some("800")
+        );
+    }
+
+    #[test]
+    fn default_settings_seed_includes_editor_outline_keys() {
+        let db = fresh_db();
+        assert_eq!(
+            db.get_setting("noteEditorOutlineWidth").unwrap().as_deref(),
+            Some("280")
+        );
+        assert_eq!(
+            db.get_setting("noteEditorOutlineOpen").unwrap().as_deref(),
+            Some("false")
+        );
+        assert_eq!(
+            db.get_setting("zenOutlineWidth").unwrap().as_deref(),
+            Some("300")
+        );
+        assert_eq!(
+            db.get_setting("zenOutlineOpen").unwrap().as_deref(),
+            Some("true")
         );
     }
 }
