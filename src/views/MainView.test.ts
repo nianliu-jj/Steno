@@ -3,12 +3,12 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { NConfigProvider, NMessageProvider } from 'naive-ui';
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { defineComponent, h, ref } from 'vue';
 
 import MainView from './MainView.vue';
 import MainViewSource from './MainView.vue?raw';
-import type { Note } from '@/types/steno';
+import type { Note, SaveNoteRequest } from '@/types/steno';
 
 const openQuicknote = vi.fn(() => Promise.resolve());
 const navigateTo = vi.fn();
@@ -34,7 +34,7 @@ const loadPinned = vi.fn(() => Promise.resolve());
 const notesState = ref<Note[]>([]);
 const pinnedState = ref<Note[]>([]);
 const loadingState = ref(false);
-let saveDraftMock = vi.fn(() => Promise.resolve(null));
+let saveDraftMock: Mock<(input: SaveNoteRequest) => Promise<Note | null>> = vi.fn(() => Promise.resolve(null));
 let removeNoteMock = vi.fn(() => Promise.resolve());
 let syncExternalNoteMock = vi.fn();
 
@@ -86,7 +86,7 @@ vi.mock('@/stores/notes', () => ({
     loadPinned,
     pinNote: vi.fn(() => Promise.resolve()),
     unpinNote: vi.fn(() => Promise.resolve()),
-    saveDraft: (...args: Parameters<typeof saveDraftMock>) => saveDraftMock(...args),
+    saveDraft: (input: SaveNoteRequest) => saveDraftMock(input),
     removeNote: (...args: Parameters<typeof removeNoteMock>) => removeNoteMock(...args),
     syncExternalNote: (note: Note) => syncExternalNoteMock(note),
   }),
@@ -370,7 +370,7 @@ describe('MainView', () => {
   });
 
   it('enables note context actions and calls new, edit, export, rename, tag, print, and delete handlers', async () => {
-    saveDraftMock = vi.fn(input =>
+    saveDraftMock = vi.fn((input: SaveNoteRequest) =>
       Promise.resolve(makeNote({
         id: input.id,
         title: input.title ?? '右键文档',
