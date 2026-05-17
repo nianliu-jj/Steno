@@ -2,7 +2,7 @@
 
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { nextTick, reactive, ref, type PropType } from 'vue';
+import { Teleport, nextTick, reactive, ref, type PropType } from 'vue';
 
 type ShellNavItem = {
   label: string;
@@ -50,6 +50,12 @@ vi.mock('naive-ui', async () => {
   return {
     darkTheme: {},
     NConfigProvider: defineComponent({
+      props: {
+        theme: {
+          type: Object,
+          default: null,
+        },
+      },
       setup(_, { slots }) {
         return () => slots.default?.();
       },
@@ -65,12 +71,44 @@ vi.mock('naive-ui', async () => {
           type: Boolean,
           default: false,
         },
+        preset: {
+          type: String,
+          default: undefined,
+        },
+        maskClosable: {
+          type: Boolean,
+          default: true,
+        },
+        autoFocus: {
+          type: Boolean,
+          default: true,
+        },
+        to: {
+          type: String,
+          default: 'body',
+        },
       },
       emits: ['update:show'],
       setup(props, { slots }) {
         return () =>
           props.show
-            ? h('div', { 'data-testid': 'settings-modal' }, slots.default?.())
+            ? h(
+                Teleport,
+                {
+                  to: props.to,
+                  defer: true,
+                },
+                [
+                h(
+                  'div',
+                  {
+                    'data-testid': 'settings-modal',
+                    'data-teleport-to': props.to,
+                  },
+                  slots.default?.(),
+                ),
+                ],
+              )
             : null;
       },
     }),
@@ -214,6 +252,7 @@ describe('App', () => {
     loadSettings.mockClear();
     darkState.value = false;
     themeModeListeners.clear();
+    document.body.innerHTML = '';
     listenThemeModeChangedMock.mockClear();
     listenThemeModeChangedMock.mockImplementation(async handler => {
       themeModeListeners.add(handler);
@@ -227,18 +266,28 @@ describe('App', () => {
     uiState.mode = 'main';
     uiState.settingsOpen = true;
 
-    const wrapper = mount(App);
+    const wrapper = mount(App, {
+      attachTo: document.body,
+    });
 
     expect(wrapper.find('[data-testid="shell"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="main-actions"]').exists()).toBe(false);
     expect(wrapper.get('[data-testid="shell-nav-labels"]').text()).toBe('笔记列表|画布|粘贴板|待办|截图|OCR|翻译');
     expect(wrapper.get('[data-testid="shell-nav-labels"]').text()).not.toContain('搜索');
     expect(wrapper.findAll('[data-testid="main-view"]')).toHaveLength(1);
-    expect(wrapper.find('[data-testid="settings-modal"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="settings-view-embedded"]').exists()).toBe(true);
+    expect(document.body.querySelector('[data-testid="settings-modal"]')).not.toBeNull();
+    expect(document.body.querySelector('[data-testid="settings-view-embedded"]')).not.toBeNull();
 
-    await wrapper.get('[data-testid="settings-view-embedded"] button').trigger('click');
+    const closeButton = document.body.querySelector(
+      '[data-testid="settings-view-embedded"] button',
+    ) as HTMLButtonElement | null;
+    closeButton?.click();
+    await nextTick();
     expect(uiState.closeSettings).toHaveBeenCalledOnce();
+
+    uiState.settingsOpen = false;
+    await nextTick();
+    wrapper.unmount();
   });
 
   it('renders the standalone settings page when the window itself is in settings mode', () => {
@@ -250,6 +299,27 @@ describe('App', () => {
     expect(wrapper.find('[data-testid="shell"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="settings-modal"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="settings-view"]').exists()).toBe(true);
+  });
+
+  it('teleports the embedded settings modal into the themed app root instead of body', async () => {
+    uiState.mode = 'main';
+    uiState.settingsOpen = true;
+
+    const wrapper = mount(App, {
+      attachTo: document.body,
+    });
+
+    const appThemeRoot = document.body.querySelector('.app-theme-root');
+    const modal = document.body.querySelector('[data-testid="settings-modal"]');
+
+    expect(modal).not.toBeNull();
+    expect(modal?.getAttribute('data-teleport-to')).toBe('.app-theme-root');
+    expect(appThemeRoot?.contains(modal)).toBe(true);
+    expect(Array.from(document.body.children)).not.toContain(modal);
+
+    uiState.settingsOpen = false;
+    await nextTick();
+    wrapper.unmount();
   });
 
   it('mounts shared theme vars on the app root and updates dark mode after a theme event', async () => {

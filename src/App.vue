@@ -145,6 +145,7 @@ watch(
           </MainWorkbenchShell>
           <NModal
             :show="ui.settingsOpen"
+            to=".app-theme-root"
             preset="card"
             :mask-closable="true"
             :auto-focus="false"
