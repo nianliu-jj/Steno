@@ -1,3 +1,4 @@
+import { isTauri } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';
 
 import type { ThemeMode } from '@/stores/settings';
@@ -12,22 +13,20 @@ export interface NoteSavedPayload {
 export type AppThemeModeChangedPayload = ThemeMode;
 
 async function safeEmit<TPayload>(event: string, payload: TPayload): Promise<void> {
-  try {
-    await emit(event, payload);
-  } catch {
-    // 浏览器调试 / 测试环境里没有 Tauri runtime 时静默降级。
+  if (!isTauri()) {
+    return;
   }
+  await emit(event, payload);
 }
 
 async function safeListen<TPayload>(
   event: string,
   handler: (payload: TPayload) => void,
 ): Promise<() => void> {
-  try {
-    return await listen<TPayload>(event, ({ payload }) => handler(payload));
-  } catch {
+  if (!isTauri()) {
     return () => {};
   }
+  return await listen<TPayload>(event, ({ payload }) => handler(payload));
 }
 
 export function useAppEvents() {

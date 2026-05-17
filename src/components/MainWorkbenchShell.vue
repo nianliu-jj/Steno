@@ -491,14 +491,23 @@ function iconPathFor(key: WindowMode) {
 
 <style scoped>
 .workbench-root {
+  --bg: var(--app-bg);
+  --surface: var(--app-surface);
+  --surface-2: var(--app-surface-2);
+  --fg: var(--app-fg);
+  --muted: var(--app-muted);
+  --faint: var(--app-faint);
+  --border: var(--app-border);
+  --accent: var(--app-accent);
+  --accent-soft: var(--app-accent-soft);
   --rail-w: 220px;
   --rail-w-collapsed: 58px;
   display: flex;
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  background: var(--app-bg);
-  color: var(--app-fg);
+  background: var(--bg);
+  color: var(--fg);
   font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
@@ -511,8 +520,8 @@ function iconPathFor(key: WindowMode) {
   grid-template-columns: var(--rail-w) 1fr auto;
   align-items: center;
   min-height: 44px;
-  border-bottom: 1px solid var(--app-border);
-  background: color-mix(in oklch, var(--app-surface) 92%, var(--app-bg));
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklch, var(--surface) 92%, var(--bg));
   user-select: none;
   -webkit-user-select: none;
   transition: grid-template-columns 0.22s ease;
@@ -525,7 +534,7 @@ function iconPathFor(key: WindowMode) {
   height: 100%;
   min-width: 0;
   padding: 0 14px;
-  border-right: 1px solid var(--app-border);
+  border-right: 1px solid var(--border);
   user-select: none;
   -webkit-user-select: none;
 }
@@ -537,7 +546,7 @@ function iconPathFor(key: WindowMode) {
   place-items: center;
   flex-shrink: 0;
   border-radius: 6px;
-  background: var(--app-accent);
+  background: var(--accent);
   color: white;
   font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
   font-size: 12px;
@@ -578,7 +587,7 @@ function iconPathFor(key: WindowMode) {
   border: none;
   border-radius: 7px;
   background: transparent;
-  color: var(--app-muted);
+  color: var(--muted);
   cursor: pointer;
   transition:
     background 0.15s,
@@ -586,8 +595,8 @@ function iconPathFor(key: WindowMode) {
 }
 
 .back-btn:hover {
-  background: var(--app-bg);
-  color: var(--app-fg);
+  background: var(--bg);
+  color: var(--fg);
 }
 
 .topbar svg {
@@ -605,18 +614,18 @@ function iconPathFor(key: WindowMode) {
   gap: 9px;
   min-width: 0;
   padding: 0 11px;
-  border: 1px solid var(--app-border);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--app-bg);
-  color: var(--app-muted);
+  background: var(--bg);
+  color: var(--muted);
   transition:
     border-color 0.15s,
     background 0.15s;
 }
 
 .search-bar:focus-within {
-  border-color: var(--app-accent);
-  background: var(--app-surface);
+  border-color: var(--accent);
+  background: var(--surface);
 }
 
 .search-bar input {
@@ -625,14 +634,14 @@ function iconPathFor(key: WindowMode) {
   border: 0;
   outline: 0;
   background: transparent;
-  color: var(--app-fg);
+  color: var(--fg);
   font: inherit;
   font-size: 13px;
   cursor: text;
 }
 
 .search-bar input::placeholder {
-  color: var(--app-faint);
+  color: var(--faint);
 }
 
 .feature-search-wrap {
@@ -657,9 +666,9 @@ function iconPathFor(key: WindowMode) {
   max-height: 360px;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--app-border);
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--app-surface);
+  background: var(--surface);
   box-shadow: 0 14px 34px oklch(24% 0.02 70 / 0.16);
   overflow: hidden;
 }
@@ -677,7 +686,7 @@ function iconPathFor(key: WindowMode) {
   gap: 10px;
   padding: 8px 10px;
   border-radius: 7px;
-  color: var(--app-fg);
+  color: var(--fg);
   cursor: pointer;
   transition:
     background 0.12s ease,
@@ -686,20 +695,20 @@ function iconPathFor(key: WindowMode) {
 
 .feature-menu-item--active,
 .feature-menu-item:hover {
-  background: var(--app-accent-soft);
-  color: var(--app-accent);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .feature-menu-icon {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  color: var(--app-muted);
+  color: var(--muted);
 }
 
 .feature-menu-item--active .feature-menu-icon,
 .feature-menu-item:hover .feature-menu-icon {
-  color: var(--app-accent);
+  color: var(--accent);
 }
 
 .feature-menu-text {
@@ -716,20 +725,20 @@ function iconPathFor(key: WindowMode) {
 
 .feature-menu-text em {
   margin-top: 2px;
-  color: var(--app-muted);
+  color: var(--muted);
   font-style: normal;
   font-size: 11.5px;
 }
 
 .feature-menu-item--active .feature-menu-text em,
 .feature-menu-item:hover .feature-menu-text em {
-  color: color-mix(in oklch, var(--app-accent) 65%, var(--app-muted));
+  color: color-mix(in oklch, var(--accent) 65%, var(--muted));
 }
 
 .feature-menu-empty {
   margin: 0;
   padding: 14px 16px;
-  color: var(--app-muted);
+  color: var(--muted);
   font-size: 12.5px;
   text-align: center;
 }
@@ -750,7 +759,7 @@ function iconPathFor(key: WindowMode) {
   border: none;
   border-radius: 5px;
   background: transparent;
-  color: var(--app-muted);
+  color: var(--muted);
   cursor: pointer;
   transition:
     background 0.15s,
@@ -758,8 +767,8 @@ function iconPathFor(key: WindowMode) {
 }
 
 .win-btn:hover {
-  background: var(--app-bg);
-  color: var(--app-fg);
+  background: var(--bg);
+  color: var(--fg);
 }
 
 .win-btn[data-act="close"]:hover {
@@ -776,8 +785,8 @@ function iconPathFor(key: WindowMode) {
 .workbench-sidebar {
   width: var(--rail-w);
   min-width: var(--rail-w);
-  border-right: 1px solid var(--app-border);
-  background: var(--app-surface-2);
+  border-right: 1px solid var(--border);
+  background: var(--surface-2);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -806,7 +815,7 @@ function iconPathFor(key: WindowMode) {
   border: none;
   border-radius: 7px;
   background: transparent;
-  color: var(--app-muted);
+  color: var(--muted);
   font-size: 13px;
   font-weight: 500;
   text-align: left;
@@ -818,13 +827,13 @@ function iconPathFor(key: WindowMode) {
 }
 
 .workbench-nav-item:hover {
-  background: var(--app-bg);
-  color: var(--app-fg);
+  background: var(--bg);
+  color: var(--fg);
 }
 
 .workbench-nav-item--active {
-  background: var(--app-accent-soft);
-  color: var(--app-accent);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .rail-icon {
@@ -841,13 +850,13 @@ function iconPathFor(key: WindowMode) {
 
 .rail-count {
   margin-left: auto;
-  color: var(--app-faint);
+  color: var(--faint);
   font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
   font-size: 11px;
 }
 
 .workbench-nav-item--active .rail-count {
-  color: var(--app-accent);
+  color: var(--accent);
 }
 
 .workbench-root[data-rail="collapsed"] .workbench-nav-item {
@@ -865,8 +874,8 @@ function iconPathFor(key: WindowMode) {
   align-items: center;
   justify-content: space-between;
   padding: 8px 10px;
-  border-top: 1px solid var(--app-border);
-  background: var(--app-surface);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .rail-foot-btn {
@@ -877,7 +886,7 @@ function iconPathFor(key: WindowMode) {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--app-muted);
+  color: var(--muted);
   cursor: pointer;
   transition:
     background 0.12s,
@@ -885,8 +894,8 @@ function iconPathFor(key: WindowMode) {
 }
 
 .rail-foot-btn:hover {
-  background: var(--app-bg);
-  color: var(--app-fg);
+  background: var(--bg);
+  color: var(--fg);
 }
 
 .rail-foot-btn svg {

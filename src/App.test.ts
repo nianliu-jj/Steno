@@ -22,6 +22,14 @@ const settingsState = reactive({
 const loadSettings = vi.fn(() => Promise.resolve());
 const darkState = reactive({ value: false });
 const themeModeListeners = new Set<(value: 'light' | 'dark' | 'system') => void>();
+const listenThemeModeChangedMock = vi.fn(
+  async (handler: (value: 'light' | 'dark' | 'system') => void) => {
+    themeModeListeners.add(handler);
+    return () => {
+      themeModeListeners.delete(handler);
+    };
+  },
+);
 
 vi.mock('@vueuse/core', () => ({
   useDark: () => darkState,
@@ -31,10 +39,7 @@ vi.mock('@/composables/useAppEvents', () => ({
   useAppEvents: () => ({
     emitThemeModeChanged: vi.fn(),
     emitNoteSaved: vi.fn(),
-    listenThemeModeChanged: vi.fn(async handler => {
-      themeModeListeners.add(handler);
-      return () => themeModeListeners.delete(handler);
-    }),
+    listenThemeModeChanged: listenThemeModeChangedMock,
     listenNoteSaved: vi.fn(async () => () => {}),
   }),
 }));
@@ -209,6 +214,13 @@ describe('App', () => {
     loadSettings.mockClear();
     darkState.value = false;
     themeModeListeners.clear();
+    listenThemeModeChangedMock.mockClear();
+    listenThemeModeChangedMock.mockImplementation(async handler => {
+      themeModeListeners.add(handler);
+      return () => {
+        themeModeListeners.delete(handler);
+      };
+    });
   });
 
   it('keeps the current workbench page in the background and opens settings as an embedded modal', async () => {
@@ -254,5 +266,26 @@ describe('App', () => {
 
     expect(settingsState.themeMode).toBe('dark');
     expect(darkState.value).toBe(true);
+  });
+
+  it('cleans up the theme listener even when the listen promise resolves after unmount', async () => {
+    let settleUnlisten!: (cleanup: () => void) => void;
+    const cleanup = vi.fn();
+    const listenPromise = new Promise<() => void>(resolve => {
+      settleUnlisten = resolve;
+    });
+
+    listenThemeModeChangedMock.mockImplementation(
+      () => listenPromise,
+    );
+
+    const wrapper = mount(App);
+    wrapper.unmount();
+
+    settleUnlisten(cleanup);
+    await listenPromise;
+    await nextTick();
+
+    expect(cleanup).toHaveBeenCalledOnce();
   });
 });

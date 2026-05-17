@@ -34,6 +34,7 @@ const isDark = useDark();
 const naiveTheme = computed(() => (isDark.value ? darkTheme : null));
 const appThemeVars = computed(() => getAppThemeVars(isDark.value));
 let unlistenThemeModeChanged: (() => void) | null = null;
+let disposed = false;
 
 const shellNavItems = computed<
   { key: WindowMode; label: string; active: boolean }[]
@@ -80,12 +81,21 @@ onMounted(() => {
   void settings.load();
   void listenThemeModeChanged(mode => {
     settings.state.themeMode = mode;
-  }).then(unlisten => {
-    unlistenThemeModeChanged = unlisten;
+  })
+    .then(unlisten => {
+      if (disposed) {
+        unlisten();
+        return;
+      }
+      unlistenThemeModeChanged = unlisten;
+    })
+    .catch(error => {
+      console.error('[app] failed to listen for theme mode changes:', error);
   });
 });
 
 onBeforeUnmount(() => {
+  disposed = true;
   unlistenThemeModeChanged?.();
   unlistenThemeModeChanged = null;
 });

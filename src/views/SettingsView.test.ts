@@ -187,6 +187,20 @@ describe('SettingsView', () => {
     expect(emitThemeModeChanged).toHaveBeenCalledWith('dark');
   });
 
+  it('does not broadcast theme mode when saving the appearance setting fails', async () => {
+    updateSetting.mockRejectedValueOnce(new Error('save failed'));
+
+    const wrapper = mountSettingsView();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="settings-tab-appearance"]').trigger('click');
+    await wrapper.findComponent(NRadioGroup).vm.$emit('update:value', 'dark');
+    await flushPromises();
+
+    expect(updateSetting).toHaveBeenCalledWith('themeMode', 'dark');
+    expect(emitThemeModeChanged).not.toHaveBeenCalled();
+  });
+
   it('keeps the v2 panel sizing, dark theme hook, and narrow-screen responsive rules', () => {
     expect(SettingsViewSource).toContain('width: min(920px, calc(100vw - 32px));');
     expect(SettingsViewSource).toContain('height: min(660px, calc(100vh - 48px));');
