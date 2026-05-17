@@ -60,6 +60,8 @@ onMounted(() => {
       return;
     }
     removeNoteSavedListener = unlisten;
+  }).catch((error) => {
+    console.error('[main] failed to listen for note save events:', error);
   });
 });
 

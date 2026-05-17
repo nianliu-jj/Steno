@@ -487,4 +487,20 @@ describe('MainView', () => {
 
     expect(noteSavedCleanup).toHaveBeenCalledOnce();
   });
+
+  it('logs an error when note-saved listener registration fails', async () => {
+    const error = new Error('listen failed');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    listenNoteSaved.mockImplementationOnce(() => Promise.reject(error));
+
+    mount(WrappedMainView);
+    await flushPromises();
+
+    expect(consoleError).toHaveBeenCalledWith(
+      '[main] failed to listen for note save events:',
+      error,
+    );
+
+    consoleError.mockRestore();
+  });
 });
