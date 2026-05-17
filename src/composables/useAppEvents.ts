@@ -1,3 +1,4 @@
+import { isTauri } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';
 
 import type { ThemeMode } from '@/stores/settings';
@@ -6,30 +7,48 @@ import type { Note } from '@/types/steno';
 const THEME_MODE_CHANGED_EVENT = 'steno:theme-mode-changed';
 const NOTE_SAVED_EVENT = 'steno:note-saved';
 
-export async function emitThemeModeChanged(mode: ThemeMode) {
-  try {
-    await emit(THEME_MODE_CHANGED_EVENT, { mode });
-  } catch {
-    // 浏览器调试环境没有 Tauri 事件桥，广播失败时不阻塞界面交互。
+export type NoteSavedPayload = Note;
+
+export type AppThemeModeChangedPayload = ThemeMode;
+
+async function safeEmit<TPayload>(event: string, payload: TPayload): Promise<void> {
+  if (!isTauri()) {
+    return;
   }
+  await emit(event, payload);
 }
 
-export function listenThemeModeChanged(handler: (mode: ThemeMode) => void) {
-  return listen<{ mode: ThemeMode }>(THEME_MODE_CHANGED_EVENT, ({ payload }) => {
-    handler(payload.mode);
-  });
-}
-
-export async function emitNoteSaved(note: Note) {
-  try {
-    await emit(NOTE_SAVED_EVENT, note);
-  } catch {
-    // 忽略非 Tauri 场景
+async function safeListen<TPayload>(
+  event: string,
+  handler: (payload: TPayload) => void,
+): Promise<() => void> {
+  if (!isTauri()) {
+    return () => {};
   }
+  return await listen<TPayload>(event, ({ payload }) => handler(payload));
 }
 
-export function listenNoteSaved(handler: (note: Note) => void) {
-  return listen<Note>(NOTE_SAVED_EVENT, ({ payload }) => {
-    handler(payload);
-  });
+export function useAppEvents() {
+  function emitThemeModeChanged(payload: AppThemeModeChangedPayload) {
+    return safeEmit(THEME_MODE_CHANGED_EVENT, payload);
+  }
+
+  function emitNoteSaved(payload: NoteSavedPayload) {
+    return safeEmit(NOTE_SAVED_EVENT, payload);
+  }
+
+  function listenThemeModeChanged(handler: (payload: AppThemeModeChangedPayload) => void) {
+    return safeListen(THEME_MODE_CHANGED_EVENT, handler);
+  }
+
+  function listenNoteSaved(handler: (payload: NoteSavedPayload) => void) {
+    return safeListen(NOTE_SAVED_EVENT, handler);
+  }
+
+  return {
+    emitThemeModeChanged,
+    emitNoteSaved,
+    listenThemeModeChanged,
+    listenNoteSaved,
+  };
 }

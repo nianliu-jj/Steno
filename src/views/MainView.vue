@@ -4,7 +4,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { NButton, NDropdown, NIcon, NInput, useMessage } from 'naive-ui';
 
-import { listenNoteSaved } from '@/composables/useAppEvents';
+import { useAppEvents } from '@/composables/useAppEvents';
 import { useDb } from '@/composables/useDb';
 import { useWindow } from '@/composables/useWindow';
 import { useNotesStore } from '@/stores/notes';
@@ -22,21 +22,54 @@ const ui = useUiStore();
 const win = useWindow();
 const message = useMessage();
 const db = useDb();
+const appEvents = useAppEvents();
 
 const untaggedFilterValue = '__untagged__';
-let unlistenNoteSaved: (() => void) | undefined;
+let removeNoteSavedListener: (() => void) | null = null;
+let noteSavedListenerDisposed = false;
+let initialNotesLoading = true;
+const pendingExternalNotes = new Map<string, Note>();
+
+function syncExternalNote(note: Note) {
+  notes.syncExternalNote(note);
+  if (initialNotesLoading) {
+    pendingExternalNotes.set(note.id, note);
+  }
+}
 
 onMounted(() => {
-  void notes.loadNotes(50);
-  void listenNoteSaved((note) => {
-    notes.syncExternalNote(note);
+  void notes.loadNotes(50).finally(() => {
+    initialNotesLoading = false;
+    if (noteSavedListenerDisposed || pendingExternalNotes.size === 0) {
+      pendingExternalNotes.clear();
+      return;
+    }
+
+    const bufferedNotes = Array.from(pendingExternalNotes.values());
+    pendingExternalNotes.clear();
+
+    for (const note of bufferedNotes) {
+      notes.syncExternalNote(note);
+    }
+  });
+  void appEvents.listenNoteSaved((note) => {
+    syncExternalNote(note);
   }).then((unlisten) => {
-    unlistenNoteSaved = unlisten;
-  }).catch(() => {});
+    if (noteSavedListenerDisposed) {
+      unlisten();
+      return;
+    }
+    removeNoteSavedListener = unlisten;
+  }).catch((error) => {
+    console.error('[main] failed to listen for note save events:', error);
+  });
 });
 
 onUnmounted(() => {
-  unlistenNoteSaved?.();
+  noteSavedListenerDisposed = true;
+  pendingExternalNotes.clear();
+  removeNoteSavedListener?.();
+  removeNoteSavedListener = null;
 });
 
 const recentNotes = computed(() => notes.notes.slice(0, 30));

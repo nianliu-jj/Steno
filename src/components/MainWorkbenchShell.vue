@@ -491,15 +491,15 @@ function iconPathFor(key: WindowMode) {
 
 <style scoped>
 .workbench-root {
-  --bg: oklch(97% 0.014 78);
-  --surface: oklch(99% 0.006 78);
-  --surface-2: oklch(98% 0.008 78);
-  --fg: oklch(20% 0.02 70);
-  --muted: oklch(49% 0.018 70);
-  --faint: oklch(70% 0.014 70);
-  --border: oklch(88% 0.012 78);
-  --accent: oklch(61% 0.13 42);
-  --accent-soft: oklch(94% 0.034 42);
+  --bg: var(--app-bg);
+  --surface: var(--app-surface);
+  --surface-2: var(--app-surface-2);
+  --fg: var(--app-fg);
+  --muted: var(--app-muted);
+  --faint: var(--app-faint);
+  --border: var(--app-border);
+  --accent: var(--app-accent);
+  --accent-soft: var(--app-accent-soft);
   --rail-w: 220px;
   --rail-w-collapsed: 58px;
   display: flex;

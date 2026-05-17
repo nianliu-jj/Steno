@@ -2,7 +2,7 @@
 
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { reactive, ref, type PropType } from 'vue';
+import { Teleport, nextTick, reactive, ref, type PropType } from 'vue';
 
 type ShellNavItem = {
   label: string;
@@ -20,24 +20,28 @@ const settingsState = reactive({
 });
 
 const loadSettings = vi.fn(() => Promise.resolve());
-const darkRef = ref(false);
-const themeModeListeners: Array<(mode: 'light' | 'dark' | 'system') => void> = [];
+const darkState = ref(false);
+const themeModeListeners = new Set<(value: 'light' | 'dark' | 'system') => void>();
+const listenThemeModeChangedMock = vi.fn(
+  async (handler: (value: 'light' | 'dark' | 'system') => void) => {
+    themeModeListeners.add(handler);
+    return () => {
+      themeModeListeners.delete(handler);
+    };
+  },
+);
 
 vi.mock('@vueuse/core', () => ({
-  useDark: () => darkRef,
+  useDark: () => darkState,
 }));
 
 vi.mock('@/composables/useAppEvents', () => ({
-  listenThemeModeChanged: vi.fn(async (handler: (mode: 'light' | 'dark' | 'system') => void) => {
-    themeModeListeners.push(handler);
-    return () => {
-      const index = themeModeListeners.indexOf(handler);
-      if (index >= 0) {
-        themeModeListeners.splice(index, 1);
-      }
-    };
+  useAppEvents: () => ({
+    emitThemeModeChanged: vi.fn(),
+    emitNoteSaved: vi.fn(),
+    listenThemeModeChanged: listenThemeModeChangedMock,
+    listenNoteSaved: vi.fn(async () => () => {}),
   }),
-  emitThemeModeChanged: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('naive-ui', async () => {
@@ -46,6 +50,12 @@ vi.mock('naive-ui', async () => {
   return {
     darkTheme: {},
     NConfigProvider: defineComponent({
+      props: {
+        theme: {
+          type: Object,
+          default: null,
+        },
+      },
       setup(_, { slots }) {
         return () => slots.default?.();
       },
@@ -61,12 +71,44 @@ vi.mock('naive-ui', async () => {
           type: Boolean,
           default: false,
         },
+        preset: {
+          type: String,
+          default: undefined,
+        },
+        maskClosable: {
+          type: Boolean,
+          default: true,
+        },
+        autoFocus: {
+          type: Boolean,
+          default: true,
+        },
+        to: {
+          type: String,
+          default: 'body',
+        },
       },
       emits: ['update:show'],
       setup(props, { slots }) {
         return () =>
           props.show
-            ? h('div', { 'data-testid': 'settings-modal' }, slots.default?.())
+            ? h(
+                Teleport,
+                {
+                  to: props.to,
+                  defer: true,
+                },
+                [
+                h(
+                  'div',
+                  {
+                    'data-testid': 'settings-modal',
+                    'data-teleport-to': props.to,
+                  },
+                  slots.default?.(),
+                ),
+                ],
+              )
             : null;
       },
     }),
@@ -208,26 +250,44 @@ describe('App', () => {
     uiState.closeSettings.mockClear();
     settingsState.themeMode = 'system';
     loadSettings.mockClear();
-    darkRef.value = false;
-    themeModeListeners.splice(0, themeModeListeners.length);
+    darkState.value = false;
+    themeModeListeners.clear();
+    document.body.innerHTML = '';
+    listenThemeModeChangedMock.mockClear();
+    listenThemeModeChangedMock.mockImplementation(async handler => {
+      themeModeListeners.add(handler);
+      return () => {
+        themeModeListeners.delete(handler);
+      };
+    });
   });
 
   it('keeps the current workbench page in the background and opens settings as an embedded modal', async () => {
     uiState.mode = 'main';
     uiState.settingsOpen = true;
 
-    const wrapper = mount(App);
+    const wrapper = mount(App, {
+      attachTo: document.body,
+    });
 
     expect(wrapper.find('[data-testid="shell"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="main-actions"]').exists()).toBe(false);
     expect(wrapper.get('[data-testid="shell-nav-labels"]').text()).toBe('笔记列表|画布|粘贴板|待办|截图|OCR|翻译');
     expect(wrapper.get('[data-testid="shell-nav-labels"]').text()).not.toContain('搜索');
     expect(wrapper.findAll('[data-testid="main-view"]')).toHaveLength(1);
-    expect(wrapper.find('[data-testid="settings-modal"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="settings-view-embedded"]').exists()).toBe(true);
+    expect(document.body.querySelector('[data-testid="settings-modal"]')).not.toBeNull();
+    expect(document.body.querySelector('[data-testid="settings-view-embedded"]')).not.toBeNull();
 
-    await wrapper.get('[data-testid="settings-view-embedded"] button').trigger('click');
+    const closeButton = document.body.querySelector(
+      '[data-testid="settings-view-embedded"] button',
+    ) as HTMLButtonElement | null;
+    closeButton?.click();
+    await nextTick();
     expect(uiState.closeSettings).toHaveBeenCalledOnce();
+
+    uiState.settingsOpen = false;
+    await nextTick();
+    wrapper.unmount();
   });
 
   it('renders the standalone settings page when the window itself is in settings mode', () => {
@@ -241,14 +301,89 @@ describe('App', () => {
     expect(wrapper.find('[data-testid="settings-view"]').exists()).toBe(true);
   });
 
-  it('updates dark mode when a theme event is received from another window', async () => {
+  it('teleports the embedded settings modal into the themed app root instead of body', async () => {
+    uiState.mode = 'main';
+    uiState.settingsOpen = true;
+
+    const wrapper = mount(App, {
+      attachTo: document.body,
+    });
+
+    const appThemeRoot = document.body.querySelector('.app-theme-root');
+    const modal = document.body.querySelector('[data-testid="settings-modal"]');
+
+    expect(modal).not.toBeNull();
+    expect(modal?.getAttribute('data-teleport-to')).toBe('.app-theme-root');
+    expect(appThemeRoot?.contains(modal)).toBe(true);
+    expect(Array.from(document.body.children)).not.toContain(modal);
+
+    uiState.settingsOpen = false;
+    await nextTick();
+    wrapper.unmount();
+  });
+
+  it('mounts shared theme vars on the app root and updates dark mode after a theme event', async () => {
+    const wrapper = mount(App);
+
+    expect(wrapper.get('.app-theme-root').attributes('style')).toContain('--app-bg:');
+    expect(settingsState.themeMode).toBe('system');
+    expect(darkState.value).toBe(false);
+    expect(wrapper.get('.app-theme-root').classes()).not.toContain('dark');
+
+    for (const listener of themeModeListeners) {
+      listener('dark');
+    }
+    await nextTick();
+
+    expect(settingsState.themeMode).toBe('dark');
+    expect(darkState.value).toBe(true);
+    expect(wrapper.get('.app-theme-root').classes()).toContain('dark');
+  });
+
+  it('preserves the latest theme event when settings load resolves afterward with stale data', async () => {
+    let resolveLoad!: () => void;
+    const loadPromise = new Promise<void>(resolve => {
+      resolveLoad = () => {
+        settingsState.themeMode = 'light';
+        resolve();
+      };
+    });
+
+    loadSettings.mockImplementation(() => loadPromise);
+
     mount(App);
 
-    expect(darkRef.value).toBe(false);
+    for (const listener of themeModeListeners) {
+      listener('dark');
+    }
+    await nextTick();
+    expect(settingsState.themeMode).toBe('dark');
 
-    themeModeListeners[0]?.('dark');
-    await Promise.resolve();
+    resolveLoad();
+    await loadPromise;
+    await nextTick();
 
-    expect(darkRef.value).toBe(true);
+    expect(settingsState.themeMode).toBe('dark');
+  });
+
+  it('cleans up the theme listener even when the listen promise resolves after unmount', async () => {
+    let settleUnlisten!: (cleanup: () => void) => void;
+    const cleanup = vi.fn();
+    const listenPromise = new Promise<() => void>(resolve => {
+      settleUnlisten = resolve;
+    });
+
+    listenThemeModeChangedMock.mockImplementation(
+      () => listenPromise,
+    );
+
+    const wrapper = mount(App);
+    wrapper.unmount();
+
+    settleUnlisten(cleanup);
+    await listenPromise;
+    await nextTick();
+
+    expect(cleanup).toHaveBeenCalledOnce();
   });
 });

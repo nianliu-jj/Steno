@@ -13,7 +13,7 @@ import {
   useMessage,
 } from 'naive-ui';
 
-import { emitThemeModeChanged } from '@/composables/useAppEvents';
+import { useAppEvents } from '@/composables/useAppEvents';
 import { useDb } from '@/composables/useDb';
 import { useSettingsStore, type EditorMode, type ThemeMode } from '@/stores/settings';
 import { useUiStore } from '@/stores/ui';
@@ -41,14 +41,21 @@ const db = useDb();
 const settings = useSettingsStore();
 const ui = useUiStore();
 const message = useMessage();
+const { emitThemeModeChanged } = useAppEvents();
 const activeSection = ref<SettingsSection>('general');
 
 async function onThemeChange(value: ThemeMode) {
   try {
     await settings.update('themeMode', value);
-    await emitThemeModeChanged(value);
   } catch (e) {
     message.error(`主题保存失败：${String(e)}`);
+    return;
+  }
+
+  try {
+    await emitThemeModeChanged(value);
+  } catch (e) {
+    console.error('[settings] failed to broadcast theme mode change:', e);
   }
 }
 

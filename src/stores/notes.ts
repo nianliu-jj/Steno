@@ -98,9 +98,9 @@ export const useNotesStore = defineStore('notes', () => {
     upsertLocal(note);
     if (note.isPinned) {
       upsertPinned(note);
-    } else {
-      pinned.value = pinned.value.filter(n => n.id !== note.id);
+      return;
     }
+    pinned.value = pinned.value.filter(n => n.id !== note.id);
   }
 
   function upsertLocal(note: Note) {

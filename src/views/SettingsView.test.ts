@@ -1,17 +1,13 @@
 // @vitest-environment jsdom
 
 import { flushPromises, mount } from '@vue/test-utils';
-import { NConfigProvider, NMessageProvider } from 'naive-ui';
+import { NConfigProvider, NMessageProvider, NRadioGroup } from 'naive-ui';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, h } from 'vue';
 
 import SettingsView from './SettingsView.vue';
 import SettingsViewSource from './SettingsView.vue?raw';
-
-const { emitThemeModeChanged } = vi.hoisted(() => ({
-  emitThemeModeChanged: vi.fn(() => Promise.resolve()),
-}));
 
 const getDataPaths = vi.fn(() =>
   Promise.resolve({
@@ -24,6 +20,22 @@ const reloadShortcuts = vi.fn(() => Promise.resolve());
 const updateSetting = vi.fn(() => Promise.resolve());
 const loadSettings = vi.fn(() => Promise.resolve());
 const navigateToMain = vi.fn();
+const emitThemeModeChanged = vi.fn(() => Promise.resolve());
+const messageError = vi.fn();
+const messageSuccess = vi.fn();
+const messageInfo = vi.fn();
+
+vi.mock('naive-ui', async () => {
+  const actual = await vi.importActual<typeof import('naive-ui')>('naive-ui');
+  return {
+    ...actual,
+    useMessage: () => ({
+      error: messageError,
+      success: messageSuccess,
+      info: messageInfo,
+    }),
+  };
+});
 
 vi.mock('@/composables/useDb', () => ({
   useDb: () => ({
@@ -59,7 +71,12 @@ vi.mock('@/stores/ui', () => ({
 }));
 
 vi.mock('@/composables/useAppEvents', () => ({
-  emitThemeModeChanged,
+  useAppEvents: () => ({
+    emitThemeModeChanged,
+    emitNoteSaved: vi.fn(),
+    listenThemeModeChanged: vi.fn(),
+    listenNoteSaved: vi.fn(),
+  }),
 }));
 
 const WrappedSettingsView = defineComponent({
@@ -96,6 +113,10 @@ describe('SettingsView', () => {
     updateSetting.mockClear();
     loadSettings.mockClear();
     navigateToMain.mockClear();
+    emitThemeModeChanged.mockClear();
+    messageError.mockClear();
+    messageSuccess.mockClear();
+    messageInfo.mockClear();
   });
 
   it('renders the v2 header, category tabs, and footer actions', async () => {
@@ -172,21 +193,55 @@ describe('SettingsView', () => {
     expect(navigateToMain).not.toHaveBeenCalled();
   });
 
+  it('broadcasts the saved theme mode from the appearance tab', async () => {
+    const wrapper = mountSettingsView();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="settings-tab-appearance"]').trigger('click');
+    await wrapper.findComponent(NRadioGroup).vm.$emit('update:value', 'dark');
+    await flushPromises();
+
+    expect(updateSetting).toHaveBeenCalledWith('themeMode', 'dark');
+    expect(emitThemeModeChanged).toHaveBeenCalledWith('dark');
+  });
+
+  it('does not broadcast theme mode when saving the appearance setting fails', async () => {
+    updateSetting.mockRejectedValueOnce(new Error('save failed'));
+
+    const wrapper = mountSettingsView();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="settings-tab-appearance"]').trigger('click');
+    await wrapper.findComponent(NRadioGroup).vm.$emit('update:value', 'dark');
+    await flushPromises();
+
+    expect(updateSetting).toHaveBeenCalledWith('themeMode', 'dark');
+    expect(emitThemeModeChanged).not.toHaveBeenCalled();
+  });
+
+  it('does not report theme persistence failure when only broadcasting the theme event fails', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    emitThemeModeChanged.mockRejectedValueOnce(new Error('broadcast failed'));
+
+    const wrapper = mountSettingsView();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="settings-tab-appearance"]').trigger('click');
+    await wrapper.findComponent(NRadioGroup).vm.$emit('update:value', 'dark');
+    await flushPromises();
+
+    expect(updateSetting).toHaveBeenCalledWith('themeMode', 'dark');
+    expect(emitThemeModeChanged).toHaveBeenCalledWith('dark');
+    expect(messageError).not.toHaveBeenCalledWith(expect.stringContaining('主题保存失败'));
+    expect(error).toHaveBeenCalled();
+
+    error.mockRestore();
+  });
+
   it('keeps the v2 panel sizing, dark theme hook, and narrow-screen responsive rules', () => {
     expect(SettingsViewSource).toContain('width: min(920px, calc(100vw - 32px));');
     expect(SettingsViewSource).toContain('height: min(660px, calc(100vh - 48px));');
     expect(SettingsViewSource).toContain(':global(.dark) .settings-panel');
     expect(SettingsViewSource).toContain('@media (max-width: 720px)');
-  });
-
-  it('broadcasts theme mode after saving the appearance setting', async () => {
-    const wrapper = mountSettingsView();
-    await flushPromises();
-
-    await wrapper.get('[data-testid="settings-tab-appearance"]').trigger('click');
-    await wrapper.get('input[value="dark"]').setValue(true);
-
-    expect(updateSetting).toHaveBeenCalledWith('themeMode', 'dark');
-    expect(emitThemeModeChanged).toHaveBeenCalledWith('dark');
   });
 });
