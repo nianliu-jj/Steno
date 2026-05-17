@@ -22,6 +22,7 @@ vi.mock('@/composables/useWindow', () => ({
 const libraryEntries = ref<any[]>([]);
 const workspaceTree = ref<any[]>([]);
 const workspaces = ref<any[]>([]);
+const typeFilters = ref(['folder', 'group', 'document', 'text']);
 const libraryContext = ref({
   workspaceId: null as string | null,
   folderEntryId: null as string | null,
@@ -38,6 +39,13 @@ const upsertWorkspace = vi.fn((workspace: any) => {
   }
   workspaces.value.push(workspace);
 });
+const toggleTypeFilter = vi.fn((kind: string) => {
+  if (typeFilters.value.includes(kind)) {
+    typeFilters.value = typeFilters.value.filter(item => item !== kind);
+    return;
+  }
+  typeFilters.value = [...typeFilters.value, kind];
+});
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
   open: (...args: unknown[]) => pickWorkspaceDirectory(...args),
@@ -45,7 +53,10 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 
 vi.mock('@/stores/library', () => ({
   useLibraryStore: () => ({
-    visibleEntries: computed(() => libraryEntries.value),
+    typeFilters,
+    visibleEntries: computed(() =>
+      libraryEntries.value.filter(entry => typeFilters.value.includes(entry.kind)),
+    ),
     workspaceTree: computed(() => workspaceTree.value),
     workspaces: computed(() => workspaces.value),
     context: libraryContext,
@@ -54,14 +65,15 @@ vi.mock('@/stores/library', () => ({
       return matched?.name ?? '';
     }),
     stats: computed(() => ({
-      folders: libraryEntries.value.filter(entry => entry.kind === 'folder').length,
-      groups: libraryEntries.value.filter(entry => entry.kind === 'group').length,
-      documents: libraryEntries.value.filter(entry => entry.kind === 'document').length,
-      texts: libraryEntries.value.filter(entry => entry.kind === 'text').length,
+      folders: libraryEntries.value.filter(entry => entry.kind === 'folder' && typeFilters.value.includes('folder')).length,
+      groups: libraryEntries.value.filter(entry => entry.kind === 'group' && typeFilters.value.includes('group')).length,
+      documents: libraryEntries.value.filter(entry => entry.kind === 'document' && typeFilters.value.includes('document')).length,
+      texts: libraryEntries.value.filter(entry => entry.kind === 'text' && typeFilters.value.includes('text')).length,
     })),
     loadMainList,
     loadWorkspaces,
     upsertWorkspace,
+    toggleTypeFilter,
   }),
 }));
 
@@ -106,6 +118,7 @@ describe('MainView', () => {
     libraryEntries.value = [];
     workspaceTree.value = [];
     workspaces.value = [];
+    typeFilters.value = ['folder', 'group', 'document', 'text'];
     libraryContext.value = {
       workspaceId: null,
       folderEntryId: null,
@@ -115,6 +128,7 @@ describe('MainView', () => {
     loadMainList.mockClear();
     loadWorkspaces.mockClear();
     upsertWorkspace.mockClear();
+    toggleTypeFilter.mockClear();
     navigateTo.mockClear();
     openQuicknote.mockClear();
     convertTextToDocument.mockClear();
@@ -142,6 +156,33 @@ describe('MainView', () => {
     expect(wrapper.get('[data-testid="main-footer-stats"]').text()).toContain('文档 1');
     expect(wrapper.get('[data-testid="main-footer-stats"]').text()).toContain('文本 1');
     expect(wrapper.get('[data-testid="main-footer-workspace"]').text()).toContain('未选择工作区');
+  });
+
+  it('shows type filter options and re-renders cards with persisted filter choices', async () => {
+    libraryEntries.value = [
+      makeEntry({ id: 'folder-1', kind: 'folder', title: '项目目录' }),
+      makeEntry({ id: 'doc-1', kind: 'document', title: '设计文档' }),
+      makeEntry({ id: 'group-1', kind: 'group', title: '收件箱' }),
+      makeEntry({ id: 'text-1', kind: 'text', title: '速记文本' }),
+    ];
+
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    await wrapper.get('[data-testid="main-filter-toggle"]').trigger('click');
+
+    expect(wrapper.get('[data-testid="main-type-filter-panel"]').text()).toContain('文件夹');
+    expect(wrapper.get('[data-testid="main-type-filter-panel"]').text()).toContain('分组');
+    expect(wrapper.get('[data-testid="main-type-filter-panel"]').text()).toContain('文档');
+    expect(wrapper.get('[data-testid="main-type-filter-panel"]').text()).toContain('文本');
+
+    await wrapper.get('[data-testid="type-filter-folder"]').trigger('click');
+    await flushPromises();
+
+    expect(toggleTypeFilter).toHaveBeenCalledWith('folder');
+    expect(wrapper.findAll('.entry-card')).toHaveLength(3);
+    expect(wrapper.text()).not.toContain('项目目录');
+    expect(wrapper.get('[data-testid="main-footer-stats"]').text()).toContain('文件夹 0');
   });
 
   it('enables convert-to-document only for text cards', async () => {
@@ -213,6 +254,33 @@ describe('MainView', () => {
 
     expect(wrapper.findAll('.workspace-tree-item')).toHaveLength(2);
     expect(wrapper.get('[data-testid="main-footer-workspace"]').text()).toContain('默认工作区');
+  });
+
+  it('opens folders from the workspace tree without changing the current workspace', async () => {
+    workspaceTree.value = [
+      makeEntry({ id: 'folder-1', kind: 'folder', title: '项目目录', parentId: null }),
+      makeEntry({ id: 'doc-1', kind: 'document', title: '设计文档', parentId: 'folder-1' }),
+    ];
+    workspaces.value = [
+      { id: 'workspace-1', name: '默认工作区', rootPath: 'D:/workspace/default' },
+    ];
+    libraryContext.value = {
+      workspaceId: 'workspace-1',
+      folderEntryId: null,
+      groupEntryId: null,
+      selectedEntryId: null,
+    };
+
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    await wrapper.get('[data-testid="main-footer-open-tree"]').trigger('click');
+    await wrapper.get('[data-testid="workspace-tree-entry-folder-1"]').trigger('click');
+    await flushPromises();
+
+    expect(libraryContext.value.workspaceId).toBe('workspace-1');
+    expect(libraryContext.value.folderEntryId).toBe('folder-1');
+    expect(loadMainList).toHaveBeenCalled();
   });
 
   it('opens the workspace switcher and switches to an existing workspace', async () => {

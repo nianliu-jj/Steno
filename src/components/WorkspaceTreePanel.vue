@@ -1,16 +1,47 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+
 import type { LibraryEntry } from '@/types/steno';
 
-defineProps<{ entries: LibraryEntry[] }>();
+const props = defineProps<{ entries: LibraryEntry[] }>();
+const emit = defineEmits<{
+  select: [entry: LibraryEntry];
+}>();
+
+const treeEntries = computed(() => {
+  const entryMap = new Map(props.entries.map(entry => [entry.id, entry]));
+
+  return props.entries.map((entry) => {
+    let depth = 0;
+    let currentParentId = entry.parentId ?? null;
+
+    while (currentParentId) {
+      const parent = entryMap.get(currentParentId);
+      if (!parent) {
+        break;
+      }
+      depth += 1;
+      currentParentId = parent.parentId ?? null;
+    }
+
+    return {
+      entry,
+      depth,
+    };
+  });
+});
 </script>
 
 <template>
   <aside class="workspace-tree-panel">
     <button
-      v-for="entry in entries"
+      v-for="{ entry, depth } in treeEntries"
       :key="entry.id"
       class="workspace-tree-item"
       type="button"
+      :data-testid="`workspace-tree-entry-${entry.id}`"
+      :style="{ paddingInlineStart: `${12 + depth * 18}px` }"
+      @click="emit('select', entry)"
     >
       {{ entry.title }}
     </button>

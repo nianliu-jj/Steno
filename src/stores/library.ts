@@ -1,11 +1,28 @@
 import { defineStore } from 'pinia';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { useDb } from '@/composables/useDb';
+import { useSettingsStore } from '@/stores/settings';
 import type { EntryKind, LibraryEntry, MainListContext, Workspace } from '@/types/steno';
+
+const FILTERABLE_ENTRY_KINDS: EntryKind[] = ['folder', 'group', 'document', 'text'];
+
+function parseTypeFilters(raw: string): EntryKind[] {
+  const normalized = raw
+    .split(',')
+    .map(item => item.trim())
+    .filter((item): item is EntryKind => FILTERABLE_ENTRY_KINDS.includes(item as EntryKind));
+
+  return normalized;
+}
+
+function serializeTypeFilters(filters: EntryKind[]) {
+  return filters.join(',');
+}
 
 export const useLibraryStore = defineStore('library', () => {
   const db = useDb();
+  const settings = useSettingsStore();
 
   const entries = ref<LibraryEntry[]>([]);
   const workspaceTree = ref<LibraryEntry[]>([]);
@@ -16,7 +33,21 @@ export const useLibraryStore = defineStore('library', () => {
     groupEntryId: null,
     selectedEntryId: null,
   });
-  const typeFilters = ref<EntryKind[]>(['folder', 'group', 'document', 'text']);
+  const typeFilters = ref<EntryKind[]>(
+    parseTypeFilters(settings.state.mainListTypeFilters),
+  );
+
+  watch(
+    () => settings.state.mainListTypeFilters,
+    raw => {
+      const next = parseTypeFilters(raw);
+      if (serializeTypeFilters(typeFilters.value) === serializeTypeFilters(next)) {
+        return;
+      }
+      typeFilters.value = next;
+    },
+    { immediate: true },
+  );
 
   const visibleEntries = computed(() =>
     entries.value.filter(entry => typeFilters.value.includes(entry.kind)),
@@ -48,6 +79,24 @@ export const useLibraryStore = defineStore('library', () => {
     workspaces.value = await db.listWorkspaces();
   }
 
+  async function setTypeFilters(next: EntryKind[]) {
+    typeFilters.value = [...next];
+    await settings.update('mainListTypeFilters', serializeTypeFilters(typeFilters.value));
+  }
+
+  async function toggleTypeFilter(kind: EntryKind) {
+    if (!FILTERABLE_ENTRY_KINDS.includes(kind)) {
+      return;
+    }
+
+    if (typeFilters.value.includes(kind)) {
+      await setTypeFilters(typeFilters.value.filter(item => item !== kind));
+      return;
+    }
+
+    await setTypeFilters([...typeFilters.value, kind]);
+  }
+
   function upsertWorkspace(workspace: Workspace) {
     const index = workspaces.value.findIndex(item => item.id === workspace.id);
     if (index >= 0) {
@@ -71,6 +120,8 @@ export const useLibraryStore = defineStore('library', () => {
     loadMainList,
     loadWorkspaceTree,
     loadWorkspaces,
+    setTypeFilters,
+    toggleTypeFilter,
     upsertWorkspace,
   };
 });

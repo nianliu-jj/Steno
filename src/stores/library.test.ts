@@ -4,10 +4,12 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useLibraryStore } from './library';
+import { useSettingsStore } from './settings';
 
 const db = {
   listLibraryEntries: vi.fn(),
   listWorkspaceTree: vi.fn(),
+  listWorkspaces: vi.fn(),
   getSetting: vi.fn(),
   setSetting: vi.fn(() => Promise.resolve()),
 };
@@ -39,5 +41,27 @@ describe('library store', () => {
       documents: 1,
       texts: 1,
     });
+  });
+
+  it('hydrates type filters from settings and persists later updates', async () => {
+    const settings = useSettingsStore();
+    settings.state.mainListTypeFilters = 'document,text';
+
+    db.listLibraryEntries.mockResolvedValue([
+      { id: 'folder-1', kind: 'folder', title: 'A', previewText: '', tags: [] },
+      { id: 'doc-1', kind: 'document', title: 'B', previewText: '', tags: [] },
+      { id: 'text-1', kind: 'text', title: 'T', previewText: '', tags: [] },
+    ]);
+
+    const store = useLibraryStore();
+    await store.loadMainList();
+
+    expect(store.typeFilters).toEqual(['document', 'text']);
+    expect(store.visibleEntries.map(entry => entry.id)).toEqual(['doc-1', 'text-1']);
+
+    await store.toggleTypeFilter('folder');
+
+    expect(store.typeFilters).toEqual(['document', 'text', 'folder']);
+    expect(db.setSetting).toHaveBeenCalledWith('mainListTypeFilters', 'document,text,folder');
   });
 });

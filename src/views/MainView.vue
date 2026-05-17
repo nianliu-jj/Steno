@@ -19,6 +19,13 @@ interface EntryStats {
   texts: number;
 }
 
+const typeFilterOptions: Array<{ kind: 'folder' | 'group' | 'document' | 'text'; label: string }> = [
+  { kind: 'folder', label: '文件夹' },
+  { kind: 'group', label: '分组' },
+  { kind: 'document', label: '文档' },
+  { kind: 'text', label: '文本' },
+];
+
 const defaultContext: MainListContext = {
   workspaceId: null,
   folderEntryId: null,
@@ -40,6 +47,7 @@ const db = useDb();
 const message = useMessage();
 
 const showWorkspaceTree = ref(false);
+const showTypeFilters = ref(false);
 const workspacePickerOpen = ref(false);
 const workspacePickerBusy = ref(false);
 const workspacePickerLoading = ref(false);
@@ -91,6 +99,13 @@ const stats = computed<EntryStats>(() => {
     ...defaultStats,
     ...(value ?? {}),
   };
+});
+
+const activeTypeFilters = computed<Array<'folder' | 'group' | 'document' | 'text'>>(() => {
+  const value = unref((library as unknown as {
+    typeFilters?: Array<'folder' | 'group' | 'document' | 'text'>;
+  }).typeFilters);
+  return Array.isArray(value) ? value : ['folder', 'group', 'document', 'text'];
 });
 
 const contextTargetEntry = computed(() => contextMenu.value.entry);
@@ -222,6 +237,16 @@ async function onOpenEntry(entry: LibraryEntry) {
 
   closeContextMenu();
   ui.navigateTo('note-editor', entry.id);
+}
+
+async function onToggleTypeFilter(kind: 'folder' | 'group' | 'document' | 'text') {
+  const maybeToggle = (library as unknown as {
+    toggleTypeFilter?: (kind: 'folder' | 'group' | 'document' | 'text') => Promise<void> | void;
+  }).toggleTypeFilter;
+  if (typeof maybeToggle !== 'function') {
+    return;
+  }
+  await maybeToggle(kind);
 }
 
 async function onContextConvertToDocument() {
@@ -371,6 +396,14 @@ async function onOpenWorkspaceSwitcher() {
         <button
           type="button"
           class="main-toolbar-button main-toolbar-button--secondary"
+          data-testid="main-filter-toggle"
+          @click.stop="showTypeFilters = !showTypeFilters"
+        >
+          类型筛选
+        </button>
+        <button
+          type="button"
+          class="main-toolbar-button main-toolbar-button--secondary"
           data-testid="main-new-quicknote"
           @click.stop="onNewQuickNote"
         >
@@ -386,6 +419,24 @@ async function onOpenWorkspaceSwitcher() {
         </button>
       </div>
     </header>
+
+    <section
+      v-if="showTypeFilters"
+      class="main-filter-panel"
+      data-testid="main-type-filter-panel"
+    >
+      <button
+        v-for="option in typeFilterOptions"
+        :key="option.kind"
+        type="button"
+        class="main-filter-chip"
+        :class="{ 'main-filter-chip--active': activeTypeFilters.includes(option.kind) }"
+        :data-testid="`type-filter-${option.kind}`"
+        @click.stop="onToggleTypeFilter(option.kind)"
+      >
+        {{ option.label }}
+      </button>
+    </section>
 
     <div class="main-layout">
       <div class="main-content">
@@ -419,6 +470,7 @@ async function onOpenWorkspaceSwitcher() {
         <WorkspaceTreePanel
           v-if="workspaceTreeEntries.length > 0"
           :entries="workspaceTreeEntries"
+          @select="onOpenEntry"
         />
         <div v-else class="workspace-tree-empty">
           先选择工作区后，再查看当前工作区结构。
@@ -562,6 +614,36 @@ async function onOpenWorkspaceSwitcher() {
   grid-template-columns: minmax(0, 1fr) minmax(0, 280px);
   gap: 16px;
   align-items: start;
+}
+
+.main-filter-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid rgba(128, 96, 68, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.main-filter-chip {
+  min-width: 72px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(155, 110, 69, 0.16);
+  border-radius: 999px;
+  background: rgba(155, 110, 69, 0.08);
+  color: #8a5a38;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.main-filter-chip--active {
+  border-color: #9b6e45;
+  background: #9b6e45;
+  color: #fff;
 }
 
 .main-content {

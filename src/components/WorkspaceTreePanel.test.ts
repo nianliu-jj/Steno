@@ -20,4 +20,21 @@ describe('WorkspaceTreePanel', () => {
     expect(wrapper.text()).toContain('项目目录');
     expect(wrapper.text()).toContain('设计文档');
   });
+
+  it('emits the selected tree entry when clicking a workspace node', async () => {
+    const wrapper = mount(WorkspaceTreePanel, {
+      props: {
+        entries: [
+          { id: 'folder-1', kind: 'folder', title: '项目目录', previewText: '', tags: [] },
+        ],
+      },
+    });
+
+    await wrapper.get('[data-testid="workspace-tree-entry-folder-1"]').trigger('click');
+
+    expect(wrapper.emitted('select')?.[0]?.[0]).toMatchObject({
+      id: 'folder-1',
+      kind: 'folder',
+    });
+  });
 });
