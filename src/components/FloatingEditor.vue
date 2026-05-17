@@ -10,7 +10,7 @@
 //
 // 关闭语义：浮窗是 "quick capture" 模型，每次唤出就是一次新会话。失焦/关闭后
 // hide 当前窗口并把前端状态 reset 成空白，下次唤出就是新笔记。如果用户想继续
-// 编辑某条笔记，在主界面 / SearchView 打开它的 Sticky 或 Zen 视图。
+// 编辑某条笔记，在主界面打开它的 Sticky 或 Zen 视图。
 //
 // 空内容丢弃 (plan 5.5)：title/content/tags 都为空 且 currentNoteId 还是 null，
 // 直接 hide 不调 save；后端 db.save_note 在收到空 payload 时也会再做一次防御

@@ -29,7 +29,6 @@ pub fn run() {
             commands::open_sticky_note_window,
             commands::close_sticky_note_window,
             commands::open_canvas_window,
-            commands::open_search_window,
             commands::open_settings_window,
             commands::open_quicknote_window,
             commands::open_zen_window,

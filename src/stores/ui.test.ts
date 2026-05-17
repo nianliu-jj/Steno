@@ -39,9 +39,9 @@ describe('ui store', () => {
     const ui = useUiStore();
     await Promise.resolve();
 
-    emit('steno:navigate', { mode: 'search' });
+    emit('steno:navigate', { mode: 'canvas' });
 
-    expect(ui.mode).toBe('search');
+    expect(ui.mode).toBe('canvas');
     expect(ui.noteId).toBeNull();
   });
 

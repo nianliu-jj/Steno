@@ -62,7 +62,6 @@ export type WindowMode =
   | 'sticky'
   | 'canvas'
   | 'zen'
-  | 'search'
   | 'settings'
   | 'note-editor'
   | 'clipboard'

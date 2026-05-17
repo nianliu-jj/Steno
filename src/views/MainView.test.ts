@@ -20,7 +20,6 @@ vi.mock('@/composables/useWindow', () => ({
   useWindow: () => ({
     openQuicknote,
     openCanvas: vi.fn(() => Promise.resolve()),
-    openSearch: vi.fn(() => Promise.resolve()),
     openSettings: vi.fn(() => Promise.resolve()),
     closeStickyNote: vi.fn(() => Promise.resolve()),
     openStickyNote: vi.fn(() => Promise.resolve()),

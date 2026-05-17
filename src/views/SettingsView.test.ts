@@ -9,16 +9,6 @@ import { defineComponent, h } from 'vue';
 import SettingsView from './SettingsView.vue';
 import SettingsViewSource from './SettingsView.vue?raw';
 
-const settingsViewMocks = vi.hoisted(() => ({
-  broadcastThemeModeChanged: vi.fn(() => Promise.resolve()),
-  messageApi: {
-    error: vi.fn(),
-    info: vi.fn(),
-    success: vi.fn(),
-    warning: vi.fn(),
-  },
-}));
-
 const getDataPaths = vi.fn(() =>
   Promise.resolve({
     dataDir: 'D:\\Steno\\data',
@@ -30,26 +20,6 @@ const reloadShortcuts = vi.fn(() => Promise.resolve());
 const updateSetting = vi.fn(() => Promise.resolve());
 const loadSettings = vi.fn(() => Promise.resolve());
 const navigateToMain = vi.fn();
-
-vi.mock('naive-ui', async () => {
-  const actual = await vi.importActual<typeof import('naive-ui')>('naive-ui');
-
-  return {
-    ...actual,
-    useMessage: () => settingsViewMocks.messageApi,
-  };
-});
-
-vi.mock('@/theme', async () => {
-  const actual = await vi.importActual<typeof import('@/theme')>('@/theme');
-
-  return {
-    ...actual,
-    broadcastThemeModeChanged: (
-      ...args: Parameters<typeof settingsViewMocks.broadcastThemeModeChanged>
-    ) => settingsViewMocks.broadcastThemeModeChanged(...args),
-  };
-});
 
 vi.mock('@/composables/useDb', () => ({
   useDb: () => ({
@@ -118,11 +88,6 @@ describe('SettingsView', () => {
     updateSetting.mockClear();
     loadSettings.mockClear();
     navigateToMain.mockClear();
-    settingsViewMocks.broadcastThemeModeChanged.mockClear();
-    settingsViewMocks.messageApi.error.mockClear();
-    settingsViewMocks.messageApi.info.mockClear();
-    settingsViewMocks.messageApi.success.mockClear();
-    settingsViewMocks.messageApi.warning.mockClear();
   });
 
   it('renders the v2 header, category tabs, and footer actions', async () => {
@@ -197,36 +162,6 @@ describe('SettingsView', () => {
 
     expect(view.emitted('close')).toHaveLength(3);
     expect(navigateToMain).not.toHaveBeenCalled();
-  });
-
-  it('broadcasts theme mode changes after the setting is saved', async () => {
-    const wrapper = mountSettingsView();
-    await flushPromises();
-
-    await wrapper.get('[data-testid="settings-tab-appearance"]').trigger('click');
-    await wrapper.get('input[value="dark"]').setValue();
-    await flushPromises();
-
-    expect(updateSetting).toHaveBeenCalledWith('themeMode', 'dark');
-    expect(settingsViewMocks.broadcastThemeModeChanged).toHaveBeenCalledWith('dark');
-  });
-
-  it('warns when the theme is saved but cross-window synchronization fails', async () => {
-    settingsViewMocks.broadcastThemeModeChanged.mockRejectedValueOnce(new Error('sync failed'));
-
-    const wrapper = mountSettingsView();
-    await flushPromises();
-
-    await wrapper.get('[data-testid="settings-tab-appearance"]').trigger('click');
-    await wrapper.get('input[value="dark"]').setValue();
-    await flushPromises();
-
-    expect(updateSetting).toHaveBeenCalledWith('themeMode', 'dark');
-    expect(settingsViewMocks.broadcastThemeModeChanged).toHaveBeenCalledWith('dark');
-    expect(settingsViewMocks.messageApi.warning).toHaveBeenCalledWith(
-      '主题已保存，但同步失败：Error: sync failed',
-    );
-    expect(settingsViewMocks.messageApi.error).not.toHaveBeenCalled();
   });
 
   it('keeps the v2 panel sizing, dark theme hook, and narrow-screen responsive rules', () => {

@@ -12,6 +12,15 @@ interface NavItem {
   active?: boolean;
 }
 
+interface FeatureEntry {
+  key: string;
+  label: string;
+  description: string;
+  keywords: string;
+  iconPath: string;
+  run: () => void;
+}
+
 const props = defineProps<{
   navItems?: NavItem[];
 }>();
@@ -29,13 +38,115 @@ const effectiveRailState = computed(() =>
   compactViewport.value ? 'collapsed' : railState.value,
 );
 
+const featureQuery = ref('');
+const featureMenuOpen = ref(false);
+const featureSearchInput = ref<HTMLInputElement | null>(null);
+const featureActiveIndex = ref(0);
+
+const featureEntries = computed<FeatureEntry[]>(() => [
+  {
+    key: 'nav-main',
+    label: '笔记列表',
+    description: '回到主笔记工作台',
+    keywords: 'main notes list 笔记 列表 主页',
+    iconPath: iconPathFor('main'),
+    run: () => ui.navigateToMain(),
+  },
+  {
+    key: 'nav-canvas',
+    label: '画布',
+    description: '在无限画布上整理笔记',
+    keywords: 'canvas 画布 白板 board',
+    iconPath: iconPathFor('canvas'),
+    run: () => ui.navigateTo('canvas'),
+  },
+  {
+    key: 'nav-clipboard',
+    label: '粘贴板',
+    description: '查看剪贴板历史（规划中）',
+    keywords: 'clipboard 粘贴板 剪贴板 历史',
+    iconPath: iconPathFor('clipboard'),
+    run: () => ui.navigateTo('clipboard'),
+  },
+  {
+    key: 'nav-todo',
+    label: '待办',
+    description: '管理待办事项（规划中）',
+    keywords: 'todo 待办 任务 tasks',
+    iconPath: iconPathFor('todo'),
+    run: () => ui.navigateTo('todo'),
+  },
+  {
+    key: 'nav-screenshot',
+    label: '截图',
+    description: '区域截图与标注（规划中）',
+    keywords: 'screenshot 截图 capture screen',
+    iconPath: iconPathFor('screenshot'),
+    run: () => ui.navigateTo('screenshot'),
+  },
+  {
+    key: 'nav-ocr',
+    label: 'OCR',
+    description: '图片文字识别（规划中）',
+    keywords: 'ocr 识别 文字识别 image text',
+    iconPath: iconPathFor('ocr'),
+    run: () => ui.navigateTo('ocr'),
+  },
+  {
+    key: 'nav-translate',
+    label: '翻译',
+    description: '划词与文本翻译（规划中）',
+    keywords: 'translate 翻译 translation',
+    iconPath: iconPathFor('translate'),
+    run: () => ui.navigateTo('translate'),
+  },
+  {
+    key: 'action-new-note',
+    label: '新建笔记',
+    description: '打开笔记编辑器创建一篇新笔记',
+    keywords: 'new note create 新建 新建笔记 创建',
+    iconPath: 'M12 5v14M5 12h14',
+    run: () => ui.navigateTo('note-editor'),
+  },
+  {
+    key: 'action-new-quicknote',
+    label: '速记浮窗',
+    description: '呼出速记浮窗快速记录',
+    keywords: 'quicknote floating 速记 浮窗 quick',
+    iconPath: 'M12 20h9 M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z',
+    run: () => {
+      void win.openQuicknote();
+    },
+  },
+  {
+    key: 'action-settings',
+    label: '设置',
+    description: '打开应用设置面板',
+    keywords: 'settings preferences config 设置 偏好 配置',
+    iconPath: iconPathFor('settings'),
+    run: () => ui.navigateTo('settings'),
+  },
+]);
+
+const filteredFeatureEntries = computed<FeatureEntry[]>(() => {
+  const raw = featureQuery.value.trim().toLowerCase();
+  if (!raw) return featureEntries.value;
+  const terms = raw.split(/\s+/).filter(Boolean);
+  return featureEntries.value.filter(entry => {
+    const haystack = `${entry.label} ${entry.description} ${entry.keywords}`.toLowerCase();
+    return terms.every(t => haystack.includes(t));
+  });
+});
+
 onMounted(() => {
   syncCompactViewport();
   window.addEventListener('resize', syncCompactViewport);
+  document.addEventListener('mousedown', onDocumentPointerDown, true);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', syncCompactViewport);
+  document.removeEventListener('mousedown', onDocumentPointerDown, true);
 });
 
 function onMinimize() {
@@ -52,10 +163,6 @@ function onClose() {
 
 function onBack() {
   ui.navigateToMain();
-}
-
-function onSearch() {
-  ui.navigateTo('search');
 }
 
 function onNavigate(key: WindowMode) {
@@ -84,6 +191,81 @@ function syncCompactViewport() {
   compactViewport.value = window.innerWidth < compactBreakpoint;
 }
 
+function openFeatureMenu() {
+  featureMenuOpen.value = true;
+  featureActiveIndex.value = 0;
+}
+
+function closeFeatureMenu() {
+  featureMenuOpen.value = false;
+  featureActiveIndex.value = 0;
+}
+
+function clampActiveIndex() {
+  const total = filteredFeatureEntries.value.length;
+  if (total === 0) {
+    featureActiveIndex.value = 0;
+    return;
+  }
+  if (featureActiveIndex.value >= total) {
+    featureActiveIndex.value = total - 1;
+  }
+  if (featureActiveIndex.value < 0) {
+    featureActiveIndex.value = 0;
+  }
+}
+
+function onFeatureQueryInput() {
+  featureMenuOpen.value = true;
+  featureActiveIndex.value = 0;
+}
+
+function onFeatureKeyDown(event: KeyboardEvent) {
+  const total = filteredFeatureEntries.value.length;
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    if (total === 0) return;
+    featureActiveIndex.value = (featureActiveIndex.value + 1) % total;
+    return;
+  }
+  if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    if (total === 0) return;
+    featureActiveIndex.value = (featureActiveIndex.value - 1 + total) % total;
+    return;
+  }
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    clampActiveIndex();
+    const entry = filteredFeatureEntries.value[featureActiveIndex.value];
+    if (entry) {
+      runFeatureEntry(entry);
+    }
+    return;
+  }
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeFeatureMenu();
+    featureSearchInput.value?.blur();
+  }
+}
+
+function runFeatureEntry(entry: FeatureEntry) {
+  closeFeatureMenu();
+  featureQuery.value = '';
+  featureSearchInput.value?.blur();
+  entry.run();
+}
+
+function onDocumentPointerDown(event: MouseEvent) {
+  if (!featureMenuOpen.value) return;
+  const target = event.target as HTMLElement | null;
+  if (!target) return;
+  if (!target.closest('[data-testid="feature-search-wrap"]')) {
+    closeFeatureMenu();
+  }
+}
+
 function iconPathFor(key: WindowMode) {
   switch (key) {
     case 'main':
@@ -100,8 +282,6 @@ function iconPathFor(key: WindowMode) {
       return 'M4 7V4h3 M17 4h3v3 M20 17v3h-3 M7 20H4v-3 M8 10h2 M14 10h2 M8 14h8';
     case 'translate':
       return 'M5 8h10 M10 5v3 M6 8c0 4 2 7 6 9 M14 8c0 4-2 7-6 9 M13 21l4-10 4 10 M14.5 17h5';
-    case 'search':
-      return 'M11 19a8 8 0 1 0 0-16a8 8 0 0 0 0 16 M21 21l-4.3-4.3';
     case 'settings':
       return 'M12 15a3 3 0 1 0 0-6a3 3 0 0 0 0 6 M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06 M4.21 4.21l.06.06A1.65 1.65 0 0 1 4.6 6 M21 12h-2 M5 12H3 M12 3v2 M12 19v2';
     default:
@@ -128,20 +308,70 @@ function iconPathFor(key: WindowMode) {
             <path d="m15 6-6 6 6 6" />
           </svg>
         </button>
-        <label class="search-bar" aria-label="全局搜索">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
-          <input
-            type="search"
-            readonly
-            placeholder="搜索笔记、画布、剪贴板、待办…"
-            @focus="onSearch"
-            @click.stop="onSearch"
-          />
-          <span class="kbd">⌘K</span>
-        </label>
+        <div
+          class="feature-search-wrap"
+          data-testid="feature-search-wrap"
+          data-tauri-drag-region="false"
+          data-no-drag="true"
+        >
+          <label class="search-bar" aria-label="搜索功能与设置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            <input
+              ref="featureSearchInput"
+              v-model="featureQuery"
+              type="search"
+              data-testid="feature-search-input"
+              placeholder="搜索功能、设置…"
+              @focus="openFeatureMenu"
+              @click.stop="openFeatureMenu"
+              @input="onFeatureQueryInput"
+              @keydown="onFeatureKeyDown"
+            >
+          </label>
+          <div
+            v-if="featureMenuOpen"
+            class="feature-menu"
+            data-testid="feature-search-menu"
+            role="listbox"
+            @mousedown.stop
+            @click.stop
+          >
+            <ul v-if="filteredFeatureEntries.length" class="feature-menu-list">
+              <li
+                v-for="(entry, index) in filteredFeatureEntries"
+                :key="entry.key"
+                class="feature-menu-item"
+                :class="{ 'feature-menu-item--active': index === featureActiveIndex }"
+                role="option"
+                :aria-selected="index === featureActiveIndex"
+                :data-testid="`feature-search-item-${entry.key}`"
+                @mouseenter="featureActiveIndex = index"
+                @click="runFeatureEntry(entry)"
+              >
+                <svg
+                  class="feature-menu-icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  aria-hidden="true"
+                >
+                  <path :d="entry.iconPath" />
+                </svg>
+                <span class="feature-menu-text">
+                  <strong>{{ entry.label }}</strong>
+                  <em>{{ entry.description }}</em>
+                </span>
+              </li>
+            </ul>
+            <p v-else class="feature-menu-empty" data-testid="feature-search-empty">
+              没有匹配的功能或设置
+            </p>
+          </div>
+        </div>
         <slot name="search" />
       </div>
 
@@ -261,14 +491,23 @@ function iconPathFor(key: WindowMode) {
 
 <style scoped>
 .workbench-root {
+  --bg: oklch(97% 0.014 78);
+  --surface: oklch(99% 0.006 78);
+  --surface-2: oklch(98% 0.008 78);
+  --fg: oklch(20% 0.02 70);
+  --muted: oklch(49% 0.018 70);
+  --faint: oklch(70% 0.014 70);
+  --border: oklch(88% 0.012 78);
+  --accent: oklch(61% 0.13 42);
+  --accent-soft: oklch(94% 0.034 42);
   --rail-w: 220px;
   --rail-w-collapsed: 58px;
   display: flex;
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  background: var(--app-bg);
-  color: var(--app-text);
+  background: var(--bg);
+  color: var(--fg);
   font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
@@ -281,8 +520,8 @@ function iconPathFor(key: WindowMode) {
   grid-template-columns: var(--rail-w) 1fr auto;
   align-items: center;
   min-height: 44px;
-  border-bottom: 1px solid var(--app-border);
-  background: color-mix(in srgb, var(--app-surface) 92%, var(--app-bg));
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklch, var(--surface) 92%, var(--bg));
   user-select: none;
   -webkit-user-select: none;
   transition: grid-template-columns 0.22s ease;
@@ -295,7 +534,7 @@ function iconPathFor(key: WindowMode) {
   height: 100%;
   min-width: 0;
   padding: 0 14px;
-  border-right: 1px solid var(--app-border);
+  border-right: 1px solid var(--border);
   user-select: none;
   -webkit-user-select: none;
 }
@@ -307,7 +546,7 @@ function iconPathFor(key: WindowMode) {
   place-items: center;
   flex-shrink: 0;
   border-radius: 6px;
-  background: var(--app-accent);
+  background: var(--accent);
   color: white;
   font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
   font-size: 12px;
@@ -348,7 +587,7 @@ function iconPathFor(key: WindowMode) {
   border: none;
   border-radius: 7px;
   background: transparent;
-  color: var(--app-text-muted);
+  color: var(--muted);
   cursor: pointer;
   transition:
     background 0.15s,
@@ -356,8 +595,8 @@ function iconPathFor(key: WindowMode) {
 }
 
 .back-btn:hover {
-  background: var(--app-bg);
-  color: var(--app-text);
+  background: var(--bg);
+  color: var(--fg);
 }
 
 .topbar svg {
@@ -375,18 +614,18 @@ function iconPathFor(key: WindowMode) {
   gap: 9px;
   min-width: 0;
   padding: 0 11px;
-  border: 1px solid var(--app-border);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--app-bg);
-  color: var(--app-text-muted);
+  background: var(--bg);
+  color: var(--muted);
   transition:
     border-color 0.15s,
     background 0.15s;
 }
 
 .search-bar:focus-within {
-  border-color: var(--app-accent);
-  background: var(--app-surface);
+  border-color: var(--accent);
+  background: var(--surface);
 }
 
 .search-bar input {
@@ -395,30 +634,113 @@ function iconPathFor(key: WindowMode) {
   border: 0;
   outline: 0;
   background: transparent;
-  color: var(--app-text);
+  color: var(--fg);
   font: inherit;
   font-size: 13px;
-  cursor: pointer;
+  cursor: text;
 }
 
 .search-bar input::placeholder {
-  color: var(--app-text-faint);
+  color: var(--faint);
 }
 
-.kbd {
-  height: 18px;
-  min-width: 22px;
-  display: inline-flex;
+.feature-search-wrap {
+  position: relative;
+  flex: 1;
+  max-width: 640px;
+  min-width: 0;
+  display: flex;
+}
+
+.feature-search-wrap .search-bar {
+  flex: 1;
+  max-width: none;
+}
+
+.feature-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 60;
+  max-height: 360px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 14px 34px oklch(24% 0.02 70 / 0.16);
+  overflow: hidden;
+}
+
+.feature-menu-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+}
+
+.feature-menu-item {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 0 5px;
-  border: 1px solid var(--app-border);
-  border-radius: 4px;
-  background: var(--app-surface);
-  color: var(--app-text-muted);
-  font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
-  font-size: 10px;
-  line-height: 1;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  color: var(--fg);
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.feature-menu-item--active,
+.feature-menu-item:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.feature-menu-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.feature-menu-item--active .feature-menu-icon,
+.feature-menu-item:hover .feature-menu-icon {
+  color: var(--accent);
+}
+
+.feature-menu-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.feature-menu-text strong {
+  font-weight: 600;
+}
+
+.feature-menu-text em {
+  margin-top: 2px;
+  color: var(--muted);
+  font-style: normal;
+  font-size: 11.5px;
+}
+
+.feature-menu-item--active .feature-menu-text em,
+.feature-menu-item:hover .feature-menu-text em {
+  color: color-mix(in oklch, var(--accent) 65%, var(--muted));
+}
+
+.feature-menu-empty {
+  margin: 0;
+  padding: 14px 16px;
+  color: var(--muted);
+  font-size: 12.5px;
+  text-align: center;
 }
 
 .workbench-window-controls {
@@ -437,7 +759,7 @@ function iconPathFor(key: WindowMode) {
   border: none;
   border-radius: 5px;
   background: transparent;
-  color: var(--app-text-muted);
+  color: var(--muted);
   cursor: pointer;
   transition:
     background 0.15s,
@@ -445,12 +767,12 @@ function iconPathFor(key: WindowMode) {
 }
 
 .win-btn:hover {
-  background: var(--app-bg);
-  color: var(--app-text);
+  background: var(--bg);
+  color: var(--fg);
 }
 
 .win-btn[data-act="close"]:hover {
-  background: var(--app-danger);
+  background: oklch(60% 0.2 25);
   color: white;
 }
 
@@ -463,8 +785,8 @@ function iconPathFor(key: WindowMode) {
 .workbench-sidebar {
   width: var(--rail-w);
   min-width: var(--rail-w);
-  border-right: 1px solid var(--app-border);
-  background: var(--app-surface-muted);
+  border-right: 1px solid var(--border);
+  background: var(--surface-2);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -493,7 +815,7 @@ function iconPathFor(key: WindowMode) {
   border: none;
   border-radius: 7px;
   background: transparent;
-  color: var(--app-text-muted);
+  color: var(--muted);
   font-size: 13px;
   font-weight: 500;
   text-align: left;
@@ -505,13 +827,13 @@ function iconPathFor(key: WindowMode) {
 }
 
 .workbench-nav-item:hover {
-  background: var(--app-bg);
-  color: var(--app-text);
+  background: var(--bg);
+  color: var(--fg);
 }
 
 .workbench-nav-item--active {
-  background: var(--app-accent-soft);
-  color: var(--app-accent);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .rail-icon {
@@ -528,13 +850,13 @@ function iconPathFor(key: WindowMode) {
 
 .rail-count {
   margin-left: auto;
-  color: var(--app-text-faint);
+  color: var(--faint);
   font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
   font-size: 11px;
 }
 
 .workbench-nav-item--active .rail-count {
-  color: var(--app-accent);
+  color: var(--accent);
 }
 
 .workbench-root[data-rail="collapsed"] .workbench-nav-item {
@@ -552,8 +874,8 @@ function iconPathFor(key: WindowMode) {
   align-items: center;
   justify-content: space-between;
   padding: 8px 10px;
-  border-top: 1px solid var(--app-border);
-  background: var(--app-surface);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .rail-foot-btn {
@@ -564,7 +886,7 @@ function iconPathFor(key: WindowMode) {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--app-text-muted);
+  color: var(--muted);
   cursor: pointer;
   transition:
     background 0.12s,
@@ -572,8 +894,8 @@ function iconPathFor(key: WindowMode) {
 }
 
 .rail-foot-btn:hover {
-  background: var(--app-bg);
-  color: var(--app-text);
+  background: var(--bg);
+  color: var(--fg);
 }
 
 .rail-foot-btn svg {

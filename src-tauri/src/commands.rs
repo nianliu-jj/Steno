@@ -161,11 +161,6 @@ pub fn open_canvas_window(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn open_search_window(app: AppHandle) -> Result<(), String> {
-    window_manager::open_search(&app).map_err(to_msg)
-}
-
-#[tauri::command]
 pub fn open_settings_window(app: AppHandle) -> Result<(), String> {
     window_manager::open_settings(&app).map_err(to_msg)
 }

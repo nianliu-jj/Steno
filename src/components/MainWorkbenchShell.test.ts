@@ -13,6 +13,7 @@ const startDragCurrent = vi.fn();
 const minimizeCurrent = vi.fn();
 const toggleMaximizeCurrent = vi.fn();
 const closeCurrent = vi.fn();
+const openQuicknote = vi.fn(() => Promise.resolve());
 
 vi.mock('@/stores/ui', () => ({
   useUiStore: () => ({
@@ -27,6 +28,7 @@ vi.mock('@/composables/useWindow', () => ({
     minimizeCurrent,
     toggleMaximizeCurrent,
     closeCurrent,
+    openQuicknote,
   }),
 }));
 
@@ -43,6 +45,7 @@ describe('MainWorkbenchShell', () => {
     minimizeCurrent.mockClear();
     toggleMaximizeCurrent.mockClear();
     closeCurrent.mockClear();
+    openQuicknote.mockClear();
   });
 
   it('renders the workbench frame and slot content', () => {
@@ -111,21 +114,66 @@ describe('MainWorkbenchShell', () => {
     expect(wrapper.find('.brand-mark').text()).toBe('S');
     expect(wrapper.find('.brand-name').text()).toBe('Steno');
     expect(wrapper.find('.back-btn').attributes('aria-label')).toBe('返回');
-    expect(wrapper.find('.search-bar input').attributes('placeholder')).toBe(
-      '搜索笔记、画布、剪贴板、待办…',
+    expect(wrapper.find('[data-testid="feature-search-input"]').attributes('placeholder')).toBe(
+      '搜索功能、设置…',
     );
-    expect(wrapper.find('.kbd').text()).toBe('⌘K');
+    expect(wrapper.find('.kbd').exists()).toBe(false);
     expect(wrapper.findAll('.wc-btn')).toHaveLength(3);
 
     await wrapper.find('.back-btn').trigger('click');
-    await wrapper.find('.search-bar input').trigger('focus');
-    await wrapper.find('.search-bar input').trigger('click');
 
     expect(navigateToMain).toHaveBeenCalledOnce();
-    expect(navigateTo).toHaveBeenCalledTimes(2);
-    expect(navigateTo).toHaveBeenNthCalledWith(1, 'search');
-    expect(navigateTo).toHaveBeenNthCalledWith(2, 'search');
+    expect(navigateTo).not.toHaveBeenCalled();
     expect(startDragCurrent).not.toHaveBeenCalled();
+  });
+
+  it('opens the feature menu when focusing the search input and filters by query', async () => {
+    const wrapper = mount(MainWorkbenchShell, {
+      props: {
+        navItems: [{ key: 'main', label: '笔记列表', active: true }],
+      },
+    });
+
+    expect(wrapper.find('[data-testid="feature-search-menu"]').exists()).toBe(false);
+
+    await wrapper.get('[data-testid="feature-search-input"]').trigger('focus');
+    expect(wrapper.find('[data-testid="feature-search-menu"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="feature-search-item-nav-main"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="feature-search-item-nav-canvas"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="feature-search-item-action-settings"]').exists()).toBe(true);
+
+    await wrapper
+      .get('[data-testid="feature-search-input"]')
+      .setValue('设置');
+    expect(wrapper.find('[data-testid="feature-search-item-action-settings"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="feature-search-item-nav-canvas"]').exists()).toBe(false);
+
+    await wrapper.get('[data-testid="feature-search-input"]').setValue('absolutely-no-match');
+    expect(wrapper.find('[data-testid="feature-search-empty"]').exists()).toBe(true);
+  });
+
+  it('routes feature menu entries to navigateTo, navigateToMain, and openQuicknote', async () => {
+    const wrapper = mount(MainWorkbenchShell, {
+      props: {
+        navItems: [{ key: 'main', label: '笔记列表', active: true }],
+      },
+    });
+
+    await wrapper.get('[data-testid="feature-search-input"]').trigger('focus');
+    await wrapper.get('[data-testid="feature-search-item-action-settings"]').trigger('click');
+    expect(navigateTo).toHaveBeenCalledWith('settings');
+
+    await wrapper.get('[data-testid="feature-search-input"]').trigger('focus');
+    await wrapper.get('[data-testid="feature-search-item-action-new-note"]').trigger('click');
+    expect(navigateTo).toHaveBeenCalledWith('note-editor');
+
+    await wrapper.get('[data-testid="feature-search-input"]').trigger('focus');
+    await wrapper.get('[data-testid="feature-search-item-nav-main"]').trigger('click');
+    expect(navigateToMain).toHaveBeenCalled();
+
+    await wrapper.get('[data-testid="feature-search-input"]').trigger('focus');
+    await wrapper.get('[data-testid="feature-search-item-action-new-quicknote"]').trigger('click');
+    expect(openQuicknote).toHaveBeenCalledOnce();
   });
 
   it('renders rail navigation with active state, counts, and footer actions', async () => {

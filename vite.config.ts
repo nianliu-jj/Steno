@@ -41,7 +41,7 @@ export default defineConfig(configEnv => {
       commonjsOptions: {
         ignoreTryCatch: false
       },
-      // 所有窗口（main / floating / sticky / canvas / search / settings / zen）
+      // 所有窗口（main / floating / sticky / canvas / settings / zen）
       // 共用 index.html，按 Tauri 窗口 label 在前端 ui store 派生 mode。
       rollupOptions: {
         input: {

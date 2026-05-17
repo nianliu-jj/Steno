@@ -2,13 +2,19 @@
 // 主窗口落地页（mode === 'main'）。
 // 当前作为工作台内容页渲染：原型 v2 的笔记卡片网格和空状态。
 import { computed, onMounted, ref } from 'vue';
-import { NButton, NInput, useMessage } from 'naive-ui';
+import { NButton, NDropdown, NIcon, NInput, useMessage } from 'naive-ui';
 
 import { useDb } from '@/composables/useDb';
 import { useWindow } from '@/composables/useWindow';
 import { useNotesStore } from '@/stores/notes';
 import { useUiStore } from '@/stores/ui';
 import type { Note } from '@/types/steno';
+
+const cardExportOptions = [
+  { key: 'markdown', label: '导出为 Markdown' },
+  { key: 'html', label: '导出为 Html' },
+  { key: 'pdf', label: '导出为 PDF' },
+];
 
 const notes = useNotesStore();
 const ui = useUiStore();
@@ -202,6 +208,14 @@ function onToggleExportSubmenu() {
 async function onContextExport(format: 'markdown' | 'html' | 'pdf') {
   const note = contextTargetNote.value;
   if (!note) return;
+  await exportNote(note, format);
+}
+
+async function onCardExportSelect(key: string, note: Note) {
+  await exportNote(note, key as 'markdown' | 'html' | 'pdf');
+}
+
+async function exportNote(note: Note, format: 'markdown' | 'html' | 'pdf') {
   try {
     const path = format === 'markdown'
       ? await db.exportNoteMarkdown(note.id)
@@ -452,12 +466,67 @@ function formatUpdatedAt(iso: string): string {
           </div>
           <span>{{ formatUpdatedAt(note.updatedAt) }}</span>
         </div>
-        <div class="note-actions">
-          <NButton tertiary size="tiny" @click="onOpenNoteEditor(note)">编辑</NButton>
-          <NButton tertiary size="tiny" @click="onTogglePin(note)">
-            {{ note.isPinned ? '取消置顶' : '置顶' }}
+        <div class="note-actions" data-testid="card-actions" @click.stop>
+          <NButton
+            quaternary
+            size="tiny"
+            title="编辑"
+            data-testid="card-action-edit"
+            @click="onOpenNoteEditor(note)"
+          >
+            <template #icon>
+              <NIcon>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                  <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 0 0 0-1.42l-2.34-2.33a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75z" />
+                </svg>
+              </NIcon>
+            </template>
           </NButton>
-          <NButton tertiary size="tiny" @click="onDelete(note)">删除</NButton>
+          <NButton
+            quaternary
+            size="tiny"
+            :title="note.isPinned ? '取消置顶' : '置顶为便签'"
+            data-testid="card-action-pin"
+            @click="onTogglePin(note)"
+          >
+            <template #icon>
+              <NIcon>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                  <path d="M14.4 6 14 4H7.7L7 5.2l3 5.3L7.3 13 4 16.3V17h6.7L12 22l1.3-5h6.7v-.7L16.7 13 14 10.5 17 5.2 16.3 4H14.4z" />
+                </svg>
+              </NIcon>
+            </template>
+          </NButton>
+          <NDropdown
+            :options="cardExportOptions"
+            trigger="click"
+            @select="key => onCardExportSelect(key, note)"
+          >
+            <NButton quaternary size="tiny" title="导出" data-testid="card-action-export">
+              <template #icon>
+                <NIcon>
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                    <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z" />
+                  </svg>
+                </NIcon>
+              </template>
+            </NButton>
+          </NDropdown>
+          <NButton
+            quaternary
+            size="tiny"
+            title="删除"
+            data-testid="card-action-delete"
+            @click="onDelete(note)"
+          >
+            <template #icon>
+              <NIcon>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                  <path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6zM19 4h-3.5l-1-1h-5l-1 1H5v2h14z" />
+                </svg>
+              </NIcon>
+            </template>
+          </NButton>
         </div>
       </article>
     </section>
@@ -1122,14 +1191,23 @@ function formatUpdatedAt(iso: string): string {
 .note-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-top: 10px;
-  opacity: 0;
-  transition: opacity 0.12s ease;
+  justify-content: flex-end;
+  gap: 2px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed oklch(90% 0.012 78);
 }
 
-.note-card:hover .note-actions {
-  opacity: 1;
+.note-actions :deep(.n-button) {
+  color: oklch(45% 0.018 70);
+}
+
+.note-actions :deep(.n-button:hover) {
+  color: oklch(35% 0.02 70);
+}
+
+.note-card.paper-1 .note-actions {
+  border-top-color: oklch(86% 0.04 88);
 }
 
 .empty-state {

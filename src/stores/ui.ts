@@ -7,7 +7,6 @@
 //    - sticky-{uuid} → mode=sticky,    noteId=uuid
 //    - canvas        → mode=canvas
 //    - zen           → mode=zen        (noteId 仍走 ?id= 因为单实例可换 note)
-//    - search        → mode=settings/search
 //    - settings      → mode=settings
 // 2. URL hash 兜底（纯浏览器调试 / 非 Tauri 上下文）：#mode?id=...
 //
@@ -27,7 +26,6 @@ type MainRouteMode = Extract<
   | 'main'
   | 'canvas'
   | 'zen'
-  | 'search'
   | 'settings'
   | 'note-editor'
   | 'clipboard'
@@ -55,7 +53,6 @@ const VALID_MODES: ReadonlySet<WindowMode> = new Set<WindowMode>([
   'sticky',
   'canvas',
   'zen',
-  'search',
   'settings',
   'note-editor',
   'clipboard',
@@ -69,7 +66,6 @@ const MAIN_ROUTE_MODES: ReadonlySet<MainRouteMode> = new Set<MainRouteMode>([
   'main',
   'canvas',
   'zen',
-  'search',
   'settings',
   'note-editor',
   'clipboard',
@@ -115,7 +111,6 @@ function parseFromLabel(label: string, search: string): ParsedRoute {
     return { mode: 'sticky', noteId: label.slice('sticky-'.length) };
   }
   if (label === 'canvas') return { mode: 'canvas', noteId: null };
-  if (label === 'search') return { mode: 'search', noteId: null };
   if (label === 'settings') return { mode: 'settings', noteId: null };
   if (label === 'zen') {
     const params = new URLSearchParams(search.replace(/^\?/, ''));

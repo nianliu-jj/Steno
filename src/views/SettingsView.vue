@@ -14,7 +14,6 @@ import {
 } from 'naive-ui';
 
 import { useDb } from '@/composables/useDb';
-import { broadcastThemeModeChanged } from '@/theme';
 import { useSettingsStore, type EditorMode, type ThemeMode } from '@/stores/settings';
 import { useUiStore } from '@/stores/ui';
 
@@ -48,13 +47,6 @@ async function onThemeChange(value: ThemeMode) {
     await settings.update('themeMode', value);
   } catch (e) {
     message.error(`主题保存失败：${String(e)}`);
-    return;
-  }
-
-  try {
-    await broadcastThemeModeChanged(value);
-  } catch (e) {
-    message.warning(`主题已保存，但同步失败：${String(e)}`);
   }
 }
 

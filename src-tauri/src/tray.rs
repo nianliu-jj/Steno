@@ -1,6 +1,6 @@
 // 系统托盘：紫色 "S" 图标 + 右键菜单 + 左键单击呼出主窗口。
 // PR1 提供基础 (托盘 + 主窗口/退出菜单)；PR2 让 "新建速记" 打开浮窗。
-// Plan Task 3 Step 4 扩展菜单：show_stickies / open_canvas / open_search /
+// Plan Task 3 Step 4 扩展菜单：show_stickies / open_canvas /
 // open_settings。页面型入口现在统一回到 main 窗口，并由前端路由切换视图。
 
 use tauri::{
@@ -17,7 +17,6 @@ pub fn setup(app: &App) -> tauri::Result<()> {
     let show_stickies =
         MenuItem::with_id(app, "show_stickies", "显示置顶便签", true, None::<&str>)?;
     let open_canvas = MenuItem::with_id(app, "open_canvas", "打开画布", true, None::<&str>)?;
-    let open_search = MenuItem::with_id(app, "open_search", "搜索笔记", true, None::<&str>)?;
     let open_settings = MenuItem::with_id(app, "open_settings", "设置", true, None::<&str>)?;
     let sep1 = PredefinedMenuItem::separator(app)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
@@ -30,7 +29,6 @@ pub fn setup(app: &App) -> tauri::Result<()> {
             &sep1,
             &show_stickies,
             &open_canvas,
-            &open_search,
             &open_settings,
             &sep2,
             &quit,
@@ -59,9 +57,6 @@ pub fn setup(app: &App) -> tauri::Result<()> {
             }
             "open_canvas" => {
                 let _ = window_manager::open_canvas(app);
-            }
-            "open_search" => {
-                let _ = window_manager::open_search(app);
             }
             "open_settings" => {
                 let _ = window_manager::open_settings(app);
