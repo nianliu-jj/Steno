@@ -2,13 +2,12 @@ import { isTauri } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';
 
 import type { ThemeMode } from '@/stores/settings';
+import type { Note } from '@/types/steno';
 
 const THEME_MODE_CHANGED_EVENT = 'steno:theme-mode-changed';
 const NOTE_SAVED_EVENT = 'steno:note-saved';
 
-export interface NoteSavedPayload {
-  noteId: string;
-}
+export type NoteSavedPayload = Note;
 
 export type AppThemeModeChangedPayload = ThemeMode;
 

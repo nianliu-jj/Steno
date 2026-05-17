@@ -47,9 +47,15 @@ const activeSection = ref<SettingsSection>('general');
 async function onThemeChange(value: ThemeMode) {
   try {
     await settings.update('themeMode', value);
-    await emitThemeModeChanged(value);
   } catch (e) {
     message.error(`主题保存失败：${String(e)}`);
+    return;
+  }
+
+  try {
+    await emitThemeModeChanged(value);
+  } catch (e) {
+    console.error('[settings] failed to broadcast theme mode change:', e);
   }
 }
 

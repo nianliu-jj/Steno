@@ -21,6 +21,21 @@ const updateSetting = vi.fn(() => Promise.resolve());
 const loadSettings = vi.fn(() => Promise.resolve());
 const navigateToMain = vi.fn();
 const emitThemeModeChanged = vi.fn(() => Promise.resolve());
+const messageError = vi.fn();
+const messageSuccess = vi.fn();
+const messageInfo = vi.fn();
+
+vi.mock('naive-ui', async () => {
+  const actual = await vi.importActual<typeof import('naive-ui')>('naive-ui');
+  return {
+    ...actual,
+    useMessage: () => ({
+      error: messageError,
+      success: messageSuccess,
+      info: messageInfo,
+    }),
+  };
+});
 
 vi.mock('@/composables/useDb', () => ({
   useDb: () => ({
@@ -99,6 +114,9 @@ describe('SettingsView', () => {
     loadSettings.mockClear();
     navigateToMain.mockClear();
     emitThemeModeChanged.mockClear();
+    messageError.mockClear();
+    messageSuccess.mockClear();
+    messageInfo.mockClear();
   });
 
   it('renders the v2 header, category tabs, and footer actions', async () => {
@@ -199,6 +217,25 @@ describe('SettingsView', () => {
 
     expect(updateSetting).toHaveBeenCalledWith('themeMode', 'dark');
     expect(emitThemeModeChanged).not.toHaveBeenCalled();
+  });
+
+  it('does not report theme persistence failure when only broadcasting the theme event fails', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    emitThemeModeChanged.mockRejectedValueOnce(new Error('broadcast failed'));
+
+    const wrapper = mountSettingsView();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="settings-tab-appearance"]').trigger('click');
+    await wrapper.findComponent(NRadioGroup).vm.$emit('update:value', 'dark');
+    await flushPromises();
+
+    expect(updateSetting).toHaveBeenCalledWith('themeMode', 'dark');
+    expect(emitThemeModeChanged).toHaveBeenCalledWith('dark');
+    expect(messageError).not.toHaveBeenCalledWith(expect.stringContaining('主题保存失败'));
+    expect(error).toHaveBeenCalled();
+
+    error.mockRestore();
   });
 
   it('keeps the v2 panel sizing, dark theme hook, and narrow-screen responsive rules', () => {
