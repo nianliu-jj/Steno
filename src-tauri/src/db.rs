@@ -13,7 +13,13 @@ use std::sync::{Arc, Mutex};
 
 use rusqlite::{Connection, OptionalExtension};
 
-use crate::models::{Note, SaveNoteRequest, SearchNotesRequest};
+use crate::models::{
+    ConvertTextToDocumentRequest, EntryKind, LibraryEntry, Note, SaveNoteRequest,
+    SaveTextEntryRequest, SearchNotesRequest, Workspace,
+};
+use crate::workspace_fs;
+
+const INBOX_GROUP_ID: &str = "group-inbox";
 
 #[derive(Debug, thiserror::Error)]
 pub enum DbError {
@@ -29,6 +35,8 @@ pub enum DbError {
     Serde(#[from] serde_json::Error),
     #[error("note not found: {0}")]
     NotFound(String),
+    #[error("{0}")]
+    Validation(String),
 }
 
 pub struct Db {
@@ -64,6 +72,7 @@ impl Db {
         conn.execute_batch("PRAGMA foreign_keys = ON;")?;
         Self::migrate(&mut conn)?;
         Self::ensure_default_settings(&conn)?;
+        Self::ensure_default_group(&conn)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             db_path,
@@ -132,6 +141,45 @@ impl Db {
             tx.pragma_update(None, "user_version", 1_i64)?;
             tx.commit()?;
         }
+        if version < 2 {
+            let tx = conn.transaction()?;
+            tx.execute_batch(
+                "
+                CREATE TABLE IF NOT EXISTS workspaces (
+                  id TEXT PRIMARY KEY,
+                  name TEXT NOT NULL,
+                  root_path TEXT NOT NULL UNIQUE,
+                  created_at TEXT NOT NULL,
+                  updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS library_entries (
+                  id TEXT PRIMARY KEY,
+                  kind TEXT NOT NULL,
+                  title TEXT NOT NULL,
+                  preview_text TEXT NOT NULL DEFAULT '',
+                  body_markdown TEXT,
+                  tags TEXT NOT NULL DEFAULT '[]',
+                  workspace_id TEXT,
+                  parent_id TEXT,
+                  group_id TEXT,
+                  file_path TEXT,
+                  created_at TEXT NOT NULL,
+                  updated_at TEXT NOT NULL,
+                  word_count INTEGER NOT NULL DEFAULT 0,
+                  byte_size INTEGER NOT NULL DEFAULT 0
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_library_entries_kind ON library_entries(kind);
+                CREATE INDEX IF NOT EXISTS idx_library_entries_workspace_parent
+                  ON library_entries(workspace_id, parent_id);
+                CREATE INDEX IF NOT EXISTS idx_library_entries_group_parent
+                  ON library_entries(group_id, parent_id);
+                ",
+            )?;
+            tx.pragma_update(None, "user_version", 2_i64)?;
+            tx.commit()?;
+        }
         Ok(())
     }
 
@@ -163,6 +211,17 @@ impl Db {
                 rusqlite::params![k, v, &now],
             )?;
         }
+        Ok(())
+    }
+
+    fn ensure_default_group(conn: &Connection) -> Result<(), DbError> {
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT OR IGNORE INTO library_entries
+             (id, kind, title, preview_text, body_markdown, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size)
+             VALUES (?1, 'group', '收件箱', '', NULL, '[]', NULL, NULL, NULL, NULL, ?2, ?2, 0, 0)",
+            rusqlite::params![INBOX_GROUP_ID, &now],
+        )?;
         Ok(())
     }
 
@@ -353,6 +412,139 @@ impl Db {
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
+    // ----- workspaces / library entries ---------------------------------
+
+    pub fn create_workspace(&self, name: &str, root_path: PathBuf) -> Result<Workspace, DbError> {
+        std::fs::create_dir_all(&root_path)?;
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+        let root_path_str = root_path.to_string_lossy().into_owned();
+
+        let conn = self.lock()?;
+        conn.execute(
+            "INSERT INTO workspaces (id, name, root_path, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?4)",
+            rusqlite::params![&id, name, &root_path_str, &now],
+        )?;
+
+        Ok(Workspace {
+            id,
+            name: name.to_string(),
+            root_path: root_path_str,
+            created_at: now.clone(),
+            updated_at: now,
+        })
+    }
+
+    pub fn save_text_entry(&self, input: SaveTextEntryRequest) -> Result<LibraryEntry, DbError> {
+        let byte_size = ensure_text_size_limit(&input.content)?;
+        let title = input
+            .title
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned)
+            .unwrap_or_else(|| derive_title(&input.content));
+        let tags = extract_tags(&input.content, &input.tags);
+        let tags_json = serde_json::to_string(&tags)?;
+        let preview_text = preview_text(&input.content);
+        let id = input
+            .id
+            .clone()
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        let now = chrono::Utc::now().to_rfc3339();
+        let group_id = input
+            .group_id
+            .clone()
+            .unwrap_or_else(|| INBOX_GROUP_ID.to_string());
+        let word_count = word_count(&input.content);
+
+        let conn = self.lock()?;
+        let existing_created_at: Option<String> = conn
+            .query_row(
+                "SELECT created_at FROM library_entries WHERE id = ?1",
+                rusqlite::params![&id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let created_at = existing_created_at.unwrap_or_else(|| now.clone());
+
+        conn.execute(
+            "INSERT OR REPLACE INTO library_entries
+             (id, kind, title, preview_text, body_markdown, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size)
+             VALUES (?1, 'text', ?2, ?3, ?4, ?5, NULL, NULL, ?6, NULL, ?7, ?8, ?9, ?10)",
+            rusqlite::params![
+                &id,
+                &title,
+                &preview_text,
+                &input.content,
+                &tags_json,
+                &group_id,
+                &created_at,
+                &now,
+                word_count,
+                byte_size,
+            ],
+        )?;
+
+        Self::find_library_entry(&conn, &id)
+    }
+
+    pub fn convert_text_to_document(
+        &self,
+        input: ConvertTextToDocumentRequest,
+    ) -> Result<LibraryEntry, DbError> {
+        let conn = self.lock()?;
+        let existing = Self::find_library_entry(&conn, &input.id)?;
+        if existing.kind != EntryKind::Text {
+            return Err(DbError::Validation("只有文本笔记可以转为文档".into()));
+        }
+
+        let workspace = Self::find_workspace(&conn, &input.workspace_id)?;
+        let base_dir = if let Some(folder_id) = &input.folder_entry_id {
+            let folder = Self::find_library_entry(&conn, folder_id)?;
+            folder
+                .file_path
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from(&workspace.root_path))
+        } else {
+            PathBuf::from(&workspace.root_path)
+        };
+
+        let markdown = conn
+            .query_row(
+                "SELECT body_markdown FROM library_entries WHERE id = ?1",
+                rusqlite::params![&input.id],
+                |row| row.get::<_, Option<String>>(0),
+            )?
+            .unwrap_or_default();
+
+        let path = workspace_fs::build_document_path(&base_dir, &existing.title);
+        workspace_fs::write_markdown_file(&path, &markdown)?;
+        let path_str = path.to_string_lossy().into_owned();
+        let now = chrono::Utc::now().to_rfc3339();
+
+        conn.execute(
+            "UPDATE library_entries
+             SET kind = 'document',
+                 workspace_id = ?1,
+                 parent_id = ?2,
+                 group_id = NULL,
+                 file_path = ?3,
+                 updated_at = ?4
+             WHERE id = ?5",
+            rusqlite::params![
+                &workspace.id,
+                input.folder_entry_id.as_deref(),
+                &path_str,
+                &now,
+                &input.id,
+            ],
+        )?;
+
+        Self::find_library_entry(&conn, &input.id)
+    }
+
     // ----- 设置 key-value -----------------------------------------------
 
     pub fn get_setting(&self, key: &str) -> Result<Option<String>, DbError> {
@@ -392,6 +584,37 @@ impl Db {
             .optional()?;
         note.ok_or_else(|| DbError::NotFound(id.to_string()))
     }
+
+    fn find_library_entry(conn: &Connection, id: &str) -> Result<LibraryEntry, DbError> {
+        let entry = conn
+            .query_row(
+                "SELECT id, kind, title, preview_text, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size
+                 FROM library_entries WHERE id = ?1",
+                rusqlite::params![id],
+                row_to_library_entry,
+            )
+            .optional()?;
+        entry.ok_or_else(|| DbError::NotFound(id.to_string()))
+    }
+
+    fn find_workspace(conn: &Connection, id: &str) -> Result<Workspace, DbError> {
+        let workspace = conn
+            .query_row(
+                "SELECT id, name, root_path, created_at, updated_at FROM workspaces WHERE id = ?1",
+                rusqlite::params![id],
+                |row| {
+                    Ok(Workspace {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        root_path: row.get(2)?,
+                        created_at: row.get(3)?,
+                        updated_at: row.get(4)?,
+                    })
+                },
+            )
+            .optional()?;
+        workspace.ok_or_else(|| DbError::NotFound(id.to_string()))
+    }
 }
 
 fn row_to_note(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
@@ -418,7 +641,61 @@ fn row_to_note(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
     })
 }
 
+fn row_to_library_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryEntry> {
+    let tags_json: String = row.get(4)?;
+    Ok(LibraryEntry {
+        id: row.get(0)?,
+        kind: entry_kind_from_db(&row.get::<_, String>(1)?),
+        title: row.get(2)?,
+        preview_text: row.get(3)?,
+        tags: serde_json::from_str(&tags_json).unwrap_or_default(),
+        workspace_id: row.get(5)?,
+        parent_id: row.get(6)?,
+        group_id: row.get(7)?,
+        file_path: row.get(8)?,
+        created_at: row.get(9)?,
+        updated_at: row.get(10)?,
+        word_count: row.get(11)?,
+        byte_size: row.get(12)?,
+    })
+}
+
 // ----- 内容派生 ---------------------------------------------------------
+
+fn entry_kind_from_db(value: &str) -> EntryKind {
+    match value {
+        "workspace" => EntryKind::Workspace,
+        "folder" => EntryKind::Folder,
+        "group" => EntryKind::Group,
+        "document" => EntryKind::Document,
+        _ => EntryKind::Text,
+    }
+}
+
+fn preview_text(content: &str) -> String {
+    content
+        .trim()
+        .replace('\n', " ")
+        .chars()
+        .take(120)
+        .collect()
+}
+
+fn markdown_byte_size(content: &str) -> i64 {
+    content.as_bytes().len() as i64
+}
+
+fn ensure_text_size_limit(content: &str) -> Result<i64, DbError> {
+    let size = markdown_byte_size(content);
+    if size > 10 * 1024 {
+        let kb = (size as f64 / 1024.0).ceil() as i64;
+        return Err(DbError::Validation(format!(
+            "当前文件大小 {}KB，文本文件最大不能超过 10KB",
+            kb
+        )));
+    }
+    Ok(size)
+}
 
 /// 第一行非空内容作为标题，最多 48 个字符。去掉开头的 Markdown `#` 标记。
 pub fn derive_title(content: &str) -> String {
@@ -490,7 +767,7 @@ pub fn render_markdown(content: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::SaveNoteRequest;
+    use crate::models::{ConvertTextToDocumentRequest, EntryKind, SaveNoteRequest, SaveTextEntryRequest};
 
     fn fresh_db() -> Db {
         let mut conn = Connection::open_in_memory().expect("open in-memory db");
@@ -544,7 +821,7 @@ mod tests {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 1);
+        assert_eq!(version, 2);
     }
 
     // --- derive_title ---
@@ -698,5 +975,70 @@ mod tests {
             db.get_setting("zenOutlineOpen").unwrap().as_deref(),
             Some("true")
         );
+    }
+
+    #[test]
+    fn save_text_rejects_markdown_body_over_10kb() {
+        let db = fresh_db();
+        let content = "a".repeat(10 * 1024 + 1);
+
+        let err = db
+            .save_text_entry(SaveTextEntryRequest {
+                id: None,
+                title: Some("超限文本".into()),
+                content,
+                tags: vec![],
+                group_id: None,
+            })
+            .unwrap_err()
+            .to_string();
+
+        assert!(err.contains("文本文件最大不能超过 10KB"), "{err}");
+    }
+
+    #[test]
+    fn save_text_without_group_uses_system_inbox_group() {
+        let db = fresh_db();
+        let saved = db
+            .save_text_entry(SaveTextEntryRequest {
+                id: None,
+                title: Some("默认分组文本".into()),
+                content: "hello".into(),
+                tags: vec![],
+                group_id: None,
+            })
+            .unwrap();
+
+        assert_eq!(saved.kind, EntryKind::Text);
+        assert_eq!(saved.group_id.as_deref(), Some("group-inbox"));
+    }
+
+    #[test]
+    fn convert_text_to_document_writes_markdown_file_and_changes_kind() {
+        let db = fresh_db();
+        let workspace = db
+            .create_workspace("默认工作区", std::env::temp_dir().join("steno-plan-test"))
+            .unwrap();
+        let text = db
+            .save_text_entry(SaveTextEntryRequest {
+                id: None,
+                title: Some("待转换".into()),
+                content: "# 标题\n正文".into(),
+                tags: vec!["draft".into()],
+                group_id: Some("group-inbox".into()),
+            })
+            .unwrap();
+
+        let converted = db
+            .convert_text_to_document(ConvertTextToDocumentRequest {
+                id: text.id.clone(),
+                workspace_id: workspace.id.clone(),
+                folder_entry_id: None,
+            })
+            .unwrap();
+
+        assert_eq!(converted.kind, EntryKind::Document);
+        assert!(converted.file_path.as_ref().is_some());
+        assert!(std::fs::exists(converted.file_path.as_ref().unwrap()).unwrap());
     }
 }

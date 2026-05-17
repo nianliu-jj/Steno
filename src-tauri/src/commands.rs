@@ -13,7 +13,8 @@ use tauri::{AppHandle, State};
 use crate::db::Db;
 use crate::export;
 use crate::models::{
-    CanvasPosition, Note, PinnedWindowConfig, SaveNoteRequest, SearchNotesRequest,
+    CanvasPosition, ConvertTextToDocumentRequest, LibraryEntry, Note, PinnedWindowConfig,
+    SaveNoteRequest, SaveTextEntryRequest, SearchNotesRequest,
 };
 use crate::{quicknote, shortcut, window_manager};
 
@@ -26,6 +27,30 @@ fn to_msg<E: std::fmt::Display>(e: E) -> String {
 pub async fn save_note(db: State<'_, Db>, input: SaveNoteRequest) -> Result<Option<Note>, String> {
     let db = db.inner().clone();
     tauri::async_runtime::spawn_blocking(move || db.save_note(input))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn save_text_entry(
+    db: State<'_, Db>,
+    input: SaveTextEntryRequest,
+) -> Result<LibraryEntry, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.save_text_entry(input))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn convert_text_to_document(
+    db: State<'_, Db>,
+    input: ConvertTextToDocumentRequest,
+) -> Result<LibraryEntry, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.convert_text_to_document(input))
         .await
         .map_err(to_msg)?
         .map_err(to_msg)

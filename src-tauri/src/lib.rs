@@ -8,6 +8,7 @@ mod shortcut;
 mod sync;
 mod tray;
 mod window_manager;
+mod workspace_fs;
 
 use tauri::Manager;
 
@@ -16,6 +17,8 @@ pub fn run() {
         .plugin(shortcut::plugin())
         .invoke_handler(tauri::generate_handler![
             commands::save_note,
+            commands::save_text_entry,
+            commands::convert_text_to_document,
             commands::get_note,
             commands::list_notes,
             commands::search_notes,
