@@ -79,6 +79,7 @@ vi.mock('@/composables/useOutlineSidebarState', () => ({
     open: { value: false },
     width: { value: 280 },
     toggle: vi.fn(),
+    setWidth: vi.fn(),
   }),
 }));
 

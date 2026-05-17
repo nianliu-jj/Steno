@@ -175,6 +175,7 @@ async function onOpenZen() {
           @open-source="session.openSource"
           @close-source="session.closeSource"
           @toggle-outline="outline.toggle()"
+          @resize-outline="outline.setWidth($event)"
           @open-zen="onOpenZen"
         />
       </div>

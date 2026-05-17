@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { onBeforeUnmount, ref } from 'vue';
+
 import MarkdownRichEditor from './MarkdownRichEditor.vue';
 import MarkdownSourceEditor from './MarkdownSourceEditor.vue';
 
@@ -27,8 +29,43 @@ const emit = defineEmits<{
   'close-source': [];
   'open-zen': [];
   'toggle-outline': [];
+  'resize-outline': [width: number];
   'select-heading': [id: string];
 }>();
+
+const richEditor = ref<{ scrollToHeading: (id: string) => void } | null>(null);
+const layout = ref<HTMLElement | null>(null);
+const resizing = ref(false);
+
+function onSelectHeading(id: string) {
+  richEditor.value?.scrollToHeading(id);
+  emit('select-heading', id);
+}
+
+function onResizePointerdown(event: PointerEvent) {
+  event.preventDefault();
+  resizing.value = true;
+  window.addEventListener('pointermove', onResizePointermove);
+  window.addEventListener('pointerup', onResizePointerup);
+  window.addEventListener('pointercancel', onResizePointerup);
+}
+
+function onResizePointermove(event: PointerEvent) {
+  if (!resizing.value || !layout.value) return;
+  const rect = layout.value.getBoundingClientRect();
+  emit('resize-outline', rect.right - event.clientX);
+}
+
+function onResizePointerup() {
+  resizing.value = false;
+  window.removeEventListener('pointermove', onResizePointermove);
+  window.removeEventListener('pointerup', onResizePointerup);
+  window.removeEventListener('pointercancel', onResizePointerup);
+}
+
+onBeforeUnmount(() => {
+  onResizePointerup();
+});
 </script>
 
 <template>
@@ -43,10 +80,11 @@ const emit = defineEmits<{
       大纲
     </button>
 
-    <div class="writing-surface__layout">
+    <div ref="layout" class="writing-surface__layout">
       <div class="writing-surface__card">
         <MarkdownRichEditor
           v-if="props.mode !== 'source-edit'"
+          ref="richEditor"
           :model-value="props.modelValue"
           :mode="props.mode"
           @update:model-value="emit('update:modelValue', $event)"
@@ -63,12 +101,17 @@ const emit = defineEmits<{
         class="writing-outline-pane"
         :style="{ width: `${props.outlineWidth}px` }"
       >
+        <div
+          class="writing-outline-resize"
+          :class="{ 'writing-outline-resize--active': resizing }"
+          @pointerdown="onResizePointerdown"
+        />
         <button
           v-for="heading in props.headings"
           :key="heading.id"
           class="writing-outline-item"
           type="button"
-          @click="emit('select-heading', heading.id)"
+          @click="onSelectHeading(heading.id)"
         >
           {{ heading.text }}
         </button>
@@ -141,6 +184,7 @@ const emit = defineEmits<{
 }
 
 .writing-outline-pane {
+  position: relative;
   flex: 0 0 auto;
   min-height: 0;
   display: flex;
@@ -153,12 +197,37 @@ const emit = defineEmits<{
   background: rgba(255, 255, 255, 0.42);
 }
 
+.writing-outline-resize {
+  position: absolute;
+  top: 0;
+  left: -6px;
+  width: 12px;
+  height: 100%;
+  cursor: col-resize;
+}
+
+.writing-outline-resize::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 5px;
+  width: 2px;
+  height: 100%;
+  background: rgba(55, 46, 36, 0.18);
+}
+
+.writing-outline-resize--active::before,
+.writing-outline-resize:hover::before {
+  background: rgba(168, 95, 50, 0.7);
+}
+
 .writing-outline-item {
   border: 0;
   background: transparent;
   color: inherit;
   text-align: left;
   cursor: pointer;
+  line-height: 1.4;
 }
 
 .writing-surface__footer {
