@@ -78,6 +78,12 @@ export interface MainListContext {
   selectedEntryId: string | null;
 }
 
+export interface ConvertTextToDocumentRequest {
+  id: string;
+  workspaceId: string;
+  folderEntryId?: string | null;
+}
+
 // ----- 前端独有：窗口模式（不进 Rust） -----------------------------------
 
 /** 当前进程内窗口承担的角色，由 URL hash/query 决定。 */

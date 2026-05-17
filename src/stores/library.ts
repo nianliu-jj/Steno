@@ -20,6 +20,10 @@ export const useLibraryStore = defineStore('library', () => {
   const visibleEntries = computed(() =>
     entries.value.filter(entry => typeFilters.value.includes(entry.kind)),
   );
+  const currentWorkspaceLabel = computed(() =>
+    context.value.workspaceId ? context.value.workspaceId : '',
+  );
+  const currentGroupId = computed(() => context.value.groupEntryId);
 
   const stats = computed(() => ({
     folders: visibleEntries.value.filter(entry => entry.kind === 'folder').length,
@@ -42,6 +46,8 @@ export const useLibraryStore = defineStore('library', () => {
     context,
     typeFilters,
     visibleEntries,
+    currentWorkspaceLabel,
+    currentGroupId,
     stats,
     loadMainList,
     loadWorkspaceTree,

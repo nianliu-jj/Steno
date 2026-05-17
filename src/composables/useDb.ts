@@ -10,6 +10,7 @@ import { invoke } from '@tauri-apps/api/core';
 
 import type {
   CanvasPosition,
+  ConvertTextToDocumentRequest,
   LibraryEntry,
   MainListContext,
   Note,
@@ -46,6 +47,10 @@ export function useDb() {
 
   function listWorkspaceTree(workspaceId: string) {
     return invoke<LibraryEntry[]>('list_workspace_tree', { workspaceId });
+  }
+
+  function convertTextToDocument(input: ConvertTextToDocumentRequest) {
+    return invoke<LibraryEntry>('convert_text_to_document', { input });
   }
 
   function deleteNote(id: string) {
@@ -122,6 +127,7 @@ export function useDb() {
     searchNotes,
     listLibraryEntries,
     listWorkspaceTree,
+    convertTextToDocument,
     deleteNote,
     setNotePinned,
     listPinnedNotes,
