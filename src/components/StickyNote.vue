@@ -2,22 +2,12 @@
 // 置顶便签窗口顶级视图（mode === 'sticky'）。
 // 每条置顶笔记对应一个独立 webview，label = `sticky-{uuid}`，URL = index.html。
 // noteId 由 ui store 从 label 抽出后通过 prop 传进来。
-//
-// 行为（plan Task 6）：
-// - mount：getNote(id) 拉数据 → 应用 pinnedWindowConfig (尺寸/位置/外观)
-// - 阅读模式：markdown 预览 + 标题 + 标签
-// - 双击内容 → 编辑模式（MarkdownEditor）；双击空白 / 点"完成" → flushSave + 回阅读
-// - 内容编辑 1000ms debounce → notes.saveDraft
-// - 样式工具栏（opacity / color / fontSize）→ 300ms debounce → notes.updatePinnedConfig
-// - 取消置顶按钮 → setNotePinned(id, false) + close 当前窗口
-//
-// 窗口本身由 window_manager::open_sticky_note 创建（transparent + always_on_top +
-// skip_taskbar + decorations=false），尺寸/位置在前端 mount 时按 config 调整。
-import { computed, onMounted, ref, watch } from 'vue';
-import { NButton, NColorPicker, NIcon, NInput, NPopselect, NSlider } from 'naive-ui';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { NButton, NIcon, NInput, NPopselect } from 'naive-ui';
 
 import MarkdownEditor from '@/components/MarkdownEditor.vue';
 import { useAutosave } from '@/composables/useAutosave';
+import { emitNoteSaved } from '@/composables/useAppEvents';
 import { useDb } from '@/composables/useDb';
 import { useMarkdown } from '@/composables/useMarkdown';
 import { useWindow } from '@/composables/useWindow';
@@ -27,20 +17,19 @@ import type { Note, PinnedWindowConfig, SaveNoteRequest } from '@/types/steno';
 interface Props {
   noteId: string;
 }
+
 const props = defineProps<Props>();
 
 const db = useDb();
 const notes = useNotesStore();
 const win = useWindow();
-const { renderHtml } = useMarkdown();
-
-// ----- 默认外观 -------------------------------------------------------
+const { renderHtml, countWords } = useMarkdown();
 
 const DEFAULT_CONFIG: PinnedWindowConfig = {
   width: 280,
   height: 220,
-  opacity: 1.0,
-  color: '#fff7cc',
+  opacity: 1,
+  color: '',
   fontSize: 14,
 };
 
@@ -51,66 +40,90 @@ const FONT_OPTIONS = [
   { label: '特大', value: 18 },
 ];
 
-// ----- 数据 -----------------------------------------------------------
-
 const loaded = ref(false);
 const editing = ref(false);
 const title = ref('');
+const titleDraft = ref('');
 const content = ref('');
 const tags = ref<string[]>([]);
 const config = ref<PinnedWindowConfig>({ ...DEFAULT_CONFIG });
+const isTitleEditing = ref(false);
+const titleCommitInFlight = ref(false);
+const titleInputRef = ref<{ focus: () => void } | null>(null);
+const lastSavedNote = ref<Note | null>(null);
 
 const renderedHtml = computed(() => renderHtml(content.value));
+const wordCount = computed(() => countWords(content.value));
+const lineCount = computed(() => (content.value ? content.value.split(/\r?\n/).length : 0));
 
-// ----- 内容自动保存 ---------------------------------------------------
-
-const contentSave = useAutosave(async (payload: SaveNoteRequest) => {
-  await notes.saveDraft(payload);
+const {
+  status,
+  savedAt,
+  error,
+  scheduleSave,
+  flushSave,
+} = useAutosave(async (payload: SaveNoteRequest) => {
+  lastSavedNote.value = await notes.saveDraft(payload);
+  return lastSavedNote.value;
 });
-
-watch([title, content], () => {
-  if (!loaded.value) return;
-  contentSave.scheduleSave({
-    id: props.noteId,
-    title: title.value || undefined,
-    content: content.value,
-    tags: tags.value,
-    isPinned: true,
-    pinnedWindowConfig: config.value,
-  });
-});
-
-// ----- 样式自动保存（独立 debounce, 走 update_pinned_window_config） ----
 
 const configSave = useAutosave<PinnedWindowConfig>(
-  async cfg => {
+  async (cfg) => {
     await notes.updatePinnedConfig(props.noteId, cfg);
   },
   { delayMs: 300 },
 );
 
+const saveStatusText = computed(() => {
+  switch (status.value) {
+    case 'scheduled':
+      return '编辑中…';
+    case 'saving':
+      return '保存中…';
+    case 'saved':
+      return savedAt.value
+        ? `已保存 ${savedAt.value.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
+        : '已保存';
+    case 'error':
+      return `保存失败：${String(error.value).slice(0, 40)}`;
+    default:
+      return '';
+  }
+});
+
+const footerStatusText = computed(() => {
+  const prefix = `${wordCount.value} 字 · ${lineCount.value} 行`;
+  return saveStatusText.value ? `${prefix} · ${saveStatusText.value}` : prefix;
+});
+
+const rootStyle = computed(() => ({
+  '--sticky-font-size': `${config.value.fontSize}px`,
+}));
+
+watch([title, content], () => {
+  if (!loaded.value) return;
+  scheduleSave(buildSavePayload());
+});
+
 watch(
   () => ({ ...config.value }),
-  cfg => {
+  (cfg) => {
     if (!loaded.value) return;
     configSave.scheduleSave(cfg);
   },
   { deep: true },
 );
 
-// 样式变更也要立即可视化（窗口尺寸）。
 watch(
   () => [config.value.width, config.value.height] as const,
   (next, prev) => {
     if (!loaded.value) return;
-    const [w, h] = next;
-    const [prevW, prevH] = prev ?? [0, 0];
-    if (w === prevW && h === prevH) return;
-    void win.setCurrentSize(w, h);
+    const [width, height] = next;
+    const [prevWidth, prevHeight] = prev ?? [0, 0];
+    if (width === prevWidth && height === prevHeight) return;
+    void win.setCurrentSize(width, height);
   },
 );
-
-// ----- 启动加载 -------------------------------------------------------
 
 onMounted(async () => {
   try {
@@ -130,9 +143,22 @@ onMounted(async () => {
 
 function hydrateFromNote(note: Note) {
   title.value = note.title;
+  titleDraft.value = note.title;
   content.value = note.content;
   tags.value = [...note.tags];
   config.value = { ...DEFAULT_CONFIG, ...note.pinnedWindowConfig };
+  lastSavedNote.value = note;
+}
+
+function buildSavePayload(): SaveNoteRequest {
+  return {
+    id: props.noteId,
+    title: title.value || undefined,
+    content: content.value,
+    tags: tags.value,
+    isPinned: true,
+    pinnedWindowConfig: config.value,
+  };
 }
 
 async function applyConfig(cfg: PinnedWindowConfig) {
@@ -146,20 +172,62 @@ async function applyConfig(cfg: PinnedWindowConfig) {
   }
 }
 
-// ----- 双击切换编辑 ----------------------------------------------------
-
 function enterEdit() {
   editing.value = true;
 }
 
 async function exitEdit() {
   editing.value = false;
-  await contentSave.flushSave();
+  await flushSave();
 }
 
-// 双击 .sticky-content 的非可交互区域时回到阅读模式
-function onBackgroundDblclick(e: MouseEvent) {
-  const target = e.target as HTMLElement | null;
+async function enterTitleEdit() {
+  titleDraft.value = title.value;
+  isTitleEditing.value = true;
+  await nextTick();
+  titleInputRef.value?.focus();
+}
+
+function cancelTitleEdit() {
+  titleDraft.value = title.value;
+  isTitleEditing.value = false;
+}
+
+async function commitTitleEdit() {
+  if (!isTitleEditing.value || titleCommitInFlight.value) return;
+  titleCommitInFlight.value = true;
+  try {
+    const nextTitle = titleDraft.value.trim();
+    const changed = nextTitle !== title.value;
+    title.value = nextTitle;
+    titleDraft.value = nextTitle;
+    if (changed) {
+      await nextTick();
+    }
+    await flushSave();
+    if (status.value === 'error') return;
+    isTitleEditing.value = false;
+    if (changed && lastSavedNote.value) {
+      await emitNoteSaved(lastSavedNote.value);
+    }
+  } finally {
+    titleCommitInFlight.value = false;
+  }
+}
+
+function onTitleInputKeydown(event: KeyboardEvent) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    void commitTitleEdit();
+  }
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    cancelTitleEdit();
+  }
+}
+
+function onBackgroundDblclick(event: MouseEvent) {
+  const target = event.target as HTMLElement | null;
   if (target?.closest('.md-editor__textarea')) return;
   if (target?.closest('button, input, [contenteditable]')) return;
   if (editing.value) {
@@ -169,13 +237,10 @@ function onBackgroundDblclick(e: MouseEvent) {
   }
 }
 
-// ----- 顶栏 + 操作 -----------------------------------------------------
-
-async function onHeaderPointerdown(e: PointerEvent) {
-  if (e.button !== 0) return;
-  // 点中按钮不拖
-  if ((e.target as HTMLElement | null)?.closest('button')) return;
-  e.preventDefault();
+async function onHeaderPointerdown(event: PointerEvent) {
+  if (event.button !== 0) return;
+  if ((event.target as HTMLElement | null)?.closest('button')) return;
+  event.preventDefault();
   try {
     await win.startDragCurrent();
   } catch (err) {
@@ -185,7 +250,7 @@ async function onHeaderPointerdown(e: PointerEvent) {
 
 async function onUnpinClick() {
   try {
-    await contentSave.flushSave();
+    await flushSave();
     await notes.unpinNote(props.noteId);
   } catch (e) {
     console.error('[sticky] unpin failed:', e);
@@ -193,50 +258,84 @@ async function onUnpinClick() {
   try {
     await win.closeStickyNote(props.noteId);
   } catch {
-    // 兜底
     await win.closeCurrent();
   }
 }
 
 async function onCloseClick() {
-  await contentSave.flushSave();
+  await flushSave();
   await win.hideCurrent();
 }
-
-// ----- CSS 样式绑定 ----------------------------------------------------
-
-const rootStyle = computed(() => ({
-  '--sticky-bg': config.value.color,
-  '--sticky-opacity': String(config.value.opacity),
-  '--sticky-font-size': `${config.value.fontSize}px`,
-}));
-
-const COLOR_PRESETS = [
-  '#fff7cc',
-  '#ffd6cc',
-  '#ccf2ff',
-  '#d4ffcc',
-  '#ead4ff',
-  '#f0f0f0',
-];
 </script>
 
 <template>
   <div class="sticky-root" :style="rootStyle">
     <header class="sticky-header" @pointerdown="onHeaderPointerdown">
-      <NInput
-        v-model:value="title"
-        size="tiny"
-        placeholder="无标题"
-        :bordered="false"
-        class="sticky-title"
-        @pointerdown.stop
-      />
+      <div class="sticky-title-wrap" @pointerdown.stop>
+        <NInput
+          v-if="isTitleEditing"
+          ref="titleInputRef"
+          v-model:value="titleDraft"
+          size="tiny"
+          placeholder="无标题"
+          :bordered="false"
+          class="sticky-title"
+          data-testid="sticky-title-input"
+          @blur="commitTitleEdit"
+          @keydown="onTitleInputKeydown"
+        />
+        <span
+          v-else
+          class="sticky-title-text"
+          data-testid="sticky-title-text"
+        >
+          {{ title || '无标题' }}
+        </span>
+        <NButton
+          v-if="!isTitleEditing"
+          quaternary
+          circle
+          size="tiny"
+          class="sticky-icon-btn"
+          title="编辑标题"
+          data-testid="sticky-title-edit"
+          @click="enterTitleEdit"
+        >
+          <template #icon>
+            <NIcon>
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+              </svg>
+            </NIcon>
+          </template>
+        </NButton>
+        <NButton
+          v-else
+          quaternary
+          circle
+          size="tiny"
+          class="sticky-icon-btn"
+          title="保存标题"
+          data-testid="sticky-title-save"
+          @click="commitTitleEdit"
+        >
+          <template #icon>
+            <NIcon>
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+            </NIcon>
+          </template>
+        </NButton>
+      </div>
+
       <div class="sticky-actions">
         <NButton
           quaternary
           circle
           size="tiny"
+          class="sticky-icon-btn"
           title="取消置顶并关闭"
           @click="onUnpinClick"
         >
@@ -252,6 +351,7 @@ const COLOR_PRESETS = [
           quaternary
           circle
           size="tiny"
+          class="sticky-icon-btn"
           title="隐藏便签"
           @click="onCloseClick"
         >
@@ -290,27 +390,8 @@ const COLOR_PRESETS = [
           size="small"
           trigger="click"
         >
-          <button class="sticky-styler-btn" title="字号">
-            A
-          </button>
+          <button class="sticky-styler-btn" title="字号">A</button>
         </NPopselect>
-        <div class="sticky-color-picker">
-          <NColorPicker
-            v-model:value="config.color"
-            :show-alpha="false"
-            :swatches="COLOR_PRESETS"
-            size="small"
-          />
-        </div>
-        <div class="sticky-opacity">
-          <NSlider
-            v-model:value="config.opacity"
-            :min="0.5"
-            :max="1"
-            :step="0.05"
-            :tooltip="false"
-          />
-        </div>
       </div>
       <button
         v-if="editing"
@@ -320,6 +401,9 @@ const COLOR_PRESETS = [
       >
         完成
       </button>
+      <span class="sticky-status" data-testid="sticky-footer-status">
+        {{ footerStatusText }}
+      </span>
     </footer>
   </div>
 </template>
@@ -330,90 +414,150 @@ const COLOR_PRESETS = [
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  background: var(--sticky-bg);
-  color: #2a2a2a;
-  border-radius: 6px;
+  background: var(--sticky-surface);
+  color: var(--sticky-fg);
+  border: 1px solid var(--sticky-border);
+  border-radius: 8px;
   overflow: hidden;
+  box-shadow: 0 14px 30px var(--sticky-shadow);
   font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  /* opacity 作用于整窗（包括 transparent 出来的圆角阴影），便于"轻便签"观感 */
-  opacity: var(--sticky-opacity);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+.sticky-header,
+.sticky-footer {
+  background: color-mix(in srgb, var(--sticky-surface) 86%, var(--app-surface-2));
 }
 
 .sticky-header {
   display: flex;
   align-items: center;
-  gap: 2px;
-  height: 22px;
-  padding: 0 4px 0 8px;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 6px 4px 10px;
   -webkit-user-select: none;
   user-select: none;
   cursor: grab;
 }
+
 .sticky-header:active {
   cursor: grabbing;
 }
+
+.sticky-title-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .sticky-title {
   flex: 1;
-  background: transparent;
+  min-width: 0;
 }
+
 .sticky-title :deep(input) {
   font-size: 12px;
-  color: #444;
+  color: var(--sticky-fg);
 }
+
+.sticky-title-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--sticky-muted);
+  font-size: 12px;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .sticky-actions {
   display: flex;
   align-items: center;
-  gap: 1px;
-  color: #444;
+  gap: 2px;
+}
+
+.sticky-icon-btn,
+.sticky-styler-btn,
+.sticky-done-btn {
+  color: var(--sticky-fg);
+}
+
+.sticky-icon-btn:hover,
+.sticky-styler-btn:hover,
+.sticky-done-btn:hover {
+  background: var(--app-accent-soft);
 }
 
 .sticky-content {
   flex: 1;
   min-height: 0;
-  font-size: var(--sticky-font-size);
-  line-height: 1.55;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  font-size: var(--sticky-font-size);
+  line-height: 1.55;
 }
+
 .sticky-content--editing {
-  background: rgba(255, 255, 255, 0.4);
+  background: var(--sticky-editor);
 }
 
 .sticky-preview {
   flex: 1;
-  padding: 4px 12px 6px;
+  padding: 6px 12px 8px;
   overflow: auto;
-  color: #2a2a2a;
+  color: var(--sticky-fg);
 }
+
 .sticky-preview :deep(h1),
 .sticky-preview :deep(h2),
 .sticky-preview :deep(h3) {
   margin: 6px 0 4px;
 }
-.sticky-preview :deep(h1) { font-size: calc(var(--sticky-font-size) * 1.25); }
-.sticky-preview :deep(h2) { font-size: calc(var(--sticky-font-size) * 1.12); }
-.sticky-preview :deep(h3) { font-size: var(--sticky-font-size); font-weight: 700; }
-.sticky-preview :deep(p) { margin: 2px 0; }
+
+.sticky-preview :deep(h1) {
+  font-size: calc(var(--sticky-font-size) * 1.25);
+}
+
+.sticky-preview :deep(h2) {
+  font-size: calc(var(--sticky-font-size) * 1.12);
+}
+
+.sticky-preview :deep(h3) {
+  font-size: var(--sticky-font-size);
+  font-weight: 700;
+}
+
+.sticky-preview :deep(p) {
+  margin: 2px 0;
+}
+
+.sticky-preview :deep(code),
+.sticky-preview :deep(pre) {
+  background: var(--sticky-code);
+}
+
 .sticky-preview :deep(code) {
-  background: rgba(0, 0, 0, 0.08);
   padding: 1px 4px;
   border-radius: 3px;
 }
+
 .sticky-preview :deep(pre) {
-  background: rgba(0, 0, 0, 0.08);
   padding: 6px 8px;
   border-radius: 4px;
   overflow: auto;
   font-size: calc(var(--sticky-font-size) * 0.9);
 }
+
 .sticky-preview :deep(blockquote) {
   margin: 4px 0;
   padding-left: 8px;
-  border-left: 2px solid rgba(0, 0, 0, 0.2);
-  color: #555;
+  border-left: 2px solid var(--sticky-quote);
+  color: var(--sticky-muted);
 }
+
 .sticky-preview :deep(ul),
 .sticky-preview :deep(ol) {
   margin: 2px 0;
@@ -423,59 +567,43 @@ const COLOR_PRESETS = [
 .sticky-footer {
   display: flex;
   align-items: center;
-  gap: 6px;
-  height: 24px;
-  padding: 0 6px;
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  gap: 8px;
+  min-height: 30px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--sticky-border);
 }
+
 .sticky-styler {
-  flex: 1;
   display: flex;
   align-items: center;
   gap: 6px;
 }
+
 .sticky-styler-btn {
   width: 20px;
   height: 18px;
-  font-size: 12px;
-  font-weight: 700;
-  background: transparent;
-  color: #444;
   border: none;
   border-radius: 3px;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
-}
-.sticky-styler-btn:hover {
-  background: rgba(0, 0, 0, 0.08);
-}
-.sticky-color-picker {
-  width: 28px;
-}
-.sticky-color-picker :deep(.n-color-picker) {
-  width: 100%;
-}
-.sticky-color-picker :deep(.n-color-picker-trigger) {
-  height: 16px;
-  min-height: 16px;
-}
-.sticky-opacity {
-  flex: 1;
-  min-width: 50px;
-  display: flex;
-  align-items: center;
 }
 
 .sticky-done-btn {
-  height: 18px;
+  height: 20px;
   padding: 0 8px;
-  font-size: 11px;
-  background: rgba(0, 0, 0, 0.08);
-  color: #2a2a2a;
   border: none;
-  border-radius: 3px;
+  border-radius: 4px;
+  background: transparent;
+  font-size: 11px;
   cursor: pointer;
 }
-.sticky-done-btn:hover {
-  background: rgba(0, 0, 0, 0.16);
+
+.sticky-status {
+  margin-left: auto;
+  color: var(--sticky-muted);
+  font-size: 11px;
+  white-space: nowrap;
 }
 </style>

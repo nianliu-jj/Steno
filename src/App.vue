@@ -6,10 +6,11 @@
 // Naive UI 的 useMessage，因此根节点需要套 NMessageProvider。页面型 mode
 // 在 main 窗口里通过 `steno:navigate` 事件切换；floating / sticky 仍由独立
 // 窗口 label 初始化。
-import { computed, onMounted, watch } from 'vue';
+import { computed, onMounted, onUnmounted, watch } from 'vue';
 import { NConfigProvider, NMessageProvider, NModal, darkTheme } from 'naive-ui';
 import { useDark } from '@vueuse/core';
 
+import { listenThemeModeChanged } from '@/composables/useAppEvents';
 import { useUiStore } from '@/stores/ui';
 import { useSettingsStore } from '@/stores/settings';
 import FloatingEditor from '@/components/FloatingEditor.vue';
@@ -22,13 +23,36 @@ import PlaceholderView from '@/views/PlaceholderView.vue';
 import SettingsView from '@/views/SettingsView.vue';
 import ZenMode from '@/views/ZenMode.vue';
 import type { WindowMode } from '@/types/steno';
+import { getAppThemeVars } from '@/theme';
 
 const ui = useUiStore();
 const settings = useSettingsStore();
 
 const isDark = useDark();
+const themeVars = computed(() => getAppThemeVars(isDark.value));
 
 const naiveTheme = computed(() => (isDark.value ? darkTheme : null));
+const themeRootStyle = computed(() => ({
+  '--app-bg': themeVars.value.bg,
+  '--app-surface': themeVars.value.surface,
+  '--app-surface-2': themeVars.value.surface2,
+  '--app-fg': themeVars.value.fg,
+  '--app-muted': themeVars.value.muted,
+  '--app-faint': themeVars.value.faint,
+  '--app-border': themeVars.value.border,
+  '--app-accent': themeVars.value.accent,
+  '--app-accent-soft': themeVars.value.accentSoft,
+  '--sticky-surface': themeVars.value.stickySurface,
+  '--sticky-surface-alt': themeVars.value.stickySurfaceAlt,
+  '--sticky-fg': themeVars.value.stickyFg,
+  '--sticky-muted': themeVars.value.stickyMuted,
+  '--sticky-border': themeVars.value.stickyBorder,
+  '--sticky-editor': themeVars.value.stickyEditor,
+  '--sticky-code': themeVars.value.stickyCode,
+  '--sticky-quote': themeVars.value.stickyQuote,
+  '--sticky-shadow': themeVars.value.stickyShadow,
+  '--sticky-danger': themeVars.value.stickyDanger,
+}));
 
 const shellNavItems = computed<
   { key: WindowMode; label: string; active: boolean }[]
@@ -70,9 +94,20 @@ const shellModes = new Set<WindowMode>([
   'translate',
 ]);
 
+let unlistenThemeMode: (() => void) | undefined;
+
 // 启动加载 settings（Pinia store 自行缓存）。失败不阻塞 UI，错误会进 store.error。
 onMounted(() => {
   void settings.load();
+  void listenThemeModeChanged((mode) => {
+    settings.state.themeMode = mode;
+  }).then((unlisten) => {
+    unlistenThemeMode = unlisten;
+  }).catch(() => {});
+});
+
+onUnmounted(() => {
+  unlistenThemeMode?.();
 });
 
 // themeMode 优先级：用户在 SettingsView 显式切换 → 覆盖 system；'system' 时
@@ -91,48 +126,56 @@ watch(
 </script>
 
 <template>
-  <NConfigProvider :theme="naiveTheme">
-    <NMessageProvider>
-      <template v-if="shellModes.has(ui.mode)">
-        <MainWorkbenchShell :nav-items="shellNavItems">
-          <MainView v-if="ui.mode === 'main'" />
-          <NoteEditorView v-else-if="ui.mode === 'note-editor'" />
-          <CanvasView v-else-if="ui.mode === 'canvas'" />
-          <PlaceholderView
-            v-else-if="placeholderMeta"
-            :title="placeholderMeta.title"
-            :description="placeholderMeta.description"
-          />
-        </MainWorkbenchShell>
-        <NModal
-          :show="ui.settingsOpen"
-          preset="card"
-          :mask-closable="true"
-          :auto-focus="false"
-          @update:show="value => !value && ui.closeSettings()"
-        >
-          <SettingsView embedded @close="ui.closeSettings()" />
-        </NModal>
-      </template>
-      <FloatingEditor v-else-if="ui.mode === 'floating'" />
-      <StickyNote
-        v-else-if="ui.mode === 'sticky' && ui.noteId"
-        :note-id="ui.noteId"
-      />
-      <SettingsView v-else-if="ui.mode === 'settings'" />
-      <ZenMode v-else-if="ui.mode === 'zen'" />
-      <section v-else class="mode-fallback">
-        <h1>Steno · {{ ui.mode }}</h1>
-        <p>
-          当前窗口模式：<code>{{ ui.mode }}</code>
-          <template v-if="ui.noteId">&nbsp;· note id = <code>{{ ui.noteId }}</code></template>
-        </p>
-      </section>
-    </NMessageProvider>
-  </NConfigProvider>
+  <div class="app-theme-root" :class="{ dark: isDark }" :style="themeRootStyle">
+    <NConfigProvider :theme="naiveTheme">
+      <NMessageProvider>
+        <template v-if="shellModes.has(ui.mode)">
+          <MainWorkbenchShell :nav-items="shellNavItems">
+            <MainView v-if="ui.mode === 'main'" />
+            <NoteEditorView v-else-if="ui.mode === 'note-editor'" />
+            <CanvasView v-else-if="ui.mode === 'canvas'" />
+            <PlaceholderView
+              v-else-if="placeholderMeta"
+              :title="placeholderMeta.title"
+              :description="placeholderMeta.description"
+            />
+          </MainWorkbenchShell>
+          <NModal
+            :show="ui.settingsOpen"
+            preset="card"
+            :mask-closable="true"
+            :auto-focus="false"
+            @update:show="value => !value && ui.closeSettings()"
+          >
+            <SettingsView embedded @close="ui.closeSettings()" />
+          </NModal>
+        </template>
+        <FloatingEditor v-else-if="ui.mode === 'floating'" />
+        <StickyNote
+          v-else-if="ui.mode === 'sticky' && ui.noteId"
+          :note-id="ui.noteId"
+        />
+        <SettingsView v-else-if="ui.mode === 'settings'" />
+        <ZenMode v-else-if="ui.mode === 'zen'" />
+        <section v-else class="mode-fallback">
+          <h1>Steno · {{ ui.mode }}</h1>
+          <p>
+            当前窗口模式：<code>{{ ui.mode }}</code>
+            <template v-if="ui.noteId">&nbsp;· note id = <code>{{ ui.noteId }}</code></template>
+          </p>
+        </section>
+      </NMessageProvider>
+    </NConfigProvider>
+  </div>
 </template>
 
 <style scoped>
+.app-theme-root {
+  min-height: 100vh;
+  background: var(--app-bg);
+  color: var(--app-fg);
+}
+
 .mode-fallback {
   height: 100vh;
   display: flex;

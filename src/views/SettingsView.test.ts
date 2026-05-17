@@ -9,6 +9,10 @@ import { defineComponent, h } from 'vue';
 import SettingsView from './SettingsView.vue';
 import SettingsViewSource from './SettingsView.vue?raw';
 
+const { emitThemeModeChanged } = vi.hoisted(() => ({
+  emitThemeModeChanged: vi.fn(() => Promise.resolve()),
+}));
+
 const getDataPaths = vi.fn(() =>
   Promise.resolve({
     dataDir: 'D:\\Steno\\data',
@@ -52,6 +56,10 @@ vi.mock('@/stores/ui', () => ({
   useUiStore: () => ({
     navigateToMain,
   }),
+}));
+
+vi.mock('@/composables/useAppEvents', () => ({
+  emitThemeModeChanged,
 }));
 
 const WrappedSettingsView = defineComponent({
@@ -169,5 +177,16 @@ describe('SettingsView', () => {
     expect(SettingsViewSource).toContain('height: min(660px, calc(100vh - 48px));');
     expect(SettingsViewSource).toContain(':global(.dark) .settings-panel');
     expect(SettingsViewSource).toContain('@media (max-width: 720px)');
+  });
+
+  it('broadcasts theme mode after saving the appearance setting', async () => {
+    const wrapper = mountSettingsView();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="settings-tab-appearance"]').trigger('click');
+    await wrapper.get('input[value="dark"]').setValue(true);
+
+    expect(updateSetting).toHaveBeenCalledWith('themeMode', 'dark');
+    expect(emitThemeModeChanged).toHaveBeenCalledWith('dark');
   });
 });

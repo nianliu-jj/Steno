@@ -2,7 +2,7 @@
 
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { reactive, type PropType } from 'vue';
+import { reactive, ref, type PropType } from 'vue';
 
 type ShellNavItem = {
   label: string;
@@ -20,9 +20,24 @@ const settingsState = reactive({
 });
 
 const loadSettings = vi.fn(() => Promise.resolve());
+const darkRef = ref(false);
+const themeModeListeners: Array<(mode: 'light' | 'dark' | 'system') => void> = [];
 
 vi.mock('@vueuse/core', () => ({
-  useDark: () => ({ value: false }),
+  useDark: () => darkRef,
+}));
+
+vi.mock('@/composables/useAppEvents', () => ({
+  listenThemeModeChanged: vi.fn(async (handler: (mode: 'light' | 'dark' | 'system') => void) => {
+    themeModeListeners.push(handler);
+    return () => {
+      const index = themeModeListeners.indexOf(handler);
+      if (index >= 0) {
+        themeModeListeners.splice(index, 1);
+      }
+    };
+  }),
+  emitThemeModeChanged: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('naive-ui', async () => {
@@ -193,6 +208,8 @@ describe('App', () => {
     uiState.closeSettings.mockClear();
     settingsState.themeMode = 'system';
     loadSettings.mockClear();
+    darkRef.value = false;
+    themeModeListeners.splice(0, themeModeListeners.length);
   });
 
   it('keeps the current workbench page in the background and opens settings as an embedded modal', async () => {
@@ -222,5 +239,16 @@ describe('App', () => {
     expect(wrapper.find('[data-testid="shell"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="settings-modal"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="settings-view"]').exists()).toBe(true);
+  });
+
+  it('updates dark mode when a theme event is received from another window', async () => {
+    mount(App);
+
+    expect(darkRef.value).toBe(false);
+
+    themeModeListeners[0]?.('dark');
+    await Promise.resolve();
+
+    expect(darkRef.value).toBe(true);
   });
 });

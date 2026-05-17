@@ -13,6 +13,7 @@ import {
   useMessage,
 } from 'naive-ui';
 
+import { emitThemeModeChanged } from '@/composables/useAppEvents';
 import { useDb } from '@/composables/useDb';
 import { useSettingsStore, type EditorMode, type ThemeMode } from '@/stores/settings';
 import { useUiStore } from '@/stores/ui';
@@ -45,6 +46,7 @@ const activeSection = ref<SettingsSection>('general');
 async function onThemeChange(value: ThemeMode) {
   try {
     await settings.update('themeMode', value);
+    await emitThemeModeChanged(value);
   } catch (e) {
     message.error(`主题保存失败：${String(e)}`);
   }

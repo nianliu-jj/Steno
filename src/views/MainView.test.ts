@@ -4,7 +4,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { NConfigProvider, NMessageProvider } from 'naive-ui';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { defineComponent, h } from 'vue';
+import { defineComponent, h, reactive } from 'vue';
 
 import MainView from './MainView.vue';
 import MainViewSource from './MainView.vue?raw';
@@ -15,6 +15,15 @@ const navigateTo = vi.fn();
 const exportNoteMarkdown = vi.fn(() => Promise.resolve('D:/exports/note.md'));
 const exportNoteHtml = vi.fn(() => Promise.resolve('D:/exports/note.html'));
 const exportNotePdf = vi.fn(() => Promise.resolve('D:/exports/note.pdf'));
+const noteSavedListeners: Array<(note: Note) => void> = [];
+const syncExternalNote = vi.fn((note: Note) => {
+  const index = notesState.findIndex(item => item.id === note.id);
+  if (index >= 0) {
+    notesState[index] = note;
+  } else {
+    notesState.unshift(note);
+  }
+});
 
 vi.mock('@/composables/useWindow', () => ({
   useWindow: () => ({
@@ -23,6 +32,18 @@ vi.mock('@/composables/useWindow', () => ({
     openSettings: vi.fn(() => Promise.resolve()),
     closeStickyNote: vi.fn(() => Promise.resolve()),
     openStickyNote: vi.fn(() => Promise.resolve()),
+  }),
+}));
+
+vi.mock('@/composables/useAppEvents', () => ({
+  listenNoteSaved: vi.fn(async (handler: (note: Note) => void) => {
+    noteSavedListeners.push(handler);
+    return () => {
+      const index = noteSavedListeners.indexOf(handler);
+      if (index >= 0) {
+        noteSavedListeners.splice(index, 1);
+      }
+    };
   }),
 }));
 
@@ -46,6 +67,7 @@ vi.mock('@/stores/notes', () => ({
     unpinNote: vi.fn(() => Promise.resolve()),
     saveDraft: notesStoreOverrides.saveDraft ?? vi.fn(() => Promise.resolve(null)),
     removeNote: notesStoreOverrides.removeNote ?? vi.fn(() => Promise.resolve()),
+    syncExternalNote,
   }),
 }));
 
@@ -110,6 +132,8 @@ describe('MainView', () => {
     exportNoteHtml.mockClear();
     exportNotePdf.mockReset();
     exportNotePdf.mockResolvedValue('D:/exports/note.pdf');
+    syncExternalNote.mockClear();
+    noteSavedListeners.splice(0, noteSavedListeners.length);
   });
 
   it('renders notes as layout v2 cards', async () => {
@@ -382,5 +406,22 @@ describe('MainView', () => {
     expect(removeNote).toHaveBeenCalledWith('note-ctx');
 
     print.mockRestore();
+  });
+
+  it('updates the visible card title when a sticky note save event arrives', async () => {
+    notesState = reactive([
+      makeNote({ id: 'note-1', title: '旧标题', content: '正文' }),
+    ]) as unknown as Note[];
+
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    noteSavedListeners[0]?.(makeNote({ id: 'note-1', title: '新标题', content: '正文' }));
+    await flushPromises();
+
+    expect(syncExternalNote).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'note-1', title: '新标题' }),
+    );
+    expect(wrapper.get('.note-card h3').text()).toBe('新标题');
   });
 });
