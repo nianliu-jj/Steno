@@ -29,6 +29,7 @@ export interface StenoSettings {
   noteEditorOutlineOpen: boolean;
   zenOutlineWidth: number;
   zenOutlineOpen: boolean;
+  mainListTypeFilters: string;
 }
 
 const DEFAULTS: StenoSettings = {
@@ -45,6 +46,7 @@ const DEFAULTS: StenoSettings = {
   noteEditorOutlineOpen: false,
   zenOutlineWidth: 300,
   zenOutlineOpen: true,
+  mainListTypeFilters: 'folder,group,document,text',
 };
 
 /** 后端 settings 表都是 TEXT；这里按字段把字符串还原成正确的 TS 类型。 */

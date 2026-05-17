@@ -53,6 +53,31 @@ export interface SearchNotesRequest {
   limit: number;
 }
 
+export type EntryKind = 'workspace' | 'folder' | 'group' | 'text' | 'document';
+
+export interface LibraryEntry {
+  id: string;
+  kind: EntryKind;
+  title: string;
+  previewText: string;
+  tags: string[];
+  workspaceId?: string | null;
+  parentId?: string | null;
+  groupId?: string | null;
+  filePath?: string | null;
+  wordCount?: number;
+  byteSize?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface MainListContext {
+  workspaceId: string | null;
+  folderEntryId: string | null;
+  groupEntryId: string | null;
+  selectedEntryId: string | null;
+}
+
 // ----- 前端独有：窗口模式（不进 Rust） -----------------------------------
 
 /** 当前进程内窗口承担的角色，由 URL hash/query 决定。 */

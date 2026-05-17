@@ -10,6 +10,8 @@ import { invoke } from '@tauri-apps/api/core';
 
 import type {
   CanvasPosition,
+  LibraryEntry,
+  MainListContext,
   Note,
   PinnedWindowConfig,
   SaveNoteRequest,
@@ -36,6 +38,14 @@ export function useDb() {
 
   function searchNotes(input: SearchNotesRequest) {
     return invoke<Note[]>('search_notes', { input });
+  }
+
+  function listLibraryEntries(context: MainListContext) {
+    return invoke<LibraryEntry[]>('list_library_entries', { context });
+  }
+
+  function listWorkspaceTree(workspaceId: string) {
+    return invoke<LibraryEntry[]>('list_workspace_tree', { workspaceId });
   }
 
   function deleteNote(id: string) {
@@ -110,6 +120,8 @@ export function useDb() {
     getNote,
     listNotes,
     searchNotes,
+    listLibraryEntries,
+    listWorkspaceTree,
     deleteNote,
     setNotePinned,
     listPinnedNotes,
