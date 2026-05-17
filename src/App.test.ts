@@ -2,7 +2,7 @@
 
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { reactive, type PropType } from 'vue';
+import { nextTick, reactive, type PropType } from 'vue';
 
 type ShellNavItem = {
   label: string;
@@ -20,9 +20,23 @@ const settingsState = reactive({
 });
 
 const loadSettings = vi.fn(() => Promise.resolve());
+const darkState = reactive({ value: false });
+const themeModeListeners = new Set<(value: 'light' | 'dark' | 'system') => void>();
 
 vi.mock('@vueuse/core', () => ({
-  useDark: () => ({ value: false }),
+  useDark: () => darkState,
+}));
+
+vi.mock('@/composables/useAppEvents', () => ({
+  useAppEvents: () => ({
+    emitThemeModeChanged: vi.fn(),
+    emitNoteSaved: vi.fn(),
+    listenThemeModeChanged: vi.fn(async handler => {
+      themeModeListeners.add(handler);
+      return () => themeModeListeners.delete(handler);
+    }),
+    listenNoteSaved: vi.fn(async () => () => {}),
+  }),
 }));
 
 vi.mock('naive-ui', async () => {
@@ -193,6 +207,8 @@ describe('App', () => {
     uiState.closeSettings.mockClear();
     settingsState.themeMode = 'system';
     loadSettings.mockClear();
+    darkState.value = false;
+    themeModeListeners.clear();
   });
 
   it('keeps the current workbench page in the background and opens settings as an embedded modal', async () => {
@@ -222,5 +238,21 @@ describe('App', () => {
     expect(wrapper.find('[data-testid="shell"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="settings-modal"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="settings-view"]').exists()).toBe(true);
+  });
+
+  it('mounts shared theme vars on the app root and updates dark mode after a theme event', async () => {
+    const wrapper = mount(App);
+
+    expect(wrapper.get('.app-theme-root').attributes('style')).toContain('--app-bg:');
+    expect(settingsState.themeMode).toBe('system');
+    expect(darkState.value).toBe(false);
+
+    for (const listener of themeModeListeners) {
+      listener('dark');
+    }
+    await nextTick();
+
+    expect(settingsState.themeMode).toBe('dark');
+    expect(darkState.value).toBe(true);
   });
 });

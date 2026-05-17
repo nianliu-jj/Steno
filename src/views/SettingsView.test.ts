@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { flushPromises, mount } from '@vue/test-utils';
-import { NConfigProvider, NMessageProvider } from 'naive-ui';
+import { NConfigProvider, NMessageProvider, NRadioGroup } from 'naive-ui';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, h } from 'vue';
@@ -20,6 +20,7 @@ const reloadShortcuts = vi.fn(() => Promise.resolve());
 const updateSetting = vi.fn(() => Promise.resolve());
 const loadSettings = vi.fn(() => Promise.resolve());
 const navigateToMain = vi.fn();
+const emitThemeModeChanged = vi.fn(() => Promise.resolve());
 
 vi.mock('@/composables/useDb', () => ({
   useDb: () => ({
@@ -51,6 +52,15 @@ vi.mock('@/stores/settings', () => ({
 vi.mock('@/stores/ui', () => ({
   useUiStore: () => ({
     navigateToMain,
+  }),
+}));
+
+vi.mock('@/composables/useAppEvents', () => ({
+  useAppEvents: () => ({
+    emitThemeModeChanged,
+    emitNoteSaved: vi.fn(),
+    listenThemeModeChanged: vi.fn(),
+    listenNoteSaved: vi.fn(),
   }),
 }));
 
@@ -88,6 +98,7 @@ describe('SettingsView', () => {
     updateSetting.mockClear();
     loadSettings.mockClear();
     navigateToMain.mockClear();
+    emitThemeModeChanged.mockClear();
   });
 
   it('renders the v2 header, category tabs, and footer actions', async () => {
@@ -162,6 +173,18 @@ describe('SettingsView', () => {
 
     expect(view.emitted('close')).toHaveLength(3);
     expect(navigateToMain).not.toHaveBeenCalled();
+  });
+
+  it('broadcasts the saved theme mode from the appearance tab', async () => {
+    const wrapper = mountSettingsView();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="settings-tab-appearance"]').trigger('click');
+    await wrapper.findComponent(NRadioGroup).vm.$emit('update:value', 'dark');
+    await flushPromises();
+
+    expect(updateSetting).toHaveBeenCalledWith('themeMode', 'dark');
+    expect(emitThemeModeChanged).toHaveBeenCalledWith('dark');
   });
 
   it('keeps the v2 panel sizing, dark theme hook, and narrow-screen responsive rules', () => {
