@@ -2,7 +2,7 @@
 
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { nextTick, reactive, type PropType } from 'vue';
+import { nextTick, reactive, ref, type PropType } from 'vue';
 
 type ShellNavItem = {
   label: string;
@@ -20,7 +20,7 @@ const settingsState = reactive({
 });
 
 const loadSettings = vi.fn(() => Promise.resolve());
-const darkState = reactive({ value: false });
+const darkState = ref(false);
 const themeModeListeners = new Set<(value: 'light' | 'dark' | 'system') => void>();
 const listenThemeModeChangedMock = vi.fn(
   async (handler: (value: 'light' | 'dark' | 'system') => void) => {
@@ -258,6 +258,7 @@ describe('App', () => {
     expect(wrapper.get('.app-theme-root').attributes('style')).toContain('--app-bg:');
     expect(settingsState.themeMode).toBe('system');
     expect(darkState.value).toBe(false);
+    expect(wrapper.get('.app-theme-root').classes()).not.toContain('dark');
 
     for (const listener of themeModeListeners) {
       listener('dark');
@@ -266,6 +267,33 @@ describe('App', () => {
 
     expect(settingsState.themeMode).toBe('dark');
     expect(darkState.value).toBe(true);
+    expect(wrapper.get('.app-theme-root').classes()).toContain('dark');
+  });
+
+  it('preserves the latest theme event when settings load resolves afterward with stale data', async () => {
+    let resolveLoad!: () => void;
+    const loadPromise = new Promise<void>(resolve => {
+      resolveLoad = () => {
+        settingsState.themeMode = 'light';
+        resolve();
+      };
+    });
+
+    loadSettings.mockImplementation(() => loadPromise);
+
+    mount(App);
+
+    for (const listener of themeModeListeners) {
+      listener('dark');
+    }
+    await nextTick();
+    expect(settingsState.themeMode).toBe('dark');
+
+    resolveLoad();
+    await loadPromise;
+    await nextTick();
+
+    expect(settingsState.themeMode).toBe('dark');
   });
 
   it('cleans up the theme listener even when the listen promise resolves after unmount', async () => {

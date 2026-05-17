@@ -24,6 +24,7 @@ import PlaceholderView from '@/views/PlaceholderView.vue';
 import SettingsView from '@/views/SettingsView.vue';
 import ZenMode from '@/views/ZenMode.vue';
 import type { WindowMode } from '@/types/steno';
+import type { ThemeMode } from '@/stores/settings';
 
 const ui = useUiStore();
 const settings = useSettingsStore();
@@ -35,6 +36,8 @@ const naiveTheme = computed(() => (isDark.value ? darkTheme : null));
 const appThemeVars = computed(() => getAppThemeVars(isDark.value));
 let unlistenThemeModeChanged: (() => void) | null = null;
 let disposed = false;
+let settingsLoadPending = true;
+let themeModeDuringLoad: ThemeMode | null = null;
 
 const shellNavItems = computed<
   { key: WindowMode; label: string; active: boolean }[]
@@ -78,8 +81,10 @@ const shellModes = new Set<WindowMode>([
 
 // 启动加载 settings（Pinia store 自行缓存）。失败不阻塞 UI，错误会进 store.error。
 onMounted(() => {
-  void settings.load();
   void listenThemeModeChanged(mode => {
+    if (settingsLoadPending) {
+      themeModeDuringLoad = mode;
+    }
     settings.state.themeMode = mode;
   })
     .then(unlisten => {
@@ -91,6 +96,14 @@ onMounted(() => {
     })
     .catch(error => {
       console.error('[app] failed to listen for theme mode changes:', error);
+    });
+
+  void settings.load().finally(() => {
+    settingsLoadPending = false;
+    if (themeModeDuringLoad !== null) {
+      settings.state.themeMode = themeModeDuringLoad;
+      themeModeDuringLoad = null;
+    }
   });
 });
 
@@ -117,7 +130,7 @@ watch(
 
 <template>
   <NConfigProvider :theme="naiveTheme">
-    <div class="app-theme-root" :style="appThemeVars">
+    <div class="app-theme-root" :class="{ dark: isDark }" :style="appThemeVars">
       <NMessageProvider>
         <template v-if="shellModes.has(ui.mode)">
           <MainWorkbenchShell :nav-items="shellNavItems">
