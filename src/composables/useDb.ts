@@ -19,6 +19,7 @@ import type {
   PinnedWindowConfig,
   SaveDocumentEntryRequest,
   SaveNoteRequest,
+  SaveTextEntryRequest,
   SearchNotesRequest,
   Workspace,
 } from '@/types/steno';
@@ -31,6 +32,10 @@ export function useDb() {
    */
   function saveNote(input: SaveNoteRequest) {
     return invoke<Note | null>('save_note', { input });
+  }
+
+  function saveTextEntry(input: SaveTextEntryRequest) {
+    return invoke<LibraryEntry>('save_text_entry', { input });
   }
 
   function getNote(id: string) {
@@ -142,6 +147,7 @@ export function useDb() {
 
   return {
     saveNote,
+    saveTextEntry,
     getNote,
     getEditorEntry,
     listNotes,

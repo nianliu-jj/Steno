@@ -12,9 +12,11 @@ const exitZen = vi.fn();
 const navigateToMain = vi.fn();
 const getNote = vi.fn(() => Promise.resolve(null));
 const saveDraft = vi.fn(() => Promise.resolve(null));
+const getEditorEntry = vi.fn(() => Promise.resolve(null));
 
 vi.mock('@/composables/useDb', () => ({
   useDb: () => ({
+    getEditorEntry,
     getNote,
     exportNoteMarkdown: vi.fn(),
     exportNotePdf: vi.fn(),
@@ -24,6 +26,17 @@ vi.mock('@/composables/useDb', () => ({
 vi.mock('@/stores/notes', () => ({
   useNotesStore: () => ({
     saveDraft,
+  }),
+}));
+
+vi.mock('@/stores/library', () => ({
+  useLibraryStore: () => ({
+    context: {
+      workspaceId: null,
+      folderEntryId: null,
+      groupEntryId: null,
+      selectedEntryId: null,
+    },
   }),
 }));
 

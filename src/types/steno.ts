@@ -112,6 +112,14 @@ export interface SaveDocumentEntryRequest {
   folderEntryId?: string | null;
 }
 
+export interface SaveTextEntryRequest {
+  id?: string;
+  title?: string;
+  content: string;
+  tags: string[];
+  groupId?: string | null;
+}
+
 export interface ConvertTextToDocumentRequest {
   id: string;
   workspaceId: string;

@@ -283,6 +283,31 @@ describe('MainView', () => {
     expect(loadMainList).toHaveBeenCalled();
   });
 
+  it('enters a subgroup from the mixed list while keeping the current workspace unchanged', async () => {
+    workspaces.value = [
+      { id: 'workspace-1', name: '默认工作区', rootPath: 'D:/workspace/default' },
+    ];
+    libraryContext.value = {
+      workspaceId: 'workspace-1',
+      folderEntryId: null,
+      groupEntryId: null,
+      selectedEntryId: null,
+    };
+    libraryEntries.value = [
+      makeEntry({ id: 'group-1', kind: 'group', title: '项目分组' }),
+    ];
+
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    await wrapper.find('.entry-card').trigger('click');
+    await flushPromises();
+
+    expect(libraryContext.value.workspaceId).toBe('workspace-1');
+    expect(libraryContext.value.groupEntryId).toBe('group-1');
+    expect(loadMainList).toHaveBeenCalled();
+  });
+
   it('opens the workspace switcher and switches to an existing workspace', async () => {
     workspaces.value = [
       { id: 'workspace-1', name: '默认工作区', rootPath: 'D:/workspace/default' },
