@@ -9,6 +9,7 @@ import NoteEditorView from './NoteEditorView.vue';
 import NoteEditorViewSource from './NoteEditorView.vue?raw';
 
 let autosaveStatus = 'saved';
+const navigateToZenFromEditor = vi.fn();
 
 const getNote = vi.fn(() =>
   Promise.resolve({
@@ -44,6 +45,7 @@ vi.mock('@/stores/ui', () => ({
   useUiStore: () => ({
     noteId: 'note-1',
     navigateToMain: vi.fn(),
+    navigateToZenFromEditor,
   }),
 }));
 
@@ -63,13 +65,21 @@ vi.mock('@/composables/useAutosave', () => ({
   }),
 }));
 
-vi.mock('@/components/MarkdownEditor.vue', () => ({
+vi.mock('@/components/writing/WritingSurface.vue', () => ({
   default: {
-    props: ['modelValue'],
-    emits: ['update:modelValue'],
+    props: ['modelValue', 'mode', 'outlineOpen'],
+    emits: ['update:modelValue', 'toggle-readonly', 'open-source', 'close-source', 'open-zen', 'toggle-outline'],
     template:
-      '<textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+      '<div data-testid="writing-surface"><textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" /><button data-testid="surface-open-zen" @click="$emit(\'open-zen\')">zen</button><button data-testid="surface-open-source" @click="$emit(\'open-source\')">source</button><button data-testid="surface-toggle-outline" @click="$emit(\'toggle-outline\')">outline</button></div>',
   },
+}));
+
+vi.mock('@/composables/useOutlineSidebarState', () => ({
+  useOutlineSidebarState: () => ({
+    open: { value: false },
+    width: { value: 280 },
+    toggle: vi.fn(),
+  }),
 }));
 
 const WrappedNoteEditorView = defineComponent({
@@ -89,6 +99,7 @@ describe('NoteEditorView', () => {
     autosaveStatus = 'saved';
     getNote.mockClear();
     saveDraft.mockClear();
+    navigateToZenFromEditor.mockClear();
   });
 
   it('loads the target note into the main-window editor', async () => {
@@ -109,6 +120,15 @@ describe('NoteEditorView', () => {
     await wrapper.find('textarea').setValue('新内容');
 
     expect(saveDraft).toHaveBeenCalled();
+  });
+
+  it('routes the editor footer Zen action through the ui store', async () => {
+    const wrapper = mount(WrappedNoteEditorView);
+    await flushPromises();
+
+    await wrapper.get('[data-testid="surface-open-zen"]').trigger('click');
+
+    expect(navigateToZenFromEditor).toHaveBeenCalledWith('note-1');
   });
 
   it('moves note tags and save metadata into the editor footer', async () => {
@@ -196,5 +216,14 @@ describe('NoteEditorView', () => {
     expect(NoteEditorViewSource).toMatch(/color: #6f5c4c(?: !important)?;/);
     expect(NoteEditorViewSource).toContain('caret-color: #2a2a2a;');
     expect(NoteEditorViewSource).toMatch(/color: #7e7469(?: !important)?;/);
+  });
+
+  it('renders the lifted rounded editor card shell for the main editor', async () => {
+    const wrapper = mount(WrappedNoteEditorView);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="note-editor-shell"]').exists()).toBe(true);
+    expect(NoteEditorViewSource).toContain('data-testid="note-editor-shell"');
+    expect(NoteEditorViewSource).toContain('border-radius: 18px 18px 14px 14px;');
   });
 });

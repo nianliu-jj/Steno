@@ -1,68 +1,24 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { NButton, NIcon, NInput, NText } from 'naive-ui';
 
-import MarkdownEditor from '@/components/MarkdownEditor.vue';
-import { useAutosave } from '@/composables/useAutosave';
-import { useDb } from '@/composables/useDb';
-import { useMarkdown } from '@/composables/useMarkdown';
-import { useNotesStore } from '@/stores/notes';
+import WritingSurface from '@/components/writing/WritingSurface.vue';
+import { useOutlineSidebarState } from '@/composables/useOutlineSidebarState';
+import { useWritingSession } from '@/composables/useWritingSession';
 import { useUiStore } from '@/stores/ui';
-import type { Note, SaveNoteRequest } from '@/types/steno';
 
-const db = useDb();
-const notes = useNotesStore();
 const ui = useUiStore();
-const { countWords } = useMarkdown();
-
-const currentNoteId = ref<string | null>(ui.noteId ?? null);
-const title = ref('');
-const content = ref('');
-const tags = ref<string[]>([]);
-const loaded = ref(false);
+const session = useWritingSession(ref(ui.noteId ?? null));
+const outline = useOutlineSidebarState('note-editor');
+const title = session.title;
+const tags = session.tags;
 const editingTitle = ref(false);
 const tagsDialogVisible = ref(false);
 const tagsDraftRows = ref<string[]>([]);
 const titleInputRef = ref<{ focus: () => void } | null>(null);
 
-const wordCount = computed(() => countWords(content.value));
+const wordCount = session.wordCount;
 const displayTitle = computed(() => title.value.trim() || '无标题');
-
-function hydrateFromNote(note: Note) {
-  currentNoteId.value = note.id;
-  title.value = note.title;
-  content.value = note.content;
-  tags.value = [...note.tags];
-}
-
-onMounted(async () => {
-  if (currentNoteId.value) {
-    const note = await db.getNote(currentNoteId.value);
-    if (note) {
-      hydrateFromNote(note);
-    }
-  }
-  loaded.value = true;
-});
-
-const { status, savedAt, error, scheduleSave, flushSave } = useAutosave(
-  async (payload: SaveNoteRequest) => {
-    const saved = await notes.saveDraft(payload);
-    if (saved && !currentNoteId.value) {
-      currentNoteId.value = saved.id;
-    }
-  },
-);
-
-watch([title, content, tags], () => {
-  if (!loaded.value) return;
-  scheduleSave({
-    id: currentNoteId.value ?? undefined,
-    title: title.value || undefined,
-    content: content.value,
-    tags: tags.value,
-  });
-});
 
 function parseTagRows(rows: string[]): string[] {
   return Array.from(
@@ -75,7 +31,7 @@ function parseTagRows(rows: string[]): string[] {
 }
 
 const statusText = computed(() => {
-  switch (status.value) {
+  switch (session.status.value) {
     case 'idle':
       return '';
     case 'scheduled':
@@ -83,18 +39,18 @@ const statusText = computed(() => {
     case 'saving':
       return '保存中…';
     case 'saved':
-      return savedAt.value
-        ? `已保存 ${savedAt.value.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
+      return session.savedAt.value
+        ? `已保存 ${session.savedAt.value.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
         : '已保存';
     case 'error':
-      return `保存失败：${String(error.value).slice(0, 40)}`;
+      return `保存失败：${String(session.error.value).slice(0, 40)}`;
     default:
       return '';
   }
 });
 
 async function onBack() {
-  await flushSave();
+  await session.flushSave();
   ui.navigateToMain();
 }
 
@@ -131,6 +87,11 @@ function onDeleteTagRow(index: number) {
 function onConfirmTagsDialog() {
   tags.value = parseTagRows(tagsDraftRows.value);
   tagsDialogVisible.value = false;
+}
+
+async function onOpenZen() {
+  await session.flushSave();
+  ui.navigateToZenFromEditor(session.currentNoteId.value);
 }
 </script>
 
@@ -201,11 +162,22 @@ function onConfirmTagsDialog() {
     </header>
 
     <div class="note-editor-body">
-      <MarkdownEditor
-        v-model="content"
-        autofocus
-        placeholder="开始写作…"
-      />
+      <div class="note-editor-shell" data-testid="note-editor-shell">
+        <WritingSurface
+          v-model="session.content.value"
+          :mode="session.mode.value"
+          :headings="session.headings.value"
+          :outline-open="outline.open.value"
+          :outline-width="outline.width.value"
+          show-floating-outline
+          show-zen-entry
+          @toggle-readonly="session.toggleReadonly"
+          @open-source="session.openSource"
+          @close-source="session.closeSource"
+          @toggle-outline="outline.toggle()"
+          @open-zen="onOpenZen"
+        />
+      </div>
     </div>
 
     <footer class="note-editor-footer">
@@ -383,7 +355,17 @@ function onConfirmTagsDialog() {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 24px 24px 8px;
+  padding: 10px 24px 8px;
+}
+
+.note-editor-shell {
+  flex: 1;
+  min-height: 0;
+  margin-top: -4px;
+  border: 1px solid rgba(55, 46, 36, 0.1);
+  border-radius: 18px 18px 14px 14px;
+  background: rgba(255, 255, 255, 0.55);
+  overflow: hidden;
 }
 
 .note-editor-footer {
@@ -578,24 +560,7 @@ function onConfirmTagsDialog() {
   gap: 8px;
 }
 
-.note-editor-body :deep(.md-editor) {
-  flex: 1;
-  min-height: 420px;
-  border: 1px solid rgba(55, 46, 36, 0.1);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.55);
-}
-
-.note-editor-body :deep(.md-editor__toolbar) {
-  border-bottom-color: rgba(55, 46, 36, 0.1);
-  background: rgba(255, 255, 255, 0.7);
-}
-
-.note-editor-body :deep(.md-editor__toolbar button) {
-  color: #5f564d;
-}
-
-.note-editor-body :deep(.md-editor__textarea) {
-  color: #2a2a2a;
+.note-editor-shell :deep(.writing-surface) {
+  height: 100%;
 }
 </style>
