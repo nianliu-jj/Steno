@@ -163,7 +163,8 @@ describe('StickyNote', () => {
     await wrapper.get('[data-testid="sticky-title-edit"]').trigger('click');
 
     expect(wrapper.find('[data-testid="sticky-title-text"]').exists()).toBe(false);
-    expect(wrapper.get('[data-testid="sticky-title-input"] input').element.value).toBe('置顶便签');
+    const input = wrapper.get('[data-testid="sticky-title-input"] input').element as HTMLInputElement;
+    expect(input.value).toBe('置顶便签');
     expect(wrapper.find('[data-testid="sticky-title-save"]').exists()).toBe(true);
   });
 

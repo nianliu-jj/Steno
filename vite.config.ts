@@ -1,6 +1,7 @@
 import process from 'node:process';
 import { fileURLToPath, URL } from 'node:url';
-import { defineConfig, loadEnv } from 'vite';
+import { loadEnv } from 'vite';
+import { defineConfig } from 'vitest/config';
 import { setupVitePlugins } from './build/plugins';
 import { getBuildTime } from './build/config';
 
@@ -33,6 +34,9 @@ export default defineConfig(configEnv => {
     preview: {
       port: 1421,
       strictPort: true
+    },
+    test: {
+      exclude: ['**/node_modules/**', '**/dist/**', '**/.git/**', '**/.worktrees/**']
     },
     build: {
       target: 'esnext',
