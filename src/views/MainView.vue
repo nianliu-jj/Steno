@@ -27,11 +27,33 @@ const appEvents = useAppEvents();
 const untaggedFilterValue = '__untagged__';
 let removeNoteSavedListener: (() => void) | null = null;
 let noteSavedListenerDisposed = false;
+let initialNotesLoading = true;
+const pendingExternalNotes = new Map<string, Note>();
+
+function syncExternalNote(note: Note) {
+  notes.syncExternalNote(note);
+  if (initialNotesLoading) {
+    pendingExternalNotes.set(note.id, note);
+  }
+}
 
 onMounted(() => {
-  void notes.loadNotes(50);
+  void notes.loadNotes(50).finally(() => {
+    initialNotesLoading = false;
+    if (noteSavedListenerDisposed || pendingExternalNotes.size === 0) {
+      pendingExternalNotes.clear();
+      return;
+    }
+
+    const bufferedNotes = Array.from(pendingExternalNotes.values());
+    pendingExternalNotes.clear();
+
+    for (const note of bufferedNotes) {
+      notes.syncExternalNote(note);
+    }
+  });
   void appEvents.listenNoteSaved((note) => {
-    notes.syncExternalNote(note);
+    syncExternalNote(note);
   }).then((unlisten) => {
     if (noteSavedListenerDisposed) {
       unlisten();
@@ -43,6 +65,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   noteSavedListenerDisposed = true;
+  pendingExternalNotes.clear();
   removeNoteSavedListener?.();
   removeNoteSavedListener = null;
 });

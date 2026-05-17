@@ -46,29 +46,14 @@ function setPinnedState(next: Note[]) {
   pinnedState.value = [...next];
 }
 
-function syncNoteState(note: Note) {
-  const notes = [...notesState.value];
-  const noteIndex = notes.findIndex(item => item.id === note.id);
-  if (noteIndex >= 0) {
-    notes[noteIndex] = note;
-  } else {
-    notes.unshift(note);
-  }
-  notesState.value = notes;
-
-  if (note.isPinned) {
-    const pinned = [...pinnedState.value];
-    const pinnedIndex = pinned.findIndex(item => item.id === note.id);
-    if (pinnedIndex >= 0) {
-      pinned[pinnedIndex] = note;
-    } else {
-      pinned.push(note);
-    }
-    pinnedState.value = pinned;
-    return;
-  }
-
-  pinnedState.value = pinnedState.value.filter(item => item.id !== note.id);
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 vi.mock('@/stores/notes', () => ({
@@ -149,7 +134,7 @@ describe('MainView', () => {
     loadingState.value = false;
     saveDraftMock = vi.fn(() => Promise.resolve(null));
     removeNoteMock = vi.fn(() => Promise.resolve());
-    syncExternalNoteMock = vi.fn((note: Note) => syncNoteState(note));
+    syncExternalNoteMock = vi.fn();
     openQuicknote.mockClear();
     navigateTo.mockClear();
     loadNotes.mockClear();
@@ -453,8 +438,20 @@ describe('MainView', () => {
     wrapper.unmount();
   });
 
-  it('updates the rendered card title after a note-saved event', async () => {
+  it('replays load-period note-saved updates after the initial load resolves', async () => {
     setNotesState([makeNote({ id: 'note-1', title: '旧标题' })]);
+    const initialLoad = createDeferred<void>();
+    loadNotes.mockImplementationOnce(() => {
+      loadingState.value = true;
+      return initialLoad.promise.finally(() => {
+        setNotesState([makeNote({ id: 'note-1', title: '旧标题' })]);
+        loadingState.value = false;
+      });
+    });
+    syncExternalNoteMock = vi.fn((note: Note) => {
+      setNotesState([note]);
+    });
+
     const wrapper = mount(WrappedMainView);
     await flushPromises();
 
@@ -464,13 +461,29 @@ describe('MainView', () => {
     await flushPromises();
 
     expect(wrapper.get('.note-card h3').text()).toBe('新标题');
-  });
 
-  it('cleans up the note-saved listener when unmounted', async () => {
-    const wrapper = mount(WrappedMainView);
+    initialLoad.resolve();
     await flushPromises();
 
+    expect(wrapper.get('.note-card h3').text()).toBe('新标题');
+    expect(syncExternalNoteMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('cleans up the note-saved listener when the listener promise resolves after unmount', async () => {
+    const listenerRegistration = createDeferred<() => void>();
+    listenNoteSaved.mockImplementationOnce((handler: (note: Note) => void) => {
+      noteSavedHandler = handler;
+      return listenerRegistration.promise;
+    });
+
+    const wrapper = mount(WrappedMainView);
+    await Promise.resolve();
+
     wrapper.unmount();
+    expect(noteSavedCleanup).not.toHaveBeenCalled();
+
+    listenerRegistration.resolve(noteSavedCleanup);
+    await flushPromises();
 
     expect(noteSavedCleanup).toHaveBeenCalledOnce();
   });
