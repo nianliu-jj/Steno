@@ -71,11 +71,45 @@ export interface LibraryEntry {
   updatedAt?: string;
 }
 
+export interface Workspace {
+  id: string;
+  name: string;
+  rootPath: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface MainListContext {
   workspaceId: string | null;
   folderEntryId: string | null;
   groupEntryId: string | null;
   selectedEntryId: string | null;
+}
+
+export interface CreateWorkspaceRequest {
+  name?: string | null;
+  rootPath: string;
+}
+
+export interface EditorEntry {
+  id: string;
+  kind: 'text' | 'document';
+  title: string;
+  content: string;
+  tags: string[];
+  workspaceId?: string | null;
+  parentId?: string | null;
+  groupId?: string | null;
+  filePath?: string | null;
+}
+
+export interface SaveDocumentEntryRequest {
+  id?: string;
+  title?: string;
+  content: string;
+  tags: string[];
+  workspaceId: string;
+  folderEntryId?: string | null;
 }
 
 export interface ConvertTextToDocumentRequest {

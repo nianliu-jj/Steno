@@ -10,7 +10,15 @@ import NoteEditorViewSource from './NoteEditorView.vue?raw';
 
 let autosaveStatus = 'saved';
 const navigateToZenFromEditor = vi.fn();
+let uiNoteId: string | null = 'note-1';
+const libraryContext = {
+  workspaceId: 'workspace-1' as string | null,
+  folderEntryId: null as string | null,
+  groupEntryId: null as string | null,
+  selectedEntryId: null as string | null,
+};
 
+const getEditorEntry = vi.fn(() => Promise.resolve(null));
 const getNote = vi.fn(() =>
   Promise.resolve({
     id: 'note-1',
@@ -28,10 +36,13 @@ const getNote = vi.fn(() =>
 );
 
 const saveDraft = vi.fn(() => Promise.resolve({ id: 'note-1' }));
+const saveDocumentEntry = vi.fn(() => Promise.resolve({ id: 'doc-1' }));
 
 vi.mock('@/composables/useDb', () => ({
   useDb: () => ({
+    getEditorEntry,
     getNote,
+    saveDocumentEntry,
   }),
 }));
 
@@ -43,9 +54,15 @@ vi.mock('@/stores/notes', () => ({
 
 vi.mock('@/stores/ui', () => ({
   useUiStore: () => ({
-    noteId: 'note-1',
+    noteId: uiNoteId,
     navigateToMain: vi.fn(),
     navigateToZenFromEditor,
+  }),
+}));
+
+vi.mock('@/stores/library', () => ({
+  useLibraryStore: () => ({
+    context: libraryContext,
   }),
 }));
 
@@ -98,8 +115,13 @@ const WrappedNoteEditorView = defineComponent({
 describe('NoteEditorView', () => {
   beforeEach(() => {
     autosaveStatus = 'saved';
+    uiNoteId = 'note-1';
+    libraryContext.workspaceId = 'workspace-1';
+    libraryContext.folderEntryId = null;
     getNote.mockClear();
+    getEditorEntry.mockClear();
     saveDraft.mockClear();
+    saveDocumentEntry.mockClear();
     navigateToZenFromEditor.mockClear();
   });
 
@@ -226,5 +248,21 @@ describe('NoteEditorView', () => {
     expect(wrapper.find('[data-testid="note-editor-shell"]').exists()).toBe(true);
     expect(NoteEditorViewSource).toContain('data-testid="note-editor-shell"');
     expect(NoteEditorViewSource).toContain('border-radius: 18px 18px 14px 14px;');
+  });
+
+  it('saves a new workspace-backed entry as a document when no note id is present', async () => {
+    uiNoteId = null;
+
+    const wrapper = mount(WrappedNoteEditorView);
+    await flushPromises();
+
+    await wrapper.find('textarea').setValue('新的文档正文');
+
+    expect(saveDocumentEntry).toHaveBeenCalledWith(expect.objectContaining({
+      workspaceId: 'workspace-1',
+      folderEntryId: null,
+      content: '新的文档正文',
+    }));
+    expect(saveDraft).not.toHaveBeenCalled();
   });
 });

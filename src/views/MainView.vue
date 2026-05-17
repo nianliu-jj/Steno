@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, unref, watch } from 'vue';
 import { useMessage } from 'naive-ui';
+import { open } from '@tauri-apps/plugin-dialog';
 
 import EntryTypeBadge from '@/components/EntryTypeBadge.vue';
+import WorkspacePickerDialog from '@/components/WorkspacePickerDialog.vue';
 import WorkspaceTreePanel from '@/components/WorkspaceTreePanel.vue';
 import { useDb } from '@/composables/useDb';
 import { useWindow } from '@/composables/useWindow';
 import { useLibraryStore } from '@/stores/library';
 import { useUiStore } from '@/stores/ui';
-import type { LibraryEntry, MainListContext } from '@/types/steno';
+import type { LibraryEntry, MainListContext, Workspace } from '@/types/steno';
 
 interface EntryStats {
   folders: number;
@@ -38,6 +40,14 @@ const db = useDb();
 const message = useMessage();
 
 const showWorkspaceTree = ref(false);
+const workspacePickerOpen = ref(false);
+const workspacePickerBusy = ref(false);
+const workspacePickerLoading = ref(false);
+const pendingWorkspaceAction = ref<
+  | null
+  | { type: 'new-note' }
+  | { type: 'convert-text'; entry: LibraryEntry }
+>(null);
 const contextMenu = ref<{
   visible: boolean;
   x: number;
@@ -57,6 +67,11 @@ const visibleEntries = computed<LibraryEntry[]>(() => {
 
 const workspaceTreeEntries = computed<LibraryEntry[]>(() => {
   const value = unref((library as unknown as { workspaceTree?: LibraryEntry[] }).workspaceTree);
+  return Array.isArray(value) ? value : [];
+});
+
+const availableWorkspaces = computed<Workspace[]>(() => {
+  const value = unref((library as unknown as { workspaces?: Workspace[] }).workspaces);
   return Array.isArray(value) ? value : [];
 });
 
@@ -113,6 +128,19 @@ async function loadWorkspaceTree(workspaceId: string | null) {
   await maybeLoader(workspaceId);
 }
 
+async function loadWorkspaces() {
+  const maybeLoader = (library as unknown as { loadWorkspaces?: () => Promise<void> }).loadWorkspaces;
+  if (typeof maybeLoader !== 'function') {
+    return;
+  }
+  workspacePickerLoading.value = true;
+  try {
+    await maybeLoader();
+  } finally {
+    workspacePickerLoading.value = false;
+  }
+}
+
 async function refreshListAndTree() {
   await loadMainList();
   await loadWorkspaceTree(currentContext.value.workspaceId);
@@ -137,6 +165,11 @@ function closeContextMenu() {
   contextMenu.value.entry = null;
 }
 
+function closeWorkspacePicker() {
+  workspacePickerOpen.value = false;
+  pendingWorkspaceAction.value = null;
+}
+
 function openContextMenu(event: MouseEvent, entry: LibraryEntry) {
   event.preventDefault();
   contextMenu.value = {
@@ -155,7 +188,13 @@ async function onNewQuickNote() {
   }
 }
 
-function onNewNote() {
+async function onNewNote() {
+  if (!currentContext.value.workspaceId) {
+    pendingWorkspaceAction.value = { type: 'new-note' };
+    workspacePickerOpen.value = true;
+    await loadWorkspaces();
+    return;
+  }
   ui.navigateTo('note-editor');
   closeContextMenu();
 }
@@ -193,10 +232,20 @@ async function onContextConvertToDocument() {
 
   const workspaceId = currentContext.value.workspaceId;
   if (!workspaceId) {
-    message.warning('请先选择工作区');
+    pendingWorkspaceAction.value = { type: 'convert-text', entry };
+    workspacePickerOpen.value = true;
+    await loadWorkspaces();
     return;
   }
 
+  await convertTextEntryToDocument(entry, workspaceId, currentContext.value.folderEntryId);
+}
+
+async function convertTextEntryToDocument(
+  entry: LibraryEntry,
+  workspaceId: string,
+  folderEntryId: string | null,
+) {
   const convertTextToDocument = (db as unknown as {
     convertTextToDocument?: (input: {
       id: string;
@@ -214,7 +263,7 @@ async function onContextConvertToDocument() {
     await convertTextToDocument({
       id: entry.id,
       workspaceId,
-      folderEntryId: currentContext.value.folderEntryId,
+      folderEntryId,
     });
     closeContextMenu();
     await refreshListAndTree();
@@ -226,6 +275,87 @@ async function onContextConvertToDocument() {
 
 function toggleWorkspaceTree() {
   showWorkspaceTree.value = !showWorkspaceTree.value;
+}
+
+function rememberWorkspace(workspace: Workspace) {
+  const maybeUpsert = (library as unknown as { upsertWorkspace?: (workspace: Workspace) => void }).upsertWorkspace;
+  if (typeof maybeUpsert === 'function') {
+    maybeUpsert(workspace);
+  }
+}
+
+function deriveWorkspaceName(path: string) {
+  const normalized = path.replace(/[\\/]+$/, '');
+  const segments = normalized.split(/[\\/]/).filter(Boolean);
+  return segments.at(-1) || '新工作区';
+}
+
+async function finalizeWorkspaceSelection(workspace: Workspace) {
+  rememberWorkspace(workspace);
+  setListContext({
+    workspaceId: workspace.id,
+    folderEntryId: null,
+    selectedEntryId: null,
+  });
+  workspacePickerOpen.value = false;
+  await refreshListAndTree();
+
+  const pending = pendingWorkspaceAction.value;
+  pendingWorkspaceAction.value = null;
+
+  if (!pending) {
+    return;
+  }
+
+  if (pending.type === 'new-note') {
+    ui.navigateTo('note-editor');
+    return;
+  }
+
+  await convertTextEntryToDocument(pending.entry, workspace.id, null);
+}
+
+async function onSelectWorkspace(workspace: Workspace) {
+  await finalizeWorkspaceSelection(workspace);
+}
+
+async function onCreateWorkspaceFromDirectory() {
+  workspacePickerBusy.value = true;
+  try {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: '选择工作区文件夹',
+    });
+    if (typeof selected !== 'string' || !selected) {
+      return;
+    }
+
+    const createWorkspace = (db as unknown as {
+      createWorkspace?: (input: { name?: string | null; rootPath: string }) => Promise<Workspace>;
+    }).createWorkspace;
+
+    if (typeof createWorkspace !== 'function') {
+      message.error('当前版本暂不支持创建工作区');
+      return;
+    }
+
+    const workspace = await createWorkspace({
+      name: deriveWorkspaceName(selected),
+      rootPath: selected,
+    });
+    await finalizeWorkspaceSelection(workspace);
+    message.success('工作区已切换');
+  } catch (error) {
+    message.error(`创建工作区失败：${String(error)}`);
+  } finally {
+    workspacePickerBusy.value = false;
+  }
+}
+
+async function onOpenWorkspaceSwitcher() {
+  workspacePickerOpen.value = true;
+  await loadWorkspaces();
 }
 </script>
 
@@ -310,6 +440,14 @@ function toggleWorkspaceTree() {
       <button
         type="button"
         class="main-footer-action"
+        data-testid="main-footer-switch-workspace"
+        @click.stop="onOpenWorkspaceSwitcher"
+      >
+        切换工作区
+      </button>
+      <button
+        type="button"
+        class="main-footer-action"
         data-testid="main-footer-open-tree"
         @click.stop="toggleWorkspaceTree"
       >
@@ -337,6 +475,16 @@ function toggleWorkspaceTree() {
         转为文档
       </button>
     </div>
+
+    <WorkspacePickerDialog
+      :visible="workspacePickerOpen"
+      :workspaces="availableWorkspaces"
+      :loading="workspacePickerLoading"
+      :busy="workspacePickerBusy"
+      @close="closeWorkspacePicker"
+      @select="onSelectWorkspace"
+      @create="onCreateWorkspaceFromDirectory"
+    />
   </section>
 </template>
 

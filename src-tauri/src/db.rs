@@ -14,8 +14,9 @@ use std::sync::{Arc, Mutex};
 use rusqlite::{Connection, OptionalExtension};
 
 use crate::models::{
-    ConvertTextToDocumentRequest, EntryKind, LibraryEntry, Note, SaveNoteRequest,
-    SaveTextEntryRequest, SearchNotesRequest, Workspace,
+    ConvertTextToDocumentRequest, EditorEntry, EntryKind, LibraryEntry, MainListContext, Note,
+    SaveDocumentEntryRequest, SaveNoteRequest, SaveTextEntryRequest, SearchNotesRequest,
+    Workspace,
 };
 use crate::workspace_fs;
 
@@ -203,6 +204,7 @@ impl Db {
             ("noteEditorOutlineOpen", "false"),
             ("zenOutlineWidth", "300"),
             ("zenOutlineOpen", "true"),
+            ("mainListTypeFilters", "folder,group,document,text"),
         ];
         let now = chrono::Utc::now().to_rfc3339();
         for (k, v) in defaults {
@@ -416,9 +418,25 @@ impl Db {
 
     pub fn create_workspace(&self, name: &str, root_path: PathBuf) -> Result<Workspace, DbError> {
         std::fs::create_dir_all(&root_path)?;
+        let normalized_root = normalize_workspace_root(&root_path)?;
+        let root_path_str = normalized_root.to_string_lossy().into_owned();
+
+        let existing = {
+            let conn = self.lock()?;
+            conn.query_row(
+                "SELECT id, name, root_path, created_at, updated_at FROM workspaces WHERE root_path = ?1",
+                rusqlite::params![&root_path_str],
+                row_to_workspace,
+            )
+            .optional()?
+        };
+
+        if let Some(workspace) = existing {
+            return Ok(workspace);
+        }
+
         let id = uuid::Uuid::new_v4().to_string();
         let now = chrono::Utc::now().to_rfc3339();
-        let root_path_str = root_path.to_string_lossy().into_owned();
 
         let conn = self.lock()?;
         conn.execute(
@@ -434,6 +452,93 @@ impl Db {
             created_at: now.clone(),
             updated_at: now,
         })
+    }
+
+    pub fn list_workspaces(&self) -> Result<Vec<Workspace>, DbError> {
+        let conn = self.lock()?;
+        let mut stmt = conn.prepare(
+            "SELECT id, name, root_path, created_at, updated_at
+             FROM workspaces
+             ORDER BY updated_at DESC, created_at DESC",
+        )?;
+        let rows = stmt.query_map([], row_to_workspace)?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    pub fn list_library_entries(
+        &self,
+        context: MainListContext,
+    ) -> Result<Vec<LibraryEntry>, DbError> {
+        let conn = self.lock()?;
+        let mut items = Vec::new();
+
+        if let Some(workspace_id) = context.workspace_id.as_deref() {
+            let mut stmt = conn.prepare(
+                "SELECT id, kind, title, preview_text, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size
+                 FROM library_entries
+                 WHERE workspace_id = ?1
+                   AND kind IN ('folder', 'document')
+                   AND ((?2 IS NULL AND parent_id IS NULL) OR parent_id = ?2)
+                 ORDER BY CASE kind WHEN 'folder' THEN 0 ELSE 1 END, updated_at DESC, title COLLATE NOCASE ASC",
+            )?;
+            let rows = stmt.query_map(
+                rusqlite::params![workspace_id, context.folder_entry_id.as_deref()],
+                row_to_library_entry,
+            )?;
+            items.extend(rows.collect::<rusqlite::Result<Vec<_>>>()?);
+        }
+
+        let mut group_stmt = conn.prepare(
+            "SELECT id, kind, title, preview_text, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size
+             FROM library_entries
+             WHERE kind = 'group'
+               AND ((?1 IS NULL AND parent_id IS NULL) OR parent_id = ?1)
+             ORDER BY updated_at DESC, title COLLATE NOCASE ASC",
+        )?;
+        let group_rows = group_stmt.query_map(
+            rusqlite::params![context.group_entry_id.as_deref()],
+            row_to_library_entry,
+        )?;
+        items.extend(group_rows.collect::<rusqlite::Result<Vec<_>>>()?);
+
+        let mut text_stmt = if context.group_entry_id.is_some() {
+            conn.prepare(
+                "SELECT id, kind, title, preview_text, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size
+                 FROM library_entries
+                 WHERE kind = 'text' AND group_id = ?1
+                 ORDER BY updated_at DESC, created_at DESC",
+            )?
+        } else {
+            conn.prepare(
+                "SELECT id, kind, title, preview_text, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size
+                 FROM library_entries
+                 WHERE kind = 'text'
+                 ORDER BY updated_at DESC, created_at DESC",
+            )?
+        };
+
+        if let Some(group_id) = context.group_entry_id.as_deref() {
+            let rows = text_stmt.query_map(rusqlite::params![group_id], row_to_library_entry)?;
+            items.extend(rows.collect::<rusqlite::Result<Vec<_>>>()?);
+        } else {
+            let rows = text_stmt.query_map([], row_to_library_entry)?;
+            items.extend(rows.collect::<rusqlite::Result<Vec<_>>>()?);
+        }
+
+        Ok(items)
+    }
+
+    pub fn list_workspace_tree(&self, workspace_id: &str) -> Result<Vec<LibraryEntry>, DbError> {
+        let conn = self.lock()?;
+        let mut stmt = conn.prepare(
+            "SELECT id, kind, title, preview_text, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size
+             FROM library_entries
+             WHERE workspace_id = ?1
+               AND kind IN ('folder', 'document')
+             ORDER BY COALESCE(parent_id, ''), CASE kind WHEN 'folder' THEN 0 ELSE 1 END, title COLLATE NOCASE ASC",
+        )?;
+        let rows = stmt.query_map(rusqlite::params![workspace_id], row_to_library_entry)?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
     pub fn save_text_entry(&self, input: SaveTextEntryRequest) -> Result<LibraryEntry, DbError> {
@@ -488,6 +593,123 @@ impl Db {
         )?;
 
         Self::find_library_entry(&conn, &id)
+    }
+
+    pub fn save_document_entry(
+        &self,
+        input: SaveDocumentEntryRequest,
+    ) -> Result<LibraryEntry, DbError> {
+        let title = input
+            .title
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned)
+            .unwrap_or_else(|| derive_title(&input.content));
+        let tags = extract_tags(&input.content, &input.tags);
+        let tags_json = serde_json::to_string(&tags)?;
+        let preview_text = preview_text(&input.content);
+        let byte_size = markdown_byte_size(&input.content);
+        let word_count = word_count(&input.content);
+        let id = input
+            .id
+            .clone()
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        let now = chrono::Utc::now().to_rfc3339();
+
+        let conn = self.lock()?;
+        let workspace = Self::find_workspace(&conn, &input.workspace_id)?;
+        let existing = conn
+            .query_row(
+                "SELECT id, kind, title, preview_text, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size
+                 FROM library_entries WHERE id = ?1",
+                rusqlite::params![&id],
+                row_to_library_entry,
+            )
+            .optional()?;
+        let created_at = existing
+            .as_ref()
+            .map(|entry| entry.created_at.clone())
+            .unwrap_or_else(|| now.clone());
+
+        let base_dir = if let Some(folder_id) = &input.folder_entry_id {
+            let folder = Self::find_library_entry(&conn, folder_id)?;
+            folder
+                .file_path
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from(&workspace.root_path))
+        } else {
+            PathBuf::from(&workspace.root_path)
+        };
+
+        let target_path = existing
+            .as_ref()
+            .and_then(|entry| entry.file_path.clone())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| workspace_fs::build_document_path(&base_dir, &title));
+        workspace_fs::write_markdown_file(&target_path, &input.content)?;
+        let path_str = target_path.to_string_lossy().into_owned();
+
+        conn.execute(
+            "INSERT OR REPLACE INTO library_entries
+             (id, kind, title, preview_text, body_markdown, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size)
+             VALUES (?1, 'document', ?2, ?3, NULL, ?4, ?5, ?6, NULL, ?7, ?8, ?9, ?10, ?11)",
+            rusqlite::params![
+                &id,
+                &title,
+                &preview_text,
+                &tags_json,
+                &workspace.id,
+                input.folder_entry_id.as_deref(),
+                &path_str,
+                &created_at,
+                &now,
+                word_count,
+                byte_size,
+            ],
+        )?;
+
+        Self::find_library_entry(&conn, &id)
+    }
+
+    pub fn get_editor_entry(&self, id: &str) -> Result<Option<EditorEntry>, DbError> {
+        let conn = self.lock()?;
+        let entry = conn
+            .query_row(
+                "SELECT id, kind, title, body_markdown, tags, workspace_id, parent_id, group_id, file_path
+                 FROM library_entries
+                 WHERE id = ?1 AND kind IN ('text', 'document')",
+                rusqlite::params![id],
+                |row| {
+                    let kind = entry_kind_from_db(&row.get::<_, String>(1)?);
+                    let tags_json: String = row.get(4)?;
+                    let file_path: Option<String> = row.get(8)?;
+                    let content = match kind {
+                        EntryKind::Document => {
+                            if let Some(path) = file_path.as_deref() {
+                                std::fs::read_to_string(path).unwrap_or_default()
+                            } else {
+                                String::new()
+                            }
+                        }
+                        _ => row.get::<_, Option<String>>(3)?.unwrap_or_default(),
+                    };
+
+                    Ok(EditorEntry {
+                        id: row.get(0)?,
+                        kind,
+                        title: row.get(2)?,
+                        content,
+                        tags: serde_json::from_str(&tags_json).unwrap_or_default(),
+                        workspace_id: row.get(5)?,
+                        parent_id: row.get(6)?,
+                        group_id: row.get(7)?,
+                        file_path,
+                    })
+                },
+            )
+            .optional()?;
+        Ok(entry)
     }
 
     pub fn convert_text_to_document(
@@ -602,15 +824,7 @@ impl Db {
             .query_row(
                 "SELECT id, name, root_path, created_at, updated_at FROM workspaces WHERE id = ?1",
                 rusqlite::params![id],
-                |row| {
-                    Ok(Workspace {
-                        id: row.get(0)?,
-                        name: row.get(1)?,
-                        root_path: row.get(2)?,
-                        created_at: row.get(3)?,
-                        updated_at: row.get(4)?,
-                    })
-                },
+                row_to_workspace,
             )
             .optional()?;
         workspace.ok_or_else(|| DbError::NotFound(id.to_string()))
@@ -657,6 +871,16 @@ fn row_to_library_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryEntr
         updated_at: row.get(10)?,
         word_count: row.get(11)?,
         byte_size: row.get(12)?,
+    })
+}
+
+fn row_to_workspace(row: &rusqlite::Row<'_>) -> rusqlite::Result<Workspace> {
+    Ok(Workspace {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        root_path: row.get(2)?,
+        created_at: row.get(3)?,
+        updated_at: row.get(4)?,
     })
 }
 
@@ -750,6 +974,13 @@ pub fn extract_tags(content: &str, extra_tags: &[String]) -> Vec<String> {
 /// unicode-segmentation 做 grapheme cluster 计数。
 pub fn word_count(content: &str) -> i64 {
     content.split_whitespace().count() as i64
+}
+
+fn normalize_workspace_root(path: &Path) -> Result<PathBuf, DbError> {
+    match path.canonicalize() {
+        Ok(canonical) => Ok(canonical),
+        Err(_) => Ok(path.to_path_buf()),
+    }
 }
 
 /// 把 Markdown 渲染成 HTML，存到 notes.html_content 列。
@@ -1011,6 +1242,29 @@ mod tests {
 
         assert_eq!(saved.kind, EntryKind::Text);
         assert_eq!(saved.group_id.as_deref(), Some("group-inbox"));
+    }
+
+    #[test]
+    fn create_workspace_reuses_existing_root_path() {
+        let db = fresh_db();
+        let root = std::env::temp_dir().join("steno-existing-workspace");
+
+        let first = db.create_workspace("默认工作区", root.clone()).unwrap();
+        let second = db.create_workspace("另一个名字", root).unwrap();
+
+        assert_eq!(first.id, second.id);
+        assert_eq!(first.root_path, second.root_path);
+    }
+
+    #[test]
+    fn list_workspaces_returns_created_workspace() {
+        let db = fresh_db();
+        let root = std::env::temp_dir().join("steno-list-workspace");
+
+        let created = db.create_workspace("默认工作区", root).unwrap();
+        let workspaces = db.list_workspaces().unwrap();
+
+        assert!(workspaces.iter().any(|workspace| workspace.id == created.id));
     }
 
     #[test]

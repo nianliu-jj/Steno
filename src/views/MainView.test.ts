@@ -10,6 +10,8 @@ import MainView from './MainView.vue';
 const openQuicknote = vi.fn(() => Promise.resolve());
 const navigateTo = vi.fn();
 const convertTextToDocument = vi.fn(() => Promise.resolve());
+const createWorkspace = vi.fn();
+const pickWorkspaceDirectory = vi.fn();
 
 vi.mock('@/composables/useWindow', () => ({
   useWindow: () => ({
@@ -19,21 +21,38 @@ vi.mock('@/composables/useWindow', () => ({
 
 const libraryEntries = ref<any[]>([]);
 const workspaceTree = ref<any[]>([]);
+const workspaces = ref<any[]>([]);
 const libraryContext = ref({
   workspaceId: null as string | null,
   folderEntryId: null as string | null,
   groupEntryId: null as string | null,
   selectedEntryId: null as string | null,
 });
-const currentWorkspaceLabel = ref('');
 const loadMainList = vi.fn(() => Promise.resolve());
+const loadWorkspaces = vi.fn(() => Promise.resolve());
+const upsertWorkspace = vi.fn((workspace: any) => {
+  const index = workspaces.value.findIndex(item => item.id === workspace.id);
+  if (index >= 0) {
+    workspaces.value[index] = workspace;
+    return;
+  }
+  workspaces.value.push(workspace);
+});
+
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  open: (...args: unknown[]) => pickWorkspaceDirectory(...args),
+}));
 
 vi.mock('@/stores/library', () => ({
   useLibraryStore: () => ({
     visibleEntries: computed(() => libraryEntries.value),
     workspaceTree: computed(() => workspaceTree.value),
+    workspaces: computed(() => workspaces.value),
     context: libraryContext,
-    currentWorkspaceLabel: computed(() => currentWorkspaceLabel.value),
+    currentWorkspaceLabel: computed(() => {
+      const matched = workspaces.value.find(item => item.id === libraryContext.value.workspaceId);
+      return matched?.name ?? '';
+    }),
     stats: computed(() => ({
       folders: libraryEntries.value.filter(entry => entry.kind === 'folder').length,
       groups: libraryEntries.value.filter(entry => entry.kind === 'group').length,
@@ -41,12 +60,15 @@ vi.mock('@/stores/library', () => ({
       texts: libraryEntries.value.filter(entry => entry.kind === 'text').length,
     })),
     loadMainList,
+    loadWorkspaces,
+    upsertWorkspace,
   }),
 }));
 
 vi.mock('@/composables/useDb', () => ({
   useDb: () => ({
     convertTextToDocument,
+    createWorkspace,
   }),
 }));
 
@@ -83,17 +105,22 @@ describe('MainView', () => {
   beforeEach(() => {
     libraryEntries.value = [];
     workspaceTree.value = [];
+    workspaces.value = [];
     libraryContext.value = {
       workspaceId: null,
       folderEntryId: null,
       groupEntryId: null,
       selectedEntryId: null,
     };
-    currentWorkspaceLabel.value = '';
     loadMainList.mockClear();
+    loadWorkspaces.mockClear();
+    upsertWorkspace.mockClear();
     navigateTo.mockClear();
     openQuicknote.mockClear();
     convertTextToDocument.mockClear();
+    createWorkspace.mockClear();
+    pickWorkspaceDirectory.mockReset();
+    pickWorkspaceDirectory.mockResolvedValue(null);
   });
 
   it('renders mixed cards with type badges and current-page footer stats', async () => {
@@ -142,6 +169,16 @@ describe('MainView', () => {
   });
 
   it('keeps toolbar quick actions working', async () => {
+    workspaces.value = [
+      { id: 'workspace-1', name: '默认工作区', rootPath: 'D:/workspace/default' },
+    ];
+    libraryContext.value = {
+      workspaceId: 'workspace-1',
+      folderEntryId: null,
+      groupEntryId: null,
+      selectedEntryId: null,
+    };
+
     const wrapper = mount(WrappedMainView);
     await flushPromises();
 
@@ -157,13 +194,15 @@ describe('MainView', () => {
       makeEntry({ id: 'folder-1', kind: 'folder', title: '项目目录' }),
       makeEntry({ id: 'doc-1', kind: 'document', title: '设计文档' }),
     ];
+    workspaces.value = [
+      { id: 'workspace-1', name: '默认工作区', rootPath: 'D:/workspace/default' },
+    ];
     libraryContext.value = {
       workspaceId: 'workspace-1',
       folderEntryId: null,
       groupEntryId: null,
       selectedEntryId: null,
     };
-    currentWorkspaceLabel.value = '默认工作区';
 
     const wrapper = mount(WrappedMainView);
     await flushPromises();
@@ -174,5 +213,76 @@ describe('MainView', () => {
 
     expect(wrapper.findAll('.workspace-tree-item')).toHaveLength(2);
     expect(wrapper.get('[data-testid="main-footer-workspace"]').text()).toContain('默认工作区');
+  });
+
+  it('opens the workspace switcher and switches to an existing workspace', async () => {
+    workspaces.value = [
+      { id: 'workspace-1', name: '默认工作区', rootPath: 'D:/workspace/default' },
+      { id: 'workspace-2', name: '项目归档', rootPath: 'D:/workspace/archive' },
+    ];
+
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    await wrapper.get('[data-testid="main-footer-switch-workspace"]').trigger('click');
+
+    expect(loadWorkspaces).toHaveBeenCalled();
+    expect(wrapper.text()).toContain('项目归档');
+
+    await wrapper.get('[data-testid="workspace-option-workspace-2"]').trigger('click');
+
+    expect(libraryContext.value.workspaceId).toBe('workspace-2');
+    expect(wrapper.get('[data-testid="main-footer-workspace"]').text()).toContain('项目归档');
+  });
+
+  it('asks for a workspace before opening a new document editor', async () => {
+    workspaces.value = [
+      { id: 'workspace-1', name: '默认工作区', rootPath: 'D:/workspace/default' },
+    ];
+
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    await wrapper.get('[data-testid="main-new-note"]').trigger('click');
+
+    expect(navigateTo).not.toHaveBeenCalled();
+    expect(wrapper.find('[data-testid="workspace-picker-dialog"]').exists()).toBe(true);
+
+    await wrapper.get('[data-testid="workspace-option-workspace-1"]').trigger('click');
+    await flushPromises();
+
+    expect(libraryContext.value.workspaceId).toBe('workspace-1');
+    expect(navigateTo).toHaveBeenCalledWith('note-editor');
+  });
+
+  it('asks for a workspace before converting text to document', async () => {
+    workspaces.value = [
+      { id: 'workspace-1', name: '默认工作区', rootPath: 'D:/workspace/default' },
+    ];
+    libraryEntries.value = [
+      makeEntry({ id: 'text-1', kind: 'text', title: '速记文本' }),
+    ];
+
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    await wrapper.find('.entry-card').trigger('contextmenu', {
+      preventDefault: vi.fn(),
+      clientX: 32,
+      clientY: 48,
+    });
+    await wrapper.get('[data-testid="context-convert-document"]').trigger('click');
+
+    expect(convertTextToDocument).not.toHaveBeenCalled();
+    expect(wrapper.find('[data-testid="workspace-picker-dialog"]').exists()).toBe(true);
+
+    await wrapper.get('[data-testid="workspace-option-workspace-1"]').trigger('click');
+    await flushPromises();
+
+    expect(convertTextToDocument).toHaveBeenCalledWith({
+      id: 'text-1',
+      workspaceId: 'workspace-1',
+      folderEntryId: null,
+    });
   });
 });

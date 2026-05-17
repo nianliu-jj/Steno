@@ -11,12 +11,16 @@ import { invoke } from '@tauri-apps/api/core';
 import type {
   CanvasPosition,
   ConvertTextToDocumentRequest,
+  CreateWorkspaceRequest,
+  EditorEntry,
   LibraryEntry,
   MainListContext,
   Note,
   PinnedWindowConfig,
+  SaveDocumentEntryRequest,
   SaveNoteRequest,
   SearchNotesRequest,
+  Workspace,
 } from '@/types/steno';
 
 export function useDb() {
@@ -33,6 +37,10 @@ export function useDb() {
     return invoke<Note | null>('get_note', { id });
   }
 
+  function getEditorEntry(id: string) {
+    return invoke<EditorEntry | null>('get_editor_entry', { id });
+  }
+
   function listNotes(limit = 200) {
     return invoke<Note[]>('list_notes', { limit });
   }
@@ -47,6 +55,18 @@ export function useDb() {
 
   function listWorkspaceTree(workspaceId: string) {
     return invoke<LibraryEntry[]>('list_workspace_tree', { workspaceId });
+  }
+
+  function listWorkspaces() {
+    return invoke<Workspace[]>('list_workspaces');
+  }
+
+  function createWorkspace(input: CreateWorkspaceRequest) {
+    return invoke<Workspace>('create_workspace', { input });
+  }
+
+  function saveDocumentEntry(input: SaveDocumentEntryRequest) {
+    return invoke<LibraryEntry>('save_document_entry', { input });
   }
 
   function convertTextToDocument(input: ConvertTextToDocumentRequest) {
@@ -123,10 +143,14 @@ export function useDb() {
   return {
     saveNote,
     getNote,
+    getEditorEntry,
     listNotes,
     searchNotes,
     listLibraryEntries,
     listWorkspaceTree,
+    listWorkspaces,
+    createWorkspace,
+    saveDocumentEntry,
     convertTextToDocument,
     deleteNote,
     setNotePinned,

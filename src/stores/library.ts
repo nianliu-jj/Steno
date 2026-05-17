@@ -2,13 +2,14 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
 import { useDb } from '@/composables/useDb';
-import type { EntryKind, LibraryEntry, MainListContext } from '@/types/steno';
+import type { EntryKind, LibraryEntry, MainListContext, Workspace } from '@/types/steno';
 
 export const useLibraryStore = defineStore('library', () => {
   const db = useDb();
 
   const entries = ref<LibraryEntry[]>([]);
   const workspaceTree = ref<LibraryEntry[]>([]);
+  const workspaces = ref<Workspace[]>([]);
   const context = ref<MainListContext>({
     workspaceId: null,
     folderEntryId: null,
@@ -20,8 +21,11 @@ export const useLibraryStore = defineStore('library', () => {
   const visibleEntries = computed(() =>
     entries.value.filter(entry => typeFilters.value.includes(entry.kind)),
   );
+  const currentWorkspace = computed(() =>
+    workspaces.value.find(workspace => workspace.id === context.value.workspaceId) ?? null,
+  );
   const currentWorkspaceLabel = computed(() =>
-    context.value.workspaceId ? context.value.workspaceId : '',
+    currentWorkspace.value?.name ?? '',
   );
   const currentGroupId = computed(() => context.value.groupEntryId);
 
@@ -40,16 +44,33 @@ export const useLibraryStore = defineStore('library', () => {
     workspaceTree.value = await db.listWorkspaceTree(workspaceId);
   }
 
+  async function loadWorkspaces() {
+    workspaces.value = await db.listWorkspaces();
+  }
+
+  function upsertWorkspace(workspace: Workspace) {
+    const index = workspaces.value.findIndex(item => item.id === workspace.id);
+    if (index >= 0) {
+      workspaces.value[index] = workspace;
+      return;
+    }
+    workspaces.value.unshift(workspace);
+  }
+
   return {
     entries,
     workspaceTree,
+    workspaces,
     context,
     typeFilters,
     visibleEntries,
+    currentWorkspace,
     currentWorkspaceLabel,
     currentGroupId,
     stats,
     loadMainList,
     loadWorkspaceTree,
+    loadWorkspaces,
+    upsertWorkspace,
   };
 });

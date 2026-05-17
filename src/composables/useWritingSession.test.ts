@@ -6,15 +6,32 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { useWritingSession } from './useWritingSession';
 
+const getEditorEntry = vi.fn(() => Promise.resolve(null));
+const getNote = vi.fn(() => Promise.resolve(null));
+const saveDocumentEntry = vi.fn(() => Promise.resolve({ id: 'doc-1' }));
+
 vi.mock('@/composables/useDb', () => ({
   useDb: () => ({
-    getNote: vi.fn(() => Promise.resolve(null)),
+    getEditorEntry,
+    getNote,
+    saveDocumentEntry,
   }),
 }));
 
 vi.mock('@/stores/notes', () => ({
   useNotesStore: () => ({
     saveDraft: vi.fn(() => Promise.resolve(null)),
+  }),
+}));
+
+vi.mock('@/stores/library', () => ({
+  useLibraryStore: () => ({
+    context: {
+      workspaceId: 'workspace-1',
+      folderEntryId: 'folder-1',
+      groupEntryId: null,
+      selectedEntryId: null,
+    },
   }),
 }));
 
@@ -25,11 +42,11 @@ vi.mock('@/composables/useMarkdown', () => ({
 }));
 
 vi.mock('@/composables/useAutosave', () => ({
-  useAutosave: () => ({
+  useAutosave: (saver: (payload: unknown) => Promise<unknown>) => ({
     status: { value: 'idle' },
     savedAt: { value: null },
     error: { value: null },
-    scheduleSave: vi.fn(),
+    scheduleSave: (payload: unknown) => void saver(payload),
     flushSave: vi.fn(() => Promise.resolve()),
   }),
 }));
@@ -41,6 +58,16 @@ const Harness = defineComponent({
   },
   render() {
     return h('div', { 'data-mode': this.session.mode.value });
+  },
+});
+
+const NewDocumentHarness = defineComponent({
+  setup() {
+    const session = useWritingSession(ref(null));
+    return { session };
+  },
+  render() {
+    return h('div');
   },
 });
 
@@ -62,5 +89,24 @@ describe('useWritingSession', () => {
 
     session.closeSource();
     expect(session.mode.value).toBe('rich-edit');
+  });
+
+  it('uses the current workspace context to save a new document session', async () => {
+    const wrapper = mount(NewDocumentHarness);
+    await flushPromises();
+
+    const vm = wrapper.vm as unknown as {
+      $: { setupState: { session: ReturnType<typeof useWritingSession> } };
+    };
+    const session = vm.$.setupState.session;
+
+    session.content.value = '文档正文';
+    await flushPromises();
+
+    expect(saveDocumentEntry).toHaveBeenCalledWith(expect.objectContaining({
+      workspaceId: 'workspace-1',
+      folderEntryId: 'folder-1',
+      content: '文档正文',
+    }));
   });
 });

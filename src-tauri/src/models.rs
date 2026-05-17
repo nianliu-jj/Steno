@@ -50,6 +50,36 @@ pub struct Workspace {
     pub updated_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct MainListContext {
+    pub workspace_id: Option<String>,
+    pub folder_entry_id: Option<String>,
+    pub group_entry_id: Option<String>,
+    pub selected_entry_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateWorkspaceRequest {
+    pub name: Option<String>,
+    pub root_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditorEntry {
+    pub id: String,
+    pub kind: EntryKind,
+    pub title: String,
+    pub content: String,
+    pub tags: Vec<String>,
+    pub workspace_id: Option<String>,
+    pub parent_id: Option<String>,
+    pub group_id: Option<String>,
+    pub file_path: Option<String>,
+}
+
 /// 置顶便签窗口配置（位置、尺寸、外观）。存 SQLite 时序列化为 JSON 写入
 /// `notes.pinned_window_config` 列。
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -126,6 +156,17 @@ pub struct SaveTextEntryRequest {
     pub content: String,
     pub tags: Vec<String>,
     pub group_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveDocumentEntryRequest {
+    pub id: Option<String>,
+    pub title: Option<String>,
+    pub content: String,
+    pub tags: Vec<String>,
+    pub workspace_id: String,
+    pub folder_entry_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
