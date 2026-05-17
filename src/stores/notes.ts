@@ -94,6 +94,15 @@ export const useNotesStore = defineStore('notes', () => {
     pinned.value = pinned.value.filter(n => n.id !== id);
   }
 
+  function syncExternalNote(note: Note) {
+    upsertLocal(note);
+    if (note.isPinned) {
+      upsertPinned(note);
+      return;
+    }
+    pinned.value = pinned.value.filter(n => n.id !== note.id);
+  }
+
   function upsertLocal(note: Note) {
     const i = notes.value.findIndex(n => n.id === note.id);
     if (i >= 0) {
@@ -125,5 +134,6 @@ export const useNotesStore = defineStore('notes', () => {
     updatePinnedConfig,
     updateCanvasPosition,
     removeNote,
+    syncExternalNote,
   };
 });

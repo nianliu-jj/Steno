@@ -4,7 +4,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { NConfigProvider, NMessageProvider } from 'naive-ui';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { defineComponent, h } from 'vue';
+import { defineComponent, h, ref } from 'vue';
 
 import MainView from './MainView.vue';
 import MainViewSource from './MainView.vue?raw';
@@ -15,6 +15,9 @@ const navigateTo = vi.fn();
 const exportNoteMarkdown = vi.fn(() => Promise.resolve('D:/exports/note.md'));
 const exportNoteHtml = vi.fn(() => Promise.resolve('D:/exports/note.html'));
 const exportNotePdf = vi.fn(() => Promise.resolve('D:/exports/note.pdf'));
+const listenNoteSaved = vi.fn();
+const noteSavedCleanup = vi.fn();
+let noteSavedHandler: ((note: Note) => void) | null = null;
 
 vi.mock('@/composables/useWindow', () => ({
   useWindow: () => ({
@@ -28,24 +31,64 @@ vi.mock('@/composables/useWindow', () => ({
 
 const loadNotes = vi.fn(() => Promise.resolve());
 const loadPinned = vi.fn(() => Promise.resolve());
-let notesState: Note[] = [];
-let loadingState = false;
-let notesStoreOverrides: {
-  saveDraft?: ReturnType<typeof vi.fn>;
-  removeNote?: ReturnType<typeof vi.fn>;
-} = {};
+const notesState = ref<Note[]>([]);
+const pinnedState = ref<Note[]>([]);
+const loadingState = ref(false);
+let saveDraftMock = vi.fn(() => Promise.resolve(null));
+let removeNoteMock = vi.fn(() => Promise.resolve());
+let syncExternalNoteMock = vi.fn();
+
+function setNotesState(next: Note[]) {
+  notesState.value = [...next];
+}
+
+function setPinnedState(next: Note[]) {
+  pinnedState.value = [...next];
+}
+
+function syncNoteState(note: Note) {
+  const notes = [...notesState.value];
+  const noteIndex = notes.findIndex(item => item.id === note.id);
+  if (noteIndex >= 0) {
+    notes[noteIndex] = note;
+  } else {
+    notes.unshift(note);
+  }
+  notesState.value = notes;
+
+  if (note.isPinned) {
+    const pinned = [...pinnedState.value];
+    const pinnedIndex = pinned.findIndex(item => item.id === note.id);
+    if (pinnedIndex >= 0) {
+      pinned[pinnedIndex] = note;
+    } else {
+      pinned.push(note);
+    }
+    pinnedState.value = pinned;
+    return;
+  }
+
+  pinnedState.value = pinnedState.value.filter(item => item.id !== note.id);
+}
 
 vi.mock('@/stores/notes', () => ({
   useNotesStore: () => ({
-    notes: notesState,
-    pinned: [],
-    loading: loadingState,
+    get notes() {
+      return notesState.value;
+    },
+    get pinned() {
+      return pinnedState.value;
+    },
+    get loading() {
+      return loadingState.value;
+    },
     loadNotes,
     loadPinned,
     pinNote: vi.fn(() => Promise.resolve()),
     unpinNote: vi.fn(() => Promise.resolve()),
-    saveDraft: notesStoreOverrides.saveDraft ?? vi.fn(() => Promise.resolve(null)),
-    removeNote: notesStoreOverrides.removeNote ?? vi.fn(() => Promise.resolve()),
+    saveDraft: (...args: Parameters<typeof saveDraftMock>) => saveDraftMock(...args),
+    removeNote: (...args: Parameters<typeof removeNoteMock>) => removeNoteMock(...args),
+    syncExternalNote: (note: Note) => syncExternalNoteMock(note),
   }),
 }));
 
@@ -60,6 +103,12 @@ vi.mock('@/composables/useDb', () => ({
 vi.mock('@/stores/ui', () => ({
   useUiStore: () => ({
     navigateTo,
+  }),
+}));
+
+vi.mock('@/composables/useAppEvents', () => ({
+  useAppEvents: () => ({
+    listenNoteSaved: (...args: Parameters<typeof listenNoteSaved>) => listenNoteSaved(...args),
   }),
 }));
 
@@ -92,20 +141,27 @@ function makeNote(overrides: Partial<Note> = {}): Note {
   };
 }
 
-function installNotesStoreOverrides(overrides: typeof notesStoreOverrides) {
-  notesStoreOverrides = overrides;
-}
-
 describe('MainView', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    notesState = [];
-    loadingState = false;
-    notesStoreOverrides = {};
+    setNotesState([]);
+    setPinnedState([]);
+    loadingState.value = false;
+    saveDraftMock = vi.fn(() => Promise.resolve(null));
+    removeNoteMock = vi.fn(() => Promise.resolve());
+    syncExternalNoteMock = vi.fn((note: Note) => syncNoteState(note));
     openQuicknote.mockClear();
     navigateTo.mockClear();
     loadNotes.mockClear();
     loadPinned.mockClear();
+    listenNoteSaved.mockReset();
+    noteSavedCleanup.mockReset();
+    noteSavedCleanup.mockImplementation(() => undefined);
+    noteSavedHandler = null;
+    listenNoteSaved.mockImplementation((handler: (note: Note) => void) => {
+      noteSavedHandler = handler;
+      return Promise.resolve(noteSavedCleanup);
+    });
     exportNoteMarkdown.mockClear();
     exportNoteHtml.mockClear();
     exportNotePdf.mockReset();
@@ -113,7 +169,7 @@ describe('MainView', () => {
   });
 
   it('renders notes as layout v2 cards', async () => {
-    notesState = [
+    setNotesState([
       {
         id: 'note-1',
         title: 'Rust 生命周期笔记',
@@ -127,7 +183,7 @@ describe('MainView', () => {
         updatedAt: '2026-05-14T10:03:00.000Z',
         wordCount: 18,
       },
-    ];
+    ]);
 
     const wrapper = mount(WrappedMainView);
     await flushPromises();
@@ -140,7 +196,7 @@ describe('MainView', () => {
 
   it('maps note store fields to title, preview, tags, updated time, and pin marker', async () => {
     const updatedAt = new Date().toISOString();
-    notesState = [
+    setNotesState([
       {
         id: 'note-2',
         title: '',
@@ -154,7 +210,7 @@ describe('MainView', () => {
         updatedAt,
         wordCount: 24,
       },
-    ];
+    ]);
 
     const expectedTime = new Date(updatedAt).toLocaleTimeString('zh-CN', {
       hour: '2-digit',
@@ -211,7 +267,7 @@ describe('MainView', () => {
   });
 
   it('renders the main toolbar by default and keeps action behavior working', async () => {
-    notesState = [
+    setNotesState([
       {
         id: 'note-3',
         title: '带操作区的笔记',
@@ -225,7 +281,7 @@ describe('MainView', () => {
         updatedAt: '2026-05-14T10:30:00.000Z',
         wordCount: 18,
       },
-    ];
+    ]);
 
     const wrapper = mount(WrappedMainView);
     await flushPromises();
@@ -245,11 +301,11 @@ describe('MainView', () => {
   });
 
   it('filters notes by multiple tag checkboxes including untagged notes', async () => {
-    notesState = [
+    setNotesState([
       makeNote({ id: 'a', title: 'Alpha', tags: ['work'] }),
       makeNote({ id: 'b', title: 'Beta', tags: ['life', 'work'] }),
       makeNote({ id: 'c', title: 'Gamma', tags: [] }),
-    ];
+    ]);
 
     const wrapper = mount(WrappedMainView);
     await flushPromises();
@@ -292,7 +348,7 @@ describe('MainView', () => {
   });
 
   it('prevents the default context menu and disables document actions on blank area', async () => {
-    notesState = [makeNote({ id: 'note-ctx', title: '右键文档', tags: ['ctx'] })];
+    setNotesState([makeNote({ id: 'note-ctx', title: '右键文档', tags: ['ctx'] })]);
     const preventDefault = vi.fn();
     const wrapper = mount(WrappedMainView);
     await flushPromises();
@@ -314,7 +370,7 @@ describe('MainView', () => {
   });
 
   it('enables note context actions and calls new, edit, export, rename, tag, print, and delete handlers', async () => {
-    const saveDraft = vi.fn(input =>
+    saveDraftMock = vi.fn(input =>
       Promise.resolve(makeNote({
         id: input.id,
         title: input.title ?? '右键文档',
@@ -322,11 +378,10 @@ describe('MainView', () => {
         tags: input.tags,
       })),
     );
-    const removeNote = vi.fn(() => Promise.resolve());
-    installNotesStoreOverrides({ saveDraft, removeNote });
+    removeNoteMock = vi.fn(() => Promise.resolve());
     exportNotePdf.mockRejectedValue(new Error('PDF 不可用'));
     const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
-    notesState = [makeNote({ id: 'note-ctx', title: '右键文档', tags: ['old'], content: '正文' })];
+    setNotesState([makeNote({ id: 'note-ctx', title: '右键文档', tags: ['old'], content: '正文' })]);
 
     const wrapper = mount(WrappedMainView);
     await flushPromises();
@@ -349,7 +404,7 @@ describe('MainView', () => {
     await wrapper.get('[data-testid="main-tag-add"]').trigger('click');
     await wrapper.get('[data-testid="main-tag-input-1"] input').setValue('new');
     await wrapper.get('[data-testid="main-tags-confirm"]').trigger('click');
-    expect(saveDraft).toHaveBeenLastCalledWith(expect.objectContaining({
+    expect(saveDraftMock).toHaveBeenLastCalledWith(expect.objectContaining({
       id: 'note-ctx',
       title: '右键文档',
       content: '正文',
@@ -360,7 +415,7 @@ describe('MainView', () => {
     await wrapper.get('[data-testid="context-rename"]').trigger('click');
     await wrapper.get('[data-testid="main-rename-input"] input').setValue('新标题');
     await wrapper.get('[data-testid="main-rename-confirm"]').trigger('click');
-    expect(saveDraft).toHaveBeenLastCalledWith(expect.objectContaining({
+    expect(saveDraftMock).toHaveBeenLastCalledWith(expect.objectContaining({
       id: 'note-ctx',
       title: '新标题',
     }));
@@ -379,8 +434,44 @@ describe('MainView', () => {
 
     await wrapper.get('.note-card').trigger('contextmenu', { preventDefault: vi.fn(), clientX: 120, clientY: 140 });
     await wrapper.get('[data-testid="context-delete"]').trigger('click');
-    expect(removeNote).toHaveBeenCalledWith('note-ctx');
+    expect(removeNoteMock).toHaveBeenCalledWith('note-ctx');
 
     print.mockRestore();
+  });
+
+  it('calls syncExternalNote when a note-saved event arrives', async () => {
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    const savedNote = makeNote({ id: 'note-saved', title: '跨窗口新标题' });
+    noteSavedHandler?.(savedNote);
+    await flushPromises();
+
+    expect(listenNoteSaved).toHaveBeenCalledOnce();
+    expect(syncExternalNoteMock).toHaveBeenCalledWith(savedNote);
+
+    wrapper.unmount();
+  });
+
+  it('updates the rendered card title after a note-saved event', async () => {
+    setNotesState([makeNote({ id: 'note-1', title: '旧标题' })]);
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    expect(wrapper.get('.note-card h3').text()).toBe('旧标题');
+
+    noteSavedHandler?.(makeNote({ id: 'note-1', title: '新标题' }));
+    await flushPromises();
+
+    expect(wrapper.get('.note-card h3').text()).toBe('新标题');
+  });
+
+  it('cleans up the note-saved listener when unmounted', async () => {
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    wrapper.unmount();
+
+    expect(noteSavedCleanup).toHaveBeenCalledOnce();
   });
 });

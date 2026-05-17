@@ -1,9 +1,10 @@
 <script setup lang="ts">
 // 主窗口落地页（mode === 'main'）。
 // 当前作为工作台内容页渲染：原型 v2 的笔记卡片网格和空状态。
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { NButton, NDropdown, NIcon, NInput, useMessage } from 'naive-ui';
 
+import { useAppEvents } from '@/composables/useAppEvents';
 import { useDb } from '@/composables/useDb';
 import { useWindow } from '@/composables/useWindow';
 import { useNotesStore } from '@/stores/notes';
@@ -21,11 +22,29 @@ const ui = useUiStore();
 const win = useWindow();
 const message = useMessage();
 const db = useDb();
+const appEvents = useAppEvents();
 
 const untaggedFilterValue = '__untagged__';
+let removeNoteSavedListener: (() => void) | null = null;
+let noteSavedListenerDisposed = false;
 
 onMounted(() => {
   void notes.loadNotes(50);
+  void appEvents.listenNoteSaved((note) => {
+    notes.syncExternalNote(note);
+  }).then((unlisten) => {
+    if (noteSavedListenerDisposed) {
+      unlisten();
+      return;
+    }
+    removeNoteSavedListener = unlisten;
+  });
+});
+
+onUnmounted(() => {
+  noteSavedListenerDisposed = true;
+  removeNoteSavedListener?.();
+  removeNoteSavedListener = null;
 });
 
 const recentNotes = computed(() => notes.notes.slice(0, 30));
