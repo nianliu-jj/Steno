@@ -12,13 +12,6 @@ import { useLibraryStore } from '@/stores/library';
 import { useUiStore } from '@/stores/ui';
 import type { LibraryEntry, MainListContext, Workspace } from '@/types/steno';
 
-interface EntryStats {
-  folders: number;
-  groups: number;
-  documents: number;
-  texts: number;
-}
-
 const typeFilterOptions: Array<{ kind: 'document' | 'text'; label: string }> = [
   { kind: 'document', label: '文档' },
   { kind: 'text', label: '文本' },
@@ -29,13 +22,6 @@ const defaultContext: MainListContext = {
   folderEntryId: null,
   groupEntryId: null,
   selectedEntryId: null,
-};
-
-const defaultStats: EntryStats = {
-  folders: 0,
-  groups: 0,
-  documents: 0,
-  texts: 0,
 };
 
 const library = useLibraryStore();
@@ -116,35 +102,6 @@ const currentWorkspaceTitle = computed(() => {
   const rootPath = currentWorkspace.value?.rootPath;
   return rootPath ? `${currentWorkspaceName.value}\n${rootPath}` : currentWorkspaceName.value;
 });
-
-const stats = computed<EntryStats>(() => {
-  const value = unref((library as unknown as { stats?: Partial<EntryStats> }).stats);
-  return {
-    ...defaultStats,
-    ...value,
-  };
-});
-
-const workspaceTreeStats = computed(() => ({
-  folders: workspaceTreeEntries.value.filter(entry => entry.kind === 'folder').length,
-  documents: workspaceTreeEntries.value.filter(entry => entry.kind === 'document').length,
-}));
-
-const footerStats = computed<EntryStats>(() => {
-  if (!currentContext.value.workspaceId || workspaceTreeEntries.value.length === 0) {
-    return stats.value;
-  }
-
-  return {
-    ...stats.value,
-    folders: workspaceTreeStats.value.folders,
-    documents: workspaceTreeStats.value.documents,
-  };
-});
-
-const statsLabel = computed(() =>
-  `文档 ${footerStats.value.documents} · 文本 ${footerStats.value.texts} · 文件夹 ${footerStats.value.folders} · 分组 ${footerStats.value.groups}`,
-);
 
 const activeTypeFilters = computed<Array<'folder' | 'group' | 'document' | 'text'>>(() => {
   const value = unref((library as unknown as {
@@ -622,9 +579,6 @@ async function onOpenWorkspaceSwitcher() {
             </svg>
           </button>
         </div>
-        <div class="main-footer-stats" data-testid="main-footer-stats" :title="statsLabel">
-          {{ statsLabel }}
-        </div>
         <button
           type="button"
           class="main-footer-icon-button main-footer-icon-button--tree"
@@ -943,18 +897,6 @@ async function onOpenWorkspaceSwitcher() {
   white-space: nowrap;
 }
 
-.main-footer-stats {
-  flex: 0 1 330px;
-  min-width: 0;
-  max-width: 330px;
-  margin-left: auto;
-  overflow: hidden;
-  color: var(--app-muted);
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .main-footer-icon-button {
   width: 30px;
   height: 30px;
@@ -1043,14 +985,6 @@ async function onOpenWorkspaceSwitcher() {
   .main-footer-workspace {
     flex: 1 1 260px;
     max-width: calc(100% - 38px);
-  }
-
-  .main-footer-stats {
-    order: 3;
-    flex-basis: 100%;
-    max-width: 100%;
-    margin-left: 0;
-    text-align: left;
   }
 }
 

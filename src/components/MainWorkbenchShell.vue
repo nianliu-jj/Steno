@@ -482,7 +482,9 @@ function iconPathFor(key: WindowMode) {
 
       <main class="workbench-main">
         <section class="workbench-content">
-          <slot />
+          <div class="workbench-view">
+            <slot />
+          </div>
         </section>
       </main>
     </div>
@@ -927,7 +929,14 @@ function iconPathFor(key: WindowMode) {
 .workbench-content {
   flex: 1;
   min-height: 0;
+  display: flex;
   overflow: auto;
+}
+
+.workbench-view {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
 }
 
 @media (max-width: 720px) {
