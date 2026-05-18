@@ -150,21 +150,21 @@ onUnmounted(() => {
           class="zen-title"
         />
         <div class="zen-outline-shell" data-testid="zen-outline-shell">
-      <WritingSurface
-        v-model="session.content.value"
-        :mode="session.mode.value"
-        :headings="session.headings.value"
-        :outline-open="outline.open.value"
-        :outline-width="outline.width.value"
-        :show-floating-outline="false"
-        :show-zen-entry="false"
-        @toggle-readonly="session.toggleReadonly"
-        @open-source="session.openSource"
-        @close-source="session.closeSource"
-        @resize-outline="outline.setWidth($event)"
-      />
-    </div>
-  </div>
+          <WritingSurface
+            v-model="session.content.value"
+            :mode="session.mode.value"
+            :headings="session.headings.value"
+            :outline-open="outline.open.value"
+            :outline-width="outline.width.value"
+            :show-floating-outline="false"
+            :show-zen-entry="false"
+            @toggle-readonly="session.toggleReadonly"
+            @open-source="session.openSource"
+            @close-source="session.closeSource"
+            @resize-outline="outline.setWidth($event)"
+          />
+        </div>
+      </div>
     </div>
   </div>
 </template>
