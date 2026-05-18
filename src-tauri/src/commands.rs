@@ -13,7 +13,9 @@ use tauri::{AppHandle, State};
 use crate::db::Db;
 use crate::export;
 use crate::models::{
-    CanvasPosition, Note, PinnedWindowConfig, SaveNoteRequest, SearchNotesRequest,
+    CanvasPosition, ConvertTextToDocumentRequest, CreateWorkspaceRequest, LibraryEntry,
+    MainListContext, Note, PinnedWindowConfig, SaveDocumentEntryRequest, SaveNoteRequest,
+    SaveTextEntryRequest, SearchNotesRequest, Workspace, EditorEntry,
 };
 use crate::{quicknote, shortcut, window_manager};
 
@@ -32,9 +34,57 @@ pub async fn save_note(db: State<'_, Db>, input: SaveNoteRequest) -> Result<Opti
 }
 
 #[tauri::command]
+pub async fn save_text_entry(
+    db: State<'_, Db>,
+    input: SaveTextEntryRequest,
+) -> Result<LibraryEntry, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.save_text_entry(input))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn save_document_entry(
+    db: State<'_, Db>,
+    input: SaveDocumentEntryRequest,
+) -> Result<LibraryEntry, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.save_document_entry(input))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn convert_text_to_document(
+    db: State<'_, Db>,
+    input: ConvertTextToDocumentRequest,
+) -> Result<LibraryEntry, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.convert_text_to_document(input))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+#[tauri::command]
 pub async fn get_note(db: State<'_, Db>, id: String) -> Result<Option<Note>, String> {
     let db = db.inner().clone();
     tauri::async_runtime::spawn_blocking(move || db.get_note(&id))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn get_editor_entry(
+    db: State<'_, Db>,
+    id: String,
+) -> Result<Option<EditorEntry>, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.get_editor_entry(&id))
         .await
         .map_err(to_msg)?
         .map_err(to_msg)
@@ -59,6 +109,66 @@ pub async fn search_notes(
         .await
         .map_err(to_msg)?
         .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn list_library_entries(
+    db: State<'_, Db>,
+    context: MainListContext,
+) -> Result<Vec<LibraryEntry>, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.list_library_entries(context))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn list_workspace_tree(
+    db: State<'_, Db>,
+    workspace_id: String,
+) -> Result<Vec<LibraryEntry>, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.list_workspace_tree(&workspace_id))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn list_workspaces(db: State<'_, Db>) -> Result<Vec<Workspace>, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.list_workspaces())
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn create_workspace(
+    db: State<'_, Db>,
+    input: CreateWorkspaceRequest,
+) -> Result<Workspace, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let name = input
+            .name
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned)
+            .unwrap_or_else(|| {
+                std::path::Path::new(&input.root_path)
+                    .file_name()
+                    .and_then(|value| value.to_str())
+                    .unwrap_or("新工作区")
+                    .to_string()
+            });
+        db.create_workspace(&name, std::path::PathBuf::from(input.root_path))
+    })
+    .await
+    .map_err(to_msg)?
+    .map_err(to_msg)
 }
 
 #[tauri::command]
@@ -161,11 +271,6 @@ pub fn open_canvas_window(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn open_search_window(app: AppHandle) -> Result<(), String> {
-    window_manager::open_search(&app).map_err(to_msg)
-}
-
-#[tauri::command]
 pub fn open_settings_window(app: AppHandle) -> Result<(), String> {
     window_manager::open_settings(&app).map_err(to_msg)
 }
@@ -208,6 +313,26 @@ pub async fn export_note_markdown(db: State<'_, Db>, id: String) -> Result<Strin
         let exports_dir = data_dir.join("exports");
         let path = export::build_output_path(&exports_dir, &note, "md");
         export::export_markdown(&note, &path).map_err(to_msg)?;
+        Ok(path.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(to_msg)?
+}
+
+/// 把指定笔记导出为 HTML 文件到 `<data_dir>/exports/<title>-<short_id>.html`。
+/// 返回完整路径字符串，失败时不动数据库。
+#[tauri::command]
+pub async fn export_note_html(db: State<'_, Db>, id: String) -> Result<String, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
+        let note = db
+            .get_note(&id)
+            .map_err(to_msg)?
+            .ok_or_else(|| format!("笔记不存在：{id}"))?;
+        let (data_dir, _db_path, _backup) = db.paths();
+        let exports_dir = data_dir.join("exports");
+        let path = export::build_output_path(&exports_dir, &note, "html");
+        export::export_html(&note, &path).map_err(to_msg)?;
         Ok(path.to_string_lossy().into_owned())
     })
     .await

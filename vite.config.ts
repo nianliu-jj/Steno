@@ -1,6 +1,7 @@
 import process from 'node:process';
 import { fileURLToPath, URL } from 'node:url';
-import { defineConfig, loadEnv } from 'vite';
+import { loadEnv } from 'vite';
+import { defineConfig } from 'vitest/config';
 import { setupVitePlugins } from './build/plugins';
 import { getBuildTime } from './build/config';
 
@@ -26,13 +27,16 @@ export default defineConfig(configEnv => {
     envPrefix: ['VITE_', 'TAURI_'],
     server: {
       host: '0.0.0.0',
-      port: 1420,
+      port: 21420,
       strictPort: true,
       open: false
     },
     preview: {
       port: 1421,
       strictPort: true
+    },
+    test: {
+      exclude: ['**/node_modules/**', '**/dist/**', '**/.git/**', '**/.worktrees/**']
     },
     build: {
       target: 'esnext',
@@ -41,7 +45,7 @@ export default defineConfig(configEnv => {
       commonjsOptions: {
         ignoreTryCatch: false
       },
-      // 所有窗口（main / floating / sticky / canvas / search / settings / zen）
+      // 所有窗口（main / floating / sticky / canvas / settings / zen）
       // 共用 index.html，按 Tauri 窗口 label 在前端 ui store 派生 mode。
       rollupOptions: {
         input: {

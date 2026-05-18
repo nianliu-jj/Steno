@@ -10,10 +10,18 @@ import { invoke } from '@tauri-apps/api/core';
 
 import type {
   CanvasPosition,
+  ConvertTextToDocumentRequest,
+  CreateWorkspaceRequest,
+  EditorEntry,
+  LibraryEntry,
+  MainListContext,
   Note,
   PinnedWindowConfig,
+  SaveDocumentEntryRequest,
   SaveNoteRequest,
+  SaveTextEntryRequest,
   SearchNotesRequest,
+  Workspace,
 } from '@/types/steno';
 
 export function useDb() {
@@ -26,8 +34,16 @@ export function useDb() {
     return invoke<Note | null>('save_note', { input });
   }
 
+  function saveTextEntry(input: SaveTextEntryRequest) {
+    return invoke<LibraryEntry>('save_text_entry', { input });
+  }
+
   function getNote(id: string) {
     return invoke<Note | null>('get_note', { id });
+  }
+
+  function getEditorEntry(id: string) {
+    return invoke<EditorEntry | null>('get_editor_entry', { id });
   }
 
   function listNotes(limit = 200) {
@@ -36,6 +52,30 @@ export function useDb() {
 
   function searchNotes(input: SearchNotesRequest) {
     return invoke<Note[]>('search_notes', { input });
+  }
+
+  function listLibraryEntries(context: MainListContext) {
+    return invoke<LibraryEntry[]>('list_library_entries', { context });
+  }
+
+  function listWorkspaceTree(workspaceId: string) {
+    return invoke<LibraryEntry[]>('list_workspace_tree', { workspaceId });
+  }
+
+  function listWorkspaces() {
+    return invoke<Workspace[]>('list_workspaces');
+  }
+
+  function createWorkspace(input: CreateWorkspaceRequest) {
+    return invoke<Workspace>('create_workspace', { input });
+  }
+
+  function saveDocumentEntry(input: SaveDocumentEntryRequest) {
+    return invoke<LibraryEntry>('save_document_entry', { input });
+  }
+
+  function convertTextToDocument(input: ConvertTextToDocumentRequest) {
+    return invoke<LibraryEntry>('convert_text_to_document', { input });
   }
 
   function deleteNote(id: string) {
@@ -87,6 +127,11 @@ export function useDb() {
     return invoke<string>('export_note_markdown', { id });
   }
 
+  /** 成功时返回写入的完整 HTML 文件路径。失败时 invoke 抛错。 */
+  function exportNoteHtml(id: string) {
+    return invoke<string>('export_note_html', { id });
+  }
+
   /** MVP 当前总是失败，返回的错误用于前端展示"PDF 不可用"提示。 */
   function exportNotePdf(id: string) {
     return invoke<string>('export_note_pdf', { id });
@@ -102,9 +147,17 @@ export function useDb() {
 
   return {
     saveNote,
+    saveTextEntry,
     getNote,
+    getEditorEntry,
     listNotes,
     searchNotes,
+    listLibraryEntries,
+    listWorkspaceTree,
+    listWorkspaces,
+    createWorkspace,
+    saveDocumentEntry,
+    convertTextToDocument,
     deleteNote,
     setNotePinned,
     listPinnedNotes,
@@ -114,6 +167,7 @@ export function useDb() {
     setSetting,
     reloadShortcuts,
     exportNoteMarkdown,
+    exportNoteHtml,
     exportNotePdf,
     getDataPaths,
   };

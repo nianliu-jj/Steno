@@ -8,17 +8,27 @@ mod shortcut;
 mod sync;
 mod tray;
 mod window_manager;
+mod workspace_fs;
 
 use tauri::Manager;
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(shortcut::plugin())
         .invoke_handler(tauri::generate_handler![
             commands::save_note,
+            commands::save_text_entry,
+            commands::save_document_entry,
+            commands::convert_text_to_document,
             commands::get_note,
+            commands::get_editor_entry,
             commands::list_notes,
             commands::search_notes,
+            commands::list_library_entries,
+            commands::list_workspace_tree,
+            commands::list_workspaces,
+            commands::create_workspace,
             commands::delete_note,
             commands::set_note_pinned,
             commands::list_pinned_notes,
@@ -29,12 +39,12 @@ pub fn run() {
             commands::open_sticky_note_window,
             commands::close_sticky_note_window,
             commands::open_canvas_window,
-            commands::open_search_window,
             commands::open_settings_window,
             commands::open_quicknote_window,
             commands::open_zen_window,
             commands::reload_shortcuts,
             commands::export_note_markdown,
+            commands::export_note_html,
             commands::export_note_pdf,
             commands::get_data_paths,
         ])

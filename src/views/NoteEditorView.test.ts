@@ -2,11 +2,23 @@
 
 import { flushPromises, mount } from '@vue/test-utils';
 import { NConfigProvider, NMessageProvider } from 'naive-ui';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, h } from 'vue';
 
 import NoteEditorView from './NoteEditorView.vue';
+import NoteEditorViewSource from './NoteEditorView.vue?raw';
 
+let autosaveStatus = 'saved';
+const navigateToZenFromEditor = vi.fn();
+let uiNoteId: string | null = 'note-1';
+const libraryContext = {
+  workspaceId: 'workspace-1' as string | null,
+  folderEntryId: null as string | null,
+  groupEntryId: null as string | null,
+  selectedEntryId: null as string | null,
+};
+
+const getEditorEntry = vi.fn(() => Promise.resolve(null));
 const getNote = vi.fn(() =>
   Promise.resolve({
     id: 'note-1',
@@ -24,10 +36,13 @@ const getNote = vi.fn(() =>
 );
 
 const saveDraft = vi.fn(() => Promise.resolve({ id: 'note-1' }));
+const saveDocumentEntry = vi.fn(() => Promise.resolve({ id: 'doc-1' }));
 
 vi.mock('@/composables/useDb', () => ({
   useDb: () => ({
+    getEditorEntry,
     getNote,
+    saveDocumentEntry,
   }),
 }));
 
@@ -39,8 +54,15 @@ vi.mock('@/stores/notes', () => ({
 
 vi.mock('@/stores/ui', () => ({
   useUiStore: () => ({
-    noteId: 'note-1',
+    noteId: uiNoteId,
     navigateToMain: vi.fn(),
+    navigateToZenFromEditor,
+  }),
+}));
+
+vi.mock('@/stores/library', () => ({
+  useLibraryStore: () => ({
+    context: libraryContext,
   }),
 }));
 
@@ -52,7 +74,7 @@ vi.mock('@/composables/useMarkdown', () => ({
 
 vi.mock('@/composables/useAutosave', () => ({
   useAutosave: (saver: (payload: unknown) => Promise<unknown>) => ({
-    status: { value: 'idle' },
+    status: { value: autosaveStatus },
     savedAt: { value: null },
     error: { value: null },
     scheduleSave: (payload: unknown) => void saver(payload),
@@ -60,13 +82,22 @@ vi.mock('@/composables/useAutosave', () => ({
   }),
 }));
 
-vi.mock('@/components/MarkdownEditor.vue', () => ({
+vi.mock('@/components/writing/WritingSurface.vue', () => ({
   default: {
-    props: ['modelValue'],
-    emits: ['update:modelValue'],
+    props: ['modelValue', 'mode', 'outlineOpen'],
+    emits: ['update:modelValue', 'toggle-readonly', 'open-source', 'close-source', 'open-zen', 'toggle-outline'],
     template:
-      '<textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+      '<div data-testid="writing-surface"><textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" /><button data-testid="surface-open-zen" @click="$emit(\'open-zen\')">zen</button><button data-testid="surface-open-source" @click="$emit(\'open-source\')">source</button><button data-testid="surface-toggle-outline" @click="$emit(\'toggle-outline\')">outline</button></div>',
   },
+}));
+
+vi.mock('@/composables/useOutlineSidebarState', () => ({
+  useOutlineSidebarState: () => ({
+    open: { value: false },
+    width: { value: 280 },
+    toggle: vi.fn(),
+    setWidth: vi.fn(),
+  }),
 }));
 
 const WrappedNoteEditorView = defineComponent({
@@ -82,13 +113,25 @@ const WrappedNoteEditorView = defineComponent({
 });
 
 describe('NoteEditorView', () => {
+  beforeEach(() => {
+    autosaveStatus = 'saved';
+    uiNoteId = 'note-1';
+    libraryContext.workspaceId = 'workspace-1';
+    libraryContext.folderEntryId = null;
+    getNote.mockClear();
+    getEditorEntry.mockClear();
+    saveDraft.mockClear();
+    saveDocumentEntry.mockClear();
+    navigateToZenFromEditor.mockClear();
+  });
+
   it('loads the target note into the main-window editor', async () => {
     const wrapper = mount(WrappedNoteEditorView);
     await flushPromises();
 
     expect(getNote).toHaveBeenCalledWith('note-1');
-    expect((wrapper.find('.note-editor-title input').element as HTMLInputElement).value)
-      .toBe('Rust 生命周期笔记');
+    expect(wrapper.get('.note-editor-title-text').text()).toBe('Rust 生命周期笔记');
+    expect(wrapper.find('.note-editor-title input').exists()).toBe(false);
     expect((wrapper.find('textarea').element as HTMLTextAreaElement).value)
       .toContain('函数中的生命周期标注影响返回值。');
   });
@@ -100,5 +143,126 @@ describe('NoteEditorView', () => {
     await wrapper.find('textarea').setValue('新内容');
 
     expect(saveDraft).toHaveBeenCalled();
+  });
+
+  it('routes the editor footer Zen action through the ui store', async () => {
+    const wrapper = mount(WrappedNoteEditorView);
+    await flushPromises();
+
+    await wrapper.get('[data-testid="surface-open-zen"]').trigger('click');
+
+    expect(navigateToZenFromEditor).toHaveBeenCalledWith('note-1');
+  });
+
+  it('moves note tags and save metadata into the editor footer', async () => {
+    const wrapper = mount(WrappedNoteEditorView);
+    await flushPromises();
+
+    expect(wrapper.find('.note-editor-header .note-editor-meta').exists()).toBe(false);
+
+    const footerTags = wrapper.get('.note-editor-footer-tags');
+    expect(footerTags.text()).toContain('#rust');
+
+    const footerMeta = wrapper.get('.note-editor-footer-meta');
+    expect(footerMeta.text()).toContain('16 字');
+    expect(footerMeta.text()).toContain('已保存');
+  });
+
+  it('switches the header title into an editable input from the title icon button', async () => {
+    const wrapper = mount(WrappedNoteEditorView);
+    await flushPromises();
+
+    expect(wrapper.find('.note-editor-header .note-editor-title-input input').exists()).toBe(false);
+    expect(wrapper.find('.note-editor-body .note-editor-title').exists()).toBe(false);
+
+    await wrapper.get('[data-testid="note-title-edit"]').trigger('click');
+
+    const headerTitle = wrapper.get('.note-editor-header .note-editor-title-input input');
+    expect((headerTitle.element as HTMLInputElement).value).toBe('Rust 生命周期笔记');
+
+    await headerTitle.setValue('迁移后的标题');
+    await headerTitle.trigger('keydown.enter');
+
+    expect(saveDraft).toHaveBeenLastCalledWith(expect.objectContaining({
+      id: 'note-1',
+      title: '迁移后的标题',
+    }));
+    expect(wrapper.get('.note-editor-title-text').text()).toBe('迁移后的标题');
+  });
+
+  it('edits document tags as one single-line input per row from the tag dialog', async () => {
+    const wrapper = mount(WrappedNoteEditorView);
+    await flushPromises();
+
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
+
+    await wrapper.get('[data-testid="note-tags-edit"]').trigger('click');
+
+    const dialog = wrapper.get('[role="dialog"]');
+    expect(dialog.text()).toContain('编辑标签');
+    expect(dialog.find('.note-editor-tags-input textarea').exists()).toBe(false);
+
+    const firstInput = dialog.get('[data-testid="note-tag-input-0"] input');
+    expect((firstInput.element as HTMLInputElement).value).toBe('rust');
+
+    await firstInput.setValue('rust-updated');
+    await dialog.get('[data-testid="note-tag-add"]').trigger('click');
+    await dialog.get('[data-testid="note-tag-input-1"] input').setValue('vue');
+    await dialog.get('[data-testid="note-tag-delete-1"]').trigger('click');
+    await dialog.get('[data-testid="note-tag-add"]').trigger('click');
+    await dialog.get('[data-testid="note-tag-input-1"] input').setValue('标签');
+    await dialog.get('[data-testid="note-tags-confirm"]').trigger('click');
+
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
+    expect(saveDraft).toHaveBeenLastCalledWith(expect.objectContaining({
+      id: 'note-1',
+      tags: ['rust-updated', '标签'],
+    }));
+    expect(wrapper.get('.note-editor-footer-tags').text()).toContain('#rust-updated');
+    expect(wrapper.get('.note-editor-footer-tags').text()).toContain('#标签');
+  });
+
+  it('declares readable local colors for the tag editing dialog controls', () => {
+    expect(NoteEditorViewSource).toContain('class="note-editor-dialog-cancel"');
+    expect(NoteEditorViewSource).toContain('--n-text-color: #2a2a2a');
+    expect(NoteEditorViewSource).toContain('--n-placeholder-color: #8a7c70');
+    expect(NoteEditorViewSource).toContain('--n-color: #fffdf9');
+    expect(NoteEditorViewSource).toContain('-webkit-text-fill-color: #2a2a2a');
+    expect(NoteEditorViewSource).toContain('--n-text-color: #6f5c4c');
+    expect(NoteEditorViewSource).toContain('--n-color-hover: rgba(55, 46, 36, 0.08)');
+  });
+
+  it('declares readable text colors for the light workbench editor surface', () => {
+    expect(NoteEditorViewSource).toContain('class="note-editor-meta-text"');
+    expect(NoteEditorViewSource).toContain('class="note-editor-back-button"');
+    expect(NoteEditorViewSource).toMatch(/color: #5f564d(?: !important)?;/);
+    expect(NoteEditorViewSource).toMatch(/color: #6f5c4c(?: !important)?;/);
+    expect(NoteEditorViewSource).toContain('caret-color: #2a2a2a;');
+    expect(NoteEditorViewSource).toMatch(/color: #7e7469(?: !important)?;/);
+  });
+
+  it('renders the lifted rounded editor card shell for the main editor', async () => {
+    const wrapper = mount(WrappedNoteEditorView);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="note-editor-shell"]').exists()).toBe(true);
+    expect(NoteEditorViewSource).toContain('data-testid="note-editor-shell"');
+    expect(NoteEditorViewSource).toContain('border-radius: 18px 18px 14px 14px;');
+  });
+
+  it('saves a new workspace-backed entry as a document when no note id is present', async () => {
+    uiNoteId = null;
+
+    const wrapper = mount(WrappedNoteEditorView);
+    await flushPromises();
+
+    await wrapper.find('textarea').setValue('新的文档正文');
+
+    expect(saveDocumentEntry).toHaveBeenCalledWith(expect.objectContaining({
+      workspaceId: 'workspace-1',
+      folderEntryId: null,
+      content: '新的文档正文',
+    }));
+    expect(saveDraft).not.toHaveBeenCalled();
   });
 });

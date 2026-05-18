@@ -25,6 +25,11 @@ export interface StenoSettings {
   blurCloseDelayMs: number;
   editorMode: EditorMode;
   backupEveryChanges: number;
+  noteEditorOutlineWidth: number;
+  noteEditorOutlineOpen: boolean;
+  zenOutlineWidth: number;
+  zenOutlineOpen: boolean;
+  mainListTypeFilters: string;
 }
 
 const DEFAULTS: StenoSettings = {
@@ -37,6 +42,11 @@ const DEFAULTS: StenoSettings = {
   blurCloseDelayMs: 800,
   editorMode: 'split',
   backupEveryChanges: 10,
+  noteEditorOutlineWidth: 280,
+  noteEditorOutlineOpen: false,
+  zenOutlineWidth: 300,
+  zenOutlineOpen: true,
+  mainListTypeFilters: 'folder,group,document,text',
 };
 
 /** 后端 settings 表都是 TEXT；这里按字段把字符串还原成正确的 TS 类型。 */
@@ -51,7 +61,9 @@ function decode<K extends keyof StenoSettings>(
     case 'floatingWidth':
     case 'floatingHeight':
     case 'blurCloseDelayMs':
-    case 'backupEveryChanges': {
+    case 'backupEveryChanges':
+    case 'noteEditorOutlineWidth':
+    case 'zenOutlineWidth': {
       const n = Number.parseInt(raw, 10);
       return (Number.isFinite(n) ? n : DEFAULTS[key]) as StenoSettings[K];
     }
@@ -64,6 +76,12 @@ function decode<K extends keyof StenoSettings>(
       return (['split', 'edit', 'preview'].includes(raw)
         ? raw
         : DEFAULTS.editorMode) as StenoSettings[K];
+    }
+    case 'noteEditorOutlineOpen':
+    case 'zenOutlineOpen': {
+      if (raw === 'true') return true as StenoSettings[K];
+      if (raw === 'false') return false as StenoSettings[K];
+      return DEFAULTS[key];
     }
     default:
       return raw as StenoSettings[K];

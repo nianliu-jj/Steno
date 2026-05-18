@@ -24,10 +24,6 @@ export function useWindow() {
     return invoke<void>('open_canvas_window');
   }
 
-  function openSearch() {
-    return invoke<void>('open_search_window');
-  }
-
   function openSettings() {
     return invoke<void>('open_settings_window');
   }
@@ -101,7 +97,6 @@ export function useWindow() {
     openStickyNote,
     closeStickyNote,
     openCanvas,
-    openSearch,
     openSettings,
     openZen,
     hideCurrent,

@@ -9,32 +9,23 @@
 // - 1000ms 防抖自动保存；Esc 触发 flushSave + hide 当前窗口
 // - 隐藏 toolbar 中所有非"标题/正文/字数/保存状态/退出"的元素
 //   （MarkdownEditor 本身自带 toolbar，这里关掉它的 preview，保留极简工具栏）
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { NDropdown, NInput, NText, useMessage } from 'naive-ui';
 
-import MarkdownEditor from '@/components/MarkdownEditor.vue';
-import { useAutosave } from '@/composables/useAutosave';
+import WritingSurface from '@/components/writing/WritingSurface.vue';
+import { useOutlineSidebarState } from '@/composables/useOutlineSidebarState';
+import { useWritingSession } from '@/composables/useWritingSession';
 import { useDb } from '@/composables/useDb';
-import { useMarkdown } from '@/composables/useMarkdown';
-import { useNotesStore } from '@/stores/notes';
 import { useUiStore } from '@/stores/ui';
-import type { Note, SaveNoteRequest } from '@/types/steno';
 
 const db = useDb();
-const notes = useNotesStore();
 const ui = useUiStore();
-const { countWords } = useMarkdown();
 const message = useMessage();
+const session = useWritingSession(ref(ui.noteId ?? readIdFromUrl()));
+const outline = useOutlineSidebarState('zen');
 
-const currentNoteId = ref<string | null>(null);
-const title = ref('');
-const content = ref('');
-const tags = ref<string[]>([]);
-const loaded = ref(false);
-
-const wordCount = computed(() => countWords(content.value));
 const isEmpty = computed(
-  () => !title.value.trim() && !content.value.trim() && tags.value.length === 0,
+  () => !session.title.value.trim() && !session.content.value.trim() && session.tags.value.length === 0,
 );
 
 // ----- 启动加载 -------------------------------------------------------
@@ -45,51 +36,8 @@ function readIdFromUrl(): string | null {
   return params.get('id');
 }
 
-onMounted(async () => {
-  const id = ui.noteId ?? readIdFromUrl();
-  if (id) {
-    try {
-      const note = await db.getNote(id);
-      if (note) hydrateFromNote(note);
-      else console.warn('[zen] note not found:', id);
-    } catch (e) {
-      console.error('[zen] load failed:', e);
-    }
-  }
-  loaded.value = true;
-});
-
-function hydrateFromNote(note: Note) {
-  currentNoteId.value = note.id;
-  title.value = note.title;
-  content.value = note.content;
-  tags.value = [...note.tags];
-}
-
-// ----- 自动保存 -------------------------------------------------------
-
-const { status, savedAt, error, scheduleSave, flushSave } = useAutosave(
-  async (payload: SaveNoteRequest) => {
-    const saved = await notes.saveDraft(payload);
-    if (saved && !currentNoteId.value) {
-      currentNoteId.value = saved.id;
-    }
-  },
-);
-
-watch([title, content], () => {
-  if (!loaded.value) return;
-  if (isEmpty.value && !currentNoteId.value) return;
-  scheduleSave({
-    id: currentNoteId.value ?? undefined,
-    title: title.value || undefined,
-    content: content.value,
-    tags: tags.value,
-  });
-});
-
 const statusText = computed(() => {
-  switch (status.value) {
+  switch (session.status.value) {
     case 'idle':
       return '';
     case 'scheduled':
@@ -97,11 +45,11 @@ const statusText = computed(() => {
     case 'saving':
       return '保存中…';
     case 'saved':
-      return savedAt.value
-        ? `已保存 ${savedAt.value.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
+      return session.savedAt.value
+        ? `已保存 ${session.savedAt.value.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
         : '已保存';
     case 'error':
-      return `保存失败：${String(error.value).slice(0, 40)}`;
+      return `保存失败：${String(session.error.value).slice(0, 40)}`;
     default:
       return '';
   }
@@ -110,9 +58,9 @@ const statusText = computed(() => {
 // ----- 退出（Esc / 关闭按钮） -----------------------------------------
 
 async function exitZen() {
-  if (!isEmpty.value || currentNoteId.value) {
-    await flushSave();
-    if (status.value === 'error') return; // 保留窗口让用户看错误
+  if (!isEmpty.value || session.currentNoteId.value) {
+    await session.flushSave();
+    if (session.status.value === 'error') return; // 保留窗口让用户看错误
   }
   ui.exitZen();
 }
@@ -132,22 +80,22 @@ const exportOptions = [
 ];
 
 async function onExport(key: string) {
-  if (!currentNoteId.value) {
+  if (!session.currentNoteId.value) {
     message.warning('请先输入内容（保存后才能导出）');
     return;
   }
   // 先 flush 一次，确保磁盘上是最新内容
-  await flushSave();
-  if (status.value === 'error') {
+  await session.flushSave();
+  if (session.status.value === 'error') {
     message.error('保存失败，已取消导出');
     return;
   }
   try {
     if (key === 'markdown') {
-      const path = await db.exportNoteMarkdown(currentNoteId.value);
+      const path = await db.exportNoteMarkdown(session.currentNoteId.value);
       message.success(`已导出：${path}`);
     } else {
-      const path = await db.exportNotePdf(currentNoteId.value);
+      const path = await db.exportNotePdf(session.currentNoteId.value);
       message.success(`已导出：${path}`);
     }
   } catch (e) {
@@ -161,7 +109,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown);
   // 守护：webview 销毁前再 flush 一次
-  void flushSave();
+  void session.flushSave();
 });
 </script>
 
@@ -169,11 +117,11 @@ onUnmounted(() => {
   <div class="zen-root">
     <header class="zen-header">
       <div class="zen-meta">
-        <NText depth="3" class="zen-meta-item">{{ wordCount }} 字</NText>
+        <NText depth="3" class="zen-meta-item">{{ session.wordCount.value }} 字</NText>
         <NText
           depth="3"
           class="zen-meta-item"
-          :class="{ 'zen-meta-error': status === 'error' }"
+          :class="{ 'zen-meta-error': session.status.value === 'error' }"
         >
           {{ statusText }}
         </NText>
@@ -195,20 +143,28 @@ onUnmounted(() => {
     <div class="zen-stage">
       <div class="zen-paper">
         <NInput
-          v-model:value="title"
+          v-model:value="session.title.value"
           size="large"
           placeholder="标题"
           :bordered="false"
           class="zen-title"
         />
-        <div class="zen-body">
-          <MarkdownEditor
-            v-model="content"
-            autofocus
-            placeholder="开始写作… 按 Esc 返回主界面"
-          />
-        </div>
-      </div>
+        <div class="zen-outline-shell" data-testid="zen-outline-shell">
+      <WritingSurface
+        v-model="session.content.value"
+        :mode="session.mode.value"
+        :headings="session.headings.value"
+        :outline-open="outline.open.value"
+        :outline-width="outline.width.value"
+        :show-floating-outline="false"
+        :show-zen-entry="false"
+        @toggle-readonly="session.toggleReadonly"
+        @open-source="session.openSource"
+        @close-source="session.closeSource"
+        @resize-outline="outline.setWidth($event)"
+      />
+    </div>
+  </div>
     </div>
   </div>
 </template>
@@ -312,22 +268,19 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
-.zen-body {
+.zen-outline-shell {
   flex: 1;
   min-height: 60vh;
   display: flex;
-  flex-direction: column;
+  min-width: 0;
 }
-.zen-body :deep(.md-editor) {
-  background: transparent;
+
+.zen-outline-shell :deep(.writing-surface) {
+  flex: 1;
+  min-height: 0;
 }
-.zen-body :deep(.md-editor__textarea) {
-  font-size: 16px;
-  line-height: 1.8;
-  padding: 8px 0;
-}
-.zen-body :deep(.md-editor__toolbar) {
-  background: transparent;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+
+.zen-outline-shell :deep(.writing-outline-pane) {
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
 }
 </style>

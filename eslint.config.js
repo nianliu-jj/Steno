@@ -1,7 +1,7 @@
 import { defineConfig } from '@soybeanjs/eslint-config-vue';
 
 export default [
-  { ignores: ['dist/**', 'src-tauri/target/**', 'src-tauri/gen/**'] },
+  { ignores: ['dist/**', 'src-tauri/target/**', 'src-tauri/gen/**', '.worktrees/**'] },
   ...(await defineConfig({
     'vue/component-name-in-template-casing': [
       'warn',

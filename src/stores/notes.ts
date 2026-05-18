@@ -2,9 +2,6 @@
 //
 // 后端 (SQLite) 仍是单一真实来源；store 只是 UI 层的缓存与 view-model。
 // 写操作走 useDb()，成功后**本地同步更新**对应缓存项，避免每次都重新 list。
-//
-// search() 不写入 notes 缓存，只把结果存 searchResults，让 SearchView 单独
-// 渲染；这样切回 MainView 时 notes 还是原来的最近列表。
 
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
@@ -22,7 +19,6 @@ export const useNotesStore = defineStore('notes', () => {
 
   const notes = ref<Note[]>([]);
   const pinned = ref<Note[]>([]);
-  const searchResults = ref<Note[]>([]);
   const loading = ref(false);
   const error = ref<string | null>(null);
 
@@ -72,16 +68,6 @@ export const useNotesStore = defineStore('notes', () => {
     return updated;
   }
 
-  async function search(query: string, tags: string[] = [], limit = 200) {
-    searchResults.value = await db.searchNotes({
-      query,
-      tags,
-      pinnedOnly: false,
-      limit,
-    });
-    return searchResults.value;
-  }
-
   async function updatePinnedConfig(
     id: string,
     config: PinnedWindowConfig,
@@ -106,7 +92,15 @@ export const useNotesStore = defineStore('notes', () => {
     await db.deleteNote(id);
     notes.value = notes.value.filter(n => n.id !== id);
     pinned.value = pinned.value.filter(n => n.id !== id);
-    searchResults.value = searchResults.value.filter(n => n.id !== id);
+  }
+
+  function syncExternalNote(note: Note) {
+    upsertLocal(note);
+    if (note.isPinned) {
+      upsertPinned(note);
+      return;
+    }
+    pinned.value = pinned.value.filter(n => n.id !== note.id);
   }
 
   function upsertLocal(note: Note) {
@@ -130,7 +124,6 @@ export const useNotesStore = defineStore('notes', () => {
   return {
     notes,
     pinned,
-    searchResults,
     loading,
     error,
     loadNotes,
@@ -138,9 +131,9 @@ export const useNotesStore = defineStore('notes', () => {
     saveDraft,
     pinNote,
     unpinNote,
-    search,
     updatePinnedConfig,
     updateCanvasPosition,
     removeNote,
+    syncExternalNote,
   };
 });

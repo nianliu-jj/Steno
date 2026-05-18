@@ -39,9 +39,9 @@ describe('ui store', () => {
     const ui = useUiStore();
     await Promise.resolve();
 
-    emit('steno:navigate', { mode: 'search' });
+    emit('steno:navigate', { mode: 'canvas' });
 
-    expect(ui.mode).toBe('search');
+    expect(ui.mode).toBe('canvas');
     expect(ui.noteId).toBeNull();
   });
 
@@ -103,6 +103,17 @@ describe('ui store', () => {
     expect(ui.noteId).toBeNull();
   });
 
+  it('returns to the same note editor after opening Zen from the editor page', () => {
+    const ui = useUiStore();
+
+    ui.navigateTo('note-editor', 'note-1');
+    ui.navigateToZenFromEditor('note-1');
+    ui.exitZen();
+
+    expect(ui.mode).toBe('note-editor');
+    expect(ui.noteId).toBe('note-1');
+  });
+
   it('navigates to placeholder pages in the main window', () => {
     const ui = useUiStore();
 
@@ -121,5 +132,22 @@ describe('ui store', () => {
 
     expect(ui.mode).toBe('canvas');
     expect(ui.noteId).toBeNull();
+  });
+
+  it('opens settings as a modal state without replacing the current workbench route', () => {
+    const ui = useUiStore();
+
+    ui.navigateTo('note-editor', 'note-1');
+    ui.navigateTo('settings');
+
+    expect(ui.mode).toBe('note-editor');
+    expect(ui.noteId).toBe('note-1');
+    expect(ui.settingsOpen).toBe(true);
+
+    ui.closeSettings();
+
+    expect(ui.mode).toBe('note-editor');
+    expect(ui.noteId).toBe('note-1');
+    expect(ui.settingsOpen).toBe(false);
   });
 });

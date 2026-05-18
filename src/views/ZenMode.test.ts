@@ -6,14 +6,17 @@ import { describe, expect, it, vi } from 'vitest';
 import { defineComponent, h } from 'vue';
 
 import ZenMode from './ZenMode.vue';
+import ZenModeSource from './ZenMode.vue?raw';
 
 const exitZen = vi.fn();
 const navigateToMain = vi.fn();
 const getNote = vi.fn(() => Promise.resolve(null));
 const saveDraft = vi.fn(() => Promise.resolve(null));
+const getEditorEntry = vi.fn(() => Promise.resolve(null));
 
 vi.mock('@/composables/useDb', () => ({
   useDb: () => ({
+    getEditorEntry,
     getNote,
     exportNoteMarkdown: vi.fn(),
     exportNotePdf: vi.fn(),
@@ -23,6 +26,17 @@ vi.mock('@/composables/useDb', () => ({
 vi.mock('@/stores/notes', () => ({
   useNotesStore: () => ({
     saveDraft,
+  }),
+}));
+
+vi.mock('@/stores/library', () => ({
+  useLibraryStore: () => ({
+    context: {
+      workspaceId: null,
+      folderEntryId: null,
+      groupEntryId: null,
+      selectedEntryId: null,
+    },
   }),
 }));
 
@@ -40,8 +54,21 @@ vi.mock('@/composables/useMarkdown', () => ({
   }),
 }));
 
-vi.mock('@/components/MarkdownEditor.vue', () => ({
-  default: { template: '<textarea />' },
+vi.mock('@/components/writing/WritingSurface.vue', () => ({
+  default: {
+    props: ['mode', 'headings', 'outlineOpen', 'outlineWidth'],
+    emits: ['open-source', 'close-source', 'toggle-readonly', 'toggle-outline'],
+    template: '<div data-testid="zen-writing-surface">{{ mode }}</div>',
+  },
+}));
+
+vi.mock('@/composables/useOutlineSidebarState', () => ({
+  useOutlineSidebarState: () => ({
+    open: { value: true },
+    width: { value: 300 },
+    toggle: vi.fn(),
+    setWidth: vi.fn(),
+  }),
 }));
 
 const WrappedZenMode = defineComponent({
@@ -57,6 +84,14 @@ const WrappedZenMode = defineComponent({
 });
 
 describe('ZenMode', () => {
+  it('renders the shared writing surface with the Zen outline sidebar enabled', async () => {
+    const wrapper = mount(WrappedZenMode);
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="zen-writing-surface"]').text()).toBe('rich-edit');
+    expect(ZenModeSource).toContain('data-testid="zen-outline-shell"');
+  });
+
   it('delegates exit routing to the ui store', async () => {
     const wrapper = mount(WrappedZenMode);
     await flushPromises();

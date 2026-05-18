@@ -1,7 +1,7 @@
 // 多窗口管理（plan Task 3 Step 2）。从 PR1 的 src/window.rs 演进而来：
 // - 保留主窗口的 show_main / hide_main / toggle_main helper（PR1/PR2 既有）。
 // - 新增 open_sticky_note / close_sticky_note (label = sticky-{id})。
-// - open_canvas / open_search / open_settings / open_zen 不再创建页面窗口，
+// - open_canvas / open_settings / open_zen 不再创建页面窗口，
 //   而是显示 main 窗口并通过前端路由切换视图。
 //
 // 浮窗（quicknote）仍在 src/quicknote.rs 自管（它在 tauri.conf.json 预声明，
@@ -85,7 +85,7 @@ pub fn close_sticky_note(app: &AppHandle, note_id: &str) -> tauri::Result<()> {
     Ok(())
 }
 
-// ----- 主窗口内页面路由：canvas / search / settings / zen ---------------
+// ----- 主窗口内页面路由：canvas / settings / zen ---------------
 
 fn encode_query_value(value: &str) -> String {
     let mut encoded = String::with_capacity(value.len());
@@ -142,10 +142,6 @@ fn navigate_main(app: &AppHandle, mode: &str, note_id: Option<&str>) -> tauri::R
 
 pub fn open_canvas(app: &AppHandle) -> tauri::Result<()> {
     navigate_main(app, "canvas", None)
-}
-
-pub fn open_search(app: &AppHandle) -> tauri::Result<()> {
-    navigate_main(app, "search", None)
 }
 
 pub fn open_settings(app: &AppHandle) -> tauri::Result<()> {

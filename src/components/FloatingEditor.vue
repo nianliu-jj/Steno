@@ -10,7 +10,7 @@
 //
 // 关闭语义：浮窗是 "quick capture" 模型，每次唤出就是一次新会话。失焦/关闭后
 // hide 当前窗口并把前端状态 reset 成空白，下次唤出就是新笔记。如果用户想继续
-// 编辑某条笔记，在主界面 / SearchView 打开它的 Sticky 或 Zen 视图。
+// 编辑某条笔记，在主界面打开它的 Sticky 或 Zen 视图。
 //
 // 空内容丢弃 (plan 5.5)：title/content/tags 都为空 且 currentNoteId 还是 null，
 // 直接 hide 不调 save；后端 db.save_note 在收到空 payload 时也会再做一次防御
@@ -19,20 +19,23 @@
 // 拖动握手 (frontend-only)：startDragging 之后短暂的 focus loss 不能误触发
 // blurCloseDelayMs 计时器。dragUntil 记一个 500ms 截止时间，blur 时若仍在
 // 截止时间内就跳过，避免一拖窗就保存关闭。
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { NButton, NIcon, NInput, NText } from 'naive-ui';
+import { computed, onMounted, onUnmounted, ref, unref, watch } from 'vue';
+import { NButton, NIcon, NInput, NText, useMessage } from 'naive-ui';
 
 import MarkdownEditor from '@/components/MarkdownEditor.vue';
 import { useAutosave } from '@/composables/useAutosave';
+import { useDb } from '@/composables/useDb';
 import { useMarkdown } from '@/composables/useMarkdown';
 import { useWindow } from '@/composables/useWindow';
-import { useNotesStore } from '@/stores/notes';
+import { useLibraryStore } from '@/stores/library';
 import { useSettingsStore } from '@/stores/settings';
-import type { SaveNoteRequest } from '@/types/steno';
+import type { SaveTextEntryRequest } from '@/types/steno';
 
-const notes = useNotesStore();
+const db = useDb();
+const library = useLibraryStore();
 const settings = useSettingsStore();
 const win = useWindow();
+const message = useMessage();
 const { countWords } = useMarkdown();
 
 const currentNoteId = ref<string | null>(null);
@@ -62,9 +65,9 @@ const isEmpty = computed(
 // ----- 自动保存 -------------------------------------------------------
 
 const { status, savedAt, error, scheduleSave, flushSave } = useAutosave(
-  async (payload: SaveNoteRequest) => {
-    const saved = await notes.saveDraft(payload);
-    if (saved && !currentNoteId.value) {
+  async (payload: SaveTextEntryRequest) => {
+    const saved = await db.saveTextEntry(payload);
+    if (!currentNoteId.value) {
       currentNoteId.value = saved.id;
     }
   },
@@ -78,6 +81,7 @@ watch([title, content, tagsInput], () => {
     title: title.value || undefined,
     content: content.value,
     tags: tagsArray.value,
+    groupId: unref(library.currentGroupId) ?? undefined,
   });
 });
 
@@ -177,22 +181,11 @@ async function onCloseClick() {
 }
 
 /**
- * plan 5.6：flushSave → set_note_pinned(id, true) → open_sticky_note_window
- * 然后 hide 浮窗。空内容时不允许置顶（也没意义）。
+ * 当前 quicknote 已改为 `text` 存储，旧的 StickyNote 仍只支持 legacy notes。
+ * 在便签链路完成迁移前，这里给出明确提示，避免静默失败。
  */
 async function onPinClick() {
-  if (isEmpty.value && !currentNoteId.value) return;
-  await flushSave();
-  if (status.value === 'error' || !currentNoteId.value) return;
-  try {
-    await notes.pinNote(currentNoteId.value);
-    await win.openStickyNote(currentNoteId.value);
-  } catch (e) {
-    console.error('[floating] pin failed:', e);
-    return;
-  }
-  await win.hideCurrent();
-  resetState();
+  message.warning('速记文本暂不支持直接置顶为便签');
 }
 </script>
 

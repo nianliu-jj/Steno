@@ -1,347 +1,827 @@
 <script setup lang="ts">
-// 主窗口落地页（mode === 'main'）。
-// 当前作为工作台内容页渲染：
-// - 快捷入口卡片：新建笔记 / 新建速记 / 画布 / 搜索 / 设置
-// - 最近笔记列表（点击进主窗口编辑页 / 钉住 / 删除）
-import { computed, onMounted, ref } from 'vue';
-import { NButton, NCard, NEmpty, NModal, NText, useMessage } from 'naive-ui';
+import { computed, onMounted, ref, unref, watch } from 'vue';
+import { useMessage } from 'naive-ui';
+import { open } from '@tauri-apps/plugin-dialog';
 
+import EntryTypeBadge from '@/components/EntryTypeBadge.vue';
+import WorkspacePickerDialog from '@/components/WorkspacePickerDialog.vue';
+import WorkspaceTreePanel from '@/components/WorkspaceTreePanel.vue';
+import { useDb } from '@/composables/useDb';
 import { useWindow } from '@/composables/useWindow';
-import { useNotesStore } from '@/stores/notes';
+import { useLibraryStore } from '@/stores/library';
 import { useUiStore } from '@/stores/ui';
-import type { Note } from '@/types/steno';
-import SettingsView from '@/views/SettingsView.vue';
+import type { LibraryEntry, MainListContext, Workspace } from '@/types/steno';
 
-const notes = useNotesStore();
+interface EntryStats {
+  folders: number;
+  groups: number;
+  documents: number;
+  texts: number;
+}
+
+const typeFilterOptions: Array<{ kind: 'folder' | 'group' | 'document' | 'text'; label: string }> = [
+  { kind: 'folder', label: '文件夹' },
+  { kind: 'group', label: '分组' },
+  { kind: 'document', label: '文档' },
+  { kind: 'text', label: '文本' },
+];
+
+const defaultContext: MainListContext = {
+  workspaceId: null,
+  folderEntryId: null,
+  groupEntryId: null,
+  selectedEntryId: null,
+};
+
+const defaultStats: EntryStats = {
+  folders: 0,
+  groups: 0,
+  documents: 0,
+  texts: 0,
+};
+
+const library = useLibraryStore();
 const ui = useUiStore();
 const win = useWindow();
+const db = useDb();
 const message = useMessage();
-const settingsVisible = ref(false);
 
-onMounted(() => {
-  void notes.loadNotes(50);
-  void notes.loadPinned();
+const showWorkspaceTree = ref(false);
+const showTypeFilters = ref(false);
+const workspacePickerOpen = ref(false);
+const workspacePickerBusy = ref(false);
+const workspacePickerLoading = ref(false);
+const pendingWorkspaceAction = ref<
+  | null
+  | { type: 'new-note' }
+  | { type: 'convert-text'; entry: LibraryEntry }
+>(null);
+const contextMenu = ref<{
+  visible: boolean;
+  x: number;
+  y: number;
+  entry: LibraryEntry | null;
+}>({
+  visible: false,
+  x: 0,
+  y: 0,
+  entry: null,
 });
 
-const recentNotes = computed(() => notes.notes.slice(0, 30));
+const visibleEntries = computed<LibraryEntry[]>(() => {
+  const value = unref((library as unknown as { visibleEntries?: LibraryEntry[] }).visibleEntries);
+  return Array.isArray(value) ? value : [];
+});
+
+const workspaceTreeEntries = computed<LibraryEntry[]>(() => {
+  const value = unref((library as unknown as { workspaceTree?: LibraryEntry[] }).workspaceTree);
+  return Array.isArray(value) ? value : [];
+});
+
+const availableWorkspaces = computed<Workspace[]>(() => {
+  const value = unref((library as unknown as { workspaces?: Workspace[] }).workspaces);
+  return Array.isArray(value) ? value : [];
+});
+
+const currentContext = computed<MainListContext>(() => {
+  const value = unref((library as unknown as { context?: MainListContext }).context);
+  return value ? value : defaultContext;
+});
+
+const currentWorkspaceLabel = computed(() => {
+  const value = unref((library as unknown as { currentWorkspaceLabel?: string }).currentWorkspaceLabel);
+  return typeof value === 'string' ? value : '';
+});
+
+const stats = computed<EntryStats>(() => {
+  const value = unref((library as unknown as { stats?: Partial<EntryStats> }).stats);
+  return {
+    ...defaultStats,
+    ...(value ?? {}),
+  };
+});
+
+const activeTypeFilters = computed<Array<'folder' | 'group' | 'document' | 'text'>>(() => {
+  const value = unref((library as unknown as {
+    typeFilters?: Array<'folder' | 'group' | 'document' | 'text'>;
+  }).typeFilters);
+  return Array.isArray(value) ? value : ['folder', 'group', 'document', 'text'];
+});
+
+const contextTargetEntry = computed(() => contextMenu.value.entry);
+const canConvertContextEntry = computed(() => contextTargetEntry.value?.kind === 'text');
+
+function setListContext(next: Partial<MainListContext>) {
+  const rawContext = (library as unknown as { context?: MainListContext | { value: MainListContext } }).context;
+  if (!rawContext) return;
+
+  if (typeof rawContext === 'object' && rawContext !== null && 'value' in rawContext) {
+    Object.assign(rawContext.value, next);
+    return;
+  }
+
+  Object.assign(rawContext, next);
+}
+
+async function loadMainList() {
+  if (typeof library.loadMainList === 'function') {
+    await library.loadMainList();
+  }
+}
+
+async function loadWorkspaceTree(workspaceId: string | null) {
+  const maybeLoader = (library as unknown as { loadWorkspaceTree?: (workspaceId: string) => Promise<void> }).loadWorkspaceTree;
+  if (typeof maybeLoader !== 'function') {
+    return;
+  }
+
+  if (!workspaceId) {
+    showWorkspaceTree.value = false;
+    return;
+  }
+
+  await maybeLoader(workspaceId);
+}
+
+async function loadWorkspaces() {
+  const maybeLoader = (library as unknown as { loadWorkspaces?: () => Promise<void> }).loadWorkspaces;
+  if (typeof maybeLoader !== 'function') {
+    return;
+  }
+  workspacePickerLoading.value = true;
+  try {
+    await maybeLoader();
+  } finally {
+    workspacePickerLoading.value = false;
+  }
+}
+
+async function refreshListAndTree() {
+  await loadMainList();
+  await loadWorkspaceTree(currentContext.value.workspaceId);
+}
+
+onMounted(() => {
+  void refreshListAndTree();
+});
+
+watch(
+  () => currentContext.value.workspaceId,
+  (workspaceId, previousWorkspaceId) => {
+    if (workspaceId === previousWorkspaceId) {
+      return;
+    }
+    void loadWorkspaceTree(workspaceId);
+  },
+);
+
+function closeContextMenu() {
+  contextMenu.value.visible = false;
+  contextMenu.value.entry = null;
+}
+
+function closeWorkspacePicker() {
+  workspacePickerOpen.value = false;
+  pendingWorkspaceAction.value = null;
+}
+
+function openContextMenu(event: MouseEvent, entry: LibraryEntry) {
+  event.preventDefault();
+  contextMenu.value = {
+    visible: true,
+    x: event.clientX,
+    y: event.clientY,
+    entry,
+  };
+}
 
 async function onNewQuickNote() {
   try {
     await win.openQuicknote();
-  } catch (e) {
-    message.error(`打开失败：${String(e)}`);
+  } catch (error) {
+    message.error(`打开速记失败：${String(error)}`);
   }
 }
 
-function onNewNote() {
+async function onNewNote() {
+  if (!currentContext.value.workspaceId) {
+    pendingWorkspaceAction.value = { type: 'new-note' };
+    workspacePickerOpen.value = true;
+    await loadWorkspaces();
+    return;
+  }
   ui.navigateTo('note-editor');
+  closeContextMenu();
 }
 
-function onOpenCanvas() {
-  ui.navigateTo('canvas');
+async function onOpenEntry(entry: LibraryEntry) {
+  if (entry.kind === 'folder') {
+    setListContext({
+      folderEntryId: entry.id,
+      selectedEntryId: entry.id,
+    });
+    closeContextMenu();
+    await refreshListAndTree();
+    return;
+  }
+
+  if (entry.kind === 'group') {
+    setListContext({
+      groupEntryId: entry.id,
+      selectedEntryId: entry.id,
+    });
+    closeContextMenu();
+    await loadMainList();
+    return;
+  }
+
+  closeContextMenu();
+  ui.navigateTo('note-editor', entry.id);
 }
 
-function onOpenSearch() {
-  ui.navigateTo('search');
+async function onToggleTypeFilter(kind: 'folder' | 'group' | 'document' | 'text') {
+  const maybeToggle = (library as unknown as {
+    toggleTypeFilter?: (kind: 'folder' | 'group' | 'document' | 'text') => Promise<void> | void;
+  }).toggleTypeFilter;
+  if (typeof maybeToggle !== 'function') {
+    return;
+  }
+  await maybeToggle(kind);
 }
 
-function onOpenSettings() {
-  settingsVisible.value = true;
+async function onContextConvertToDocument() {
+  const entry = contextTargetEntry.value;
+  if (!entry || entry.kind !== 'text') {
+    return;
+  }
+
+  const workspaceId = currentContext.value.workspaceId;
+  if (!workspaceId) {
+    pendingWorkspaceAction.value = { type: 'convert-text', entry };
+    workspacePickerOpen.value = true;
+    await loadWorkspaces();
+    return;
+  }
+
+  await convertTextEntryToDocument(entry, workspaceId, currentContext.value.folderEntryId);
 }
 
-function onOpenNoteEditor(note: Note) {
-  ui.navigateTo('note-editor', note.id);
-}
+async function convertTextEntryToDocument(
+  entry: LibraryEntry,
+  workspaceId: string,
+  folderEntryId: string | null,
+) {
+  const convertTextToDocument = (db as unknown as {
+    convertTextToDocument?: (input: {
+      id: string;
+      workspaceId: string;
+      folderEntryId?: string | null;
+    }) => Promise<unknown>;
+  }).convertTextToDocument;
 
-async function onTogglePin(note: Note) {
+  if (typeof convertTextToDocument !== 'function') {
+    message.error('当前版本暂不支持转为文档');
+    return;
+  }
+
   try {
-    if (note.isPinned) {
-      await notes.unpinNote(note.id);
-      await win.closeStickyNote(note.id);
-    } else {
-      await notes.pinNote(note.id);
-      await win.openStickyNote(note.id);
-    }
-  } catch (e) {
-    message.error(String(e));
+    await convertTextToDocument({
+      id: entry.id,
+      workspaceId,
+      folderEntryId,
+    });
+    closeContextMenu();
+    await refreshListAndTree();
+    message.success('已转为文档');
+  } catch (error) {
+    message.error(`转为文档失败：${String(error)}`);
   }
 }
 
-async function onDelete(note: Note) {
-  if (note.isPinned) {
-    try {
-      await win.closeStickyNote(note.id);
-    } catch {
-      // ignore
-    }
+function toggleWorkspaceTree() {
+  showWorkspaceTree.value = !showWorkspaceTree.value;
+}
+
+function rememberWorkspace(workspace: Workspace) {
+  const maybeUpsert = (library as unknown as { upsertWorkspace?: (workspace: Workspace) => void }).upsertWorkspace;
+  if (typeof maybeUpsert === 'function') {
+    maybeUpsert(workspace);
   }
+}
+
+function deriveWorkspaceName(path: string) {
+  const normalized = path.replace(/[\\/]+$/, '');
+  const segments = normalized.split(/[\\/]/).filter(Boolean);
+  return segments.at(-1) || '新工作区';
+}
+
+async function finalizeWorkspaceSelection(workspace: Workspace) {
+  rememberWorkspace(workspace);
+  setListContext({
+    workspaceId: workspace.id,
+    folderEntryId: null,
+    selectedEntryId: null,
+  });
+  workspacePickerOpen.value = false;
+  await refreshListAndTree();
+
+  const pending = pendingWorkspaceAction.value;
+  pendingWorkspaceAction.value = null;
+
+  if (!pending) {
+    return;
+  }
+
+  if (pending.type === 'new-note') {
+    ui.navigateTo('note-editor');
+    return;
+  }
+
+  await convertTextEntryToDocument(pending.entry, workspace.id, null);
+}
+
+async function onSelectWorkspace(workspace: Workspace) {
+  await finalizeWorkspaceSelection(workspace);
+}
+
+async function onCreateWorkspaceFromDirectory() {
+  workspacePickerBusy.value = true;
   try {
-    await notes.removeNote(note.id);
-  } catch (e) {
-    message.error(String(e));
-  }
-}
-
-function previewText(content: string): string {
-  const stripped = content
-    .replace(/^#+\s+/gm, '')
-    .replace(/\*\*|__|`/g, '')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .trim();
-  return stripped.length > 120 ? `${stripped.slice(0, 120).trim()}…` : stripped;
-}
-
-function formatUpdatedAt(iso: string): string {
-  try {
-    const d = new Date(iso);
-    const now = new Date();
-    const sameDay =
-      d.getFullYear() === now.getFullYear() &&
-      d.getMonth() === now.getMonth() &&
-      d.getDate() === now.getDate();
-    if (sameDay) {
-      return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: '选择工作区文件夹',
+    });
+    if (typeof selected !== 'string' || !selected) {
+      return;
     }
-    return d.toLocaleDateString('zh-CN', { year: '2-digit', month: '2-digit', day: '2-digit' });
-  } catch {
-    return iso;
+
+    const createWorkspace = (db as unknown as {
+      createWorkspace?: (input: { name?: string | null; rootPath: string }) => Promise<Workspace>;
+    }).createWorkspace;
+
+    if (typeof createWorkspace !== 'function') {
+      message.error('当前版本暂不支持创建工作区');
+      return;
+    }
+
+    const workspace = await createWorkspace({
+      name: deriveWorkspaceName(selected),
+      rootPath: selected,
+    });
+    await finalizeWorkspaceSelection(workspace);
+    message.success('工作区已切换');
+  } catch (error) {
+    message.error(`创建工作区失败：${String(error)}`);
+  } finally {
+    workspacePickerBusy.value = false;
   }
+}
+
+async function onOpenWorkspaceSwitcher() {
+  workspacePickerOpen.value = true;
+  await loadWorkspaces();
 }
 </script>
 
 <template>
-  <div class="main-root">
-    <section class="main-quickbar">
-      <NCard
-        size="small"
-        class="main-quick"
-        data-action="new-note"
-        hoverable
-        @click="onNewNote"
-      >
-        <div class="main-quick-title">＋ 新建笔记</div>
-        <NText depth="3" class="main-quick-hint">在主窗口编辑完整笔记</NText>
-      </NCard>
-      <NCard
-        size="small"
-        class="main-quick"
-        data-action="new-quicknote"
-        hoverable
-        @click="onNewQuickNote"
-      >
-        <div class="main-quick-title">✎ 新建速记</div>
-        <NText depth="3" class="main-quick-hint">打开速记浮窗</NText>
-      </NCard>
-      <NCard size="small" class="main-quick" hoverable @click="onOpenCanvas">
-        <div class="main-quick-title">▦ 画布</div>
-        <NText depth="3" class="main-quick-hint">把笔记摆在无限画布上</NText>
-      </NCard>
-      <NCard size="small" class="main-quick" hoverable @click="onOpenSearch">
-        <div class="main-quick-title">⌕ 搜索</div>
-        <NText depth="3" class="main-quick-hint">全文 + 标签查找</NText>
-      </NCard>
-      <NCard
-        size="small"
-        class="main-quick"
-        hoverable
-        data-testid="main-open-settings"
-        @click="onOpenSettings"
-      >
-        <div class="main-quick-title">⚙ 设置</div>
-        <NText depth="3" class="main-quick-hint">快捷键 / 主题 / 备份</NText>
-      </NCard>
-    </section>
-
-    <NModal
-      v-model:show="settingsVisible"
-      display-directive="if"
-      :auto-focus="false"
-      :trap-focus="true"
-      class="settings-modal-host"
-    >
-      <SettingsView embedded @close="settingsVisible = false" />
-    </NModal>
-
-    <section class="main-recent">
-      <header class="main-section-head">
-        <h2>最近笔记</h2>
-        <NText depth="3" class="main-section-meta">
-          {{ recentNotes.length }} 条
-        </NText>
-      </header>
-
-      <NEmpty
-        v-if="!notes.loading && recentNotes.length === 0"
-        description="还没有笔记。新建一条开始记录吧。"
-      />
-
-      <ul class="main-list">
-        <li
-          v-for="note in recentNotes"
-          :key="note.id"
-          class="main-item"
-          @dblclick="onOpenNoteEditor(note)"
+  <section class="main-root" @click="closeContextMenu">
+    <header class="main-header">
+      <div>
+        <p class="main-eyebrow">Steno 工作台</p>
+        <h1>文档与文本</h1>
+        <p class="main-subtitle">当前页面同时展示工作区内容与全局文本分组。</p>
+      </div>
+      <div class="main-toolbar">
+        <button
+          type="button"
+          class="main-toolbar-button main-toolbar-button--secondary"
+          data-testid="main-filter-toggle"
+          @click.stop="showTypeFilters = !showTypeFilters"
         >
-          <div class="main-item-main">
-            <header class="main-item-header">
-              <span class="main-item-title">
-                {{ note.title || '无标题' }}
-                <span v-if="note.isPinned" class="main-item-pin" title="已置顶">★</span>
-              </span>
-              <span class="main-item-time">{{ formatUpdatedAt(note.updatedAt) }}</span>
-            </header>
-            <p class="main-item-body">{{ previewText(note.content) }}</p>
-            <footer v-if="note.tags.length" class="main-item-tags">
-              <span v-for="t in note.tags" :key="t" class="main-item-tag">#{{ t }}</span>
-            </footer>
-          </div>
-          <div class="main-item-actions">
-            <NButton tertiary size="tiny" @click="onOpenNoteEditor(note)">编辑</NButton>
-            <NButton tertiary size="tiny" @click="onTogglePin(note)">
-              {{ note.isPinned ? '取消置顶' : '置顶' }}
-            </NButton>
-            <NButton tertiary size="tiny" @click="onDelete(note)">删除</NButton>
-          </div>
-        </li>
-      </ul>
+          类型筛选
+        </button>
+        <button
+          type="button"
+          class="main-toolbar-button main-toolbar-button--secondary"
+          data-testid="main-new-quicknote"
+          @click.stop="onNewQuickNote"
+        >
+          速记
+        </button>
+        <button
+          type="button"
+          class="main-toolbar-button"
+          data-testid="main-new-note"
+          @click.stop="onNewNote"
+        >
+          新建笔记
+        </button>
+      </div>
+    </header>
+
+    <section
+      v-if="showTypeFilters"
+      class="main-filter-panel"
+      data-testid="main-type-filter-panel"
+    >
+      <button
+        v-for="option in typeFilterOptions"
+        :key="option.kind"
+        type="button"
+        class="main-filter-chip"
+        :class="{ 'main-filter-chip--active': activeTypeFilters.includes(option.kind) }"
+        :data-testid="`type-filter-${option.kind}`"
+        @click.stop="onToggleTypeFilter(option.kind)"
+      >
+        {{ option.label }}
+      </button>
     </section>
-  </div>
+
+    <div class="main-layout">
+      <div class="main-content">
+        <div v-if="visibleEntries.length > 0" class="entry-grid">
+          <article
+            v-for="entry in visibleEntries"
+            :key="entry.id"
+            class="entry-card"
+            :data-kind="entry.kind"
+            @click.stop="onOpenEntry(entry)"
+            @contextmenu.stop="openContextMenu($event, entry)"
+          >
+            <div class="entry-card-head">
+              <h2>{{ entry.title }}</h2>
+              <EntryTypeBadge :kind="entry.kind as 'folder' | 'group' | 'document' | 'text'" />
+            </div>
+            <p class="entry-card-preview">{{ entry.previewText || '暂无摘要内容' }}</p>
+            <div class="entry-card-meta">
+              <span>{{ entry.tags.length ? `#${entry.tags.join(' #')}` : '无标签' }}</span>
+            </div>
+          </article>
+        </div>
+
+        <div v-else class="main-empty">
+          <h2>这里还没有内容</h2>
+          <p>你可以先创建文档，或者用速记把文本收进默认分组。</p>
+        </div>
+      </div>
+
+      <aside v-if="showWorkspaceTree" class="main-sidebar">
+        <WorkspaceTreePanel
+          v-if="workspaceTreeEntries.length > 0"
+          :entries="workspaceTreeEntries"
+          @select="onOpenEntry"
+        />
+        <div v-else class="workspace-tree-empty">
+          先选择工作区后，再查看当前工作区结构。
+        </div>
+      </aside>
+    </div>
+
+    <footer class="main-footer">
+      <div class="main-footer-workspace" data-testid="main-footer-workspace">
+        {{
+          currentContext.workspaceId
+            ? `当前工作区：${currentWorkspaceLabel || currentContext.workspaceId}`
+            : '未选择工作区'
+        }}
+      </div>
+      <div class="main-footer-stats" data-testid="main-footer-stats">
+        文档 {{ stats.documents }} · 文本 {{ stats.texts }} · 文件夹 {{ stats.folders }} · 分组 {{ stats.groups }}
+      </div>
+      <button
+        type="button"
+        class="main-footer-action"
+        data-testid="main-footer-switch-workspace"
+        @click.stop="onOpenWorkspaceSwitcher"
+      >
+        切换工作区
+      </button>
+      <button
+        type="button"
+        class="main-footer-action"
+        data-testid="main-footer-open-tree"
+        @click.stop="toggleWorkspaceTree"
+      >
+        {{ showWorkspaceTree ? '收起结构栏' : '工作区结构' }}
+      </button>
+    </footer>
+
+    <div
+      v-if="contextMenu.visible"
+      class="entry-context-menu"
+      :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
+      @click.stop
+    >
+      <button type="button" class="context-item" @click="onNewNote">
+        新建笔记
+      </button>
+      <button
+        type="button"
+        class="context-item"
+        data-testid="context-convert-document"
+        :disabled="!canConvertContextEntry"
+        :aria-disabled="canConvertContextEntry ? 'false' : 'true'"
+        @click="onContextConvertToDocument"
+      >
+        转为文档
+      </button>
+    </div>
+
+    <WorkspacePickerDialog
+      :visible="workspacePickerOpen"
+      :workspaces="availableWorkspaces"
+      :loading="workspacePickerLoading"
+      :busy="workspacePickerBusy"
+      @close="closeWorkspacePicker"
+      @select="onSelectWorkspace"
+      @create="onCreateWorkspaceFromDirectory"
+    />
+  </section>
 </template>
 
 <style scoped>
 .main-root {
   display: flex;
   flex-direction: column;
+  gap: 18px;
   min-height: 100%;
-  color: #2a2a2a;
-  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  padding: 20px;
+  color: #2d241d;
 }
 
-.main-quickbar {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 10px;
-  padding: 16px 24px 12px;
-}
-.main-quick {
-  cursor: pointer;
-  transition: transform 0.12s, box-shadow 0.12s;
-}
-.main-quick:hover {
-  transform: translateY(-1px);
-}
-.main-quick-title {
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-.main-quick-hint {
-  font-size: 11px;
-}
-
-.main-recent {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 0 24px 24px;
-}
-.main-section-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin: 8px 0 8px;
-}
-.main-section-head h2 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-}
-.main-section-meta {
-  font-size: 11px;
-}
-
-.main-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.main-item {
+.main-header {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.03);
-  transition: background 0.1s;
-}
-.main-item:hover {
-  background: rgba(0, 0, 0, 0.06);
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid rgba(128, 96, 68, 0.14);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(245, 235, 223, 0.92), rgba(255, 250, 244, 0.96)),
+    #fffdf8;
 }
 
-.main-item-main {
-  flex: 1;
+.main-eyebrow {
+  margin: 0 0 6px;
+  color: #9b6e45;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.main-header h1 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+.main-subtitle {
+  margin: 8px 0 0;
+  color: rgba(45, 36, 29, 0.72);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.main-toolbar {
+  display: flex;
+  gap: 10px;
+}
+
+.main-toolbar-button {
+  min-width: 96px;
+  height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #9b6e45;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.main-toolbar-button--secondary {
+  background: rgba(155, 110, 69, 0.12);
+  color: #8a5a38;
+}
+
+.main-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 280px);
+  gap: 16px;
+  align-items: start;
+}
+
+.main-filter-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid rgba(128, 96, 68, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.main-filter-chip {
+  min-width: 72px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(155, 110, 69, 0.16);
+  border-radius: 999px;
+  background: rgba(155, 110, 69, 0.08);
+  color: #8a5a38;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.main-filter-chip--active {
+  border-color: #9b6e45;
+  background: #9b6e45;
+  color: #fff;
+}
+
+.main-content {
   min-width: 0;
+}
+
+.entry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.entry-card {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 12px;
+  min-height: 180px;
+  padding: 18px;
+  border: 1px solid rgba(128, 96, 68, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 14px 30px rgba(70, 46, 20, 0.06);
+  cursor: pointer;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease;
 }
-.main-item-header {
+
+.entry-card:hover {
+  border-color: rgba(155, 110, 69, 0.28);
+  box-shadow: 0 20px 36px rgba(70, 46, 20, 0.1);
+  transform: translateY(-2px);
+}
+
+.entry-card-head {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
-.main-item-title {
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.main-item-pin {
-  color: #d4a017;
-  margin-left: 4px;
-  font-size: 12px;
-}
-.main-item-time {
-  font-size: 11px;
-  color: #888;
-  flex: 0 0 auto;
-}
-.main-item-body {
+
+.entry-card-head h2 {
   margin: 0;
-  font-size: 12px;
-  line-height: 1.55;
-  color: #555;
-  white-space: pre-wrap;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-.main-item-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  font-size: 10px;
-}
-.main-item-tag {
-  background: rgba(40, 140, 90, 0.12);
-  color: #2e8a55;
-  padding: 1px 6px;
-  border-radius: 8px;
-}
-.main-item-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: 0 0 auto;
+  font-size: 17px;
+  line-height: 1.35;
 }
 
-:deep(.settings-modal-host) {
-  width: auto;
+.entry-card-preview {
+  flex: 1;
+  margin: 0;
+  color: rgba(45, 36, 29, 0.72);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.entry-card-meta {
+  color: rgba(45, 36, 29, 0.56);
+  font-size: 12px;
+}
+
+.main-empty,
+.workspace-tree-empty {
+  padding: 28px 24px;
+  border: 1px dashed rgba(128, 96, 68, 0.18);
+  border-radius: 18px;
+  background: rgba(255, 250, 244, 0.72);
+  color: rgba(45, 36, 29, 0.72);
+  line-height: 1.7;
+}
+
+.main-empty h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.main-empty p {
+  margin: 0;
+}
+
+.main-sidebar {
+  min-width: 0;
+}
+
+.main-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border: 1px solid rgba(128, 96, 68, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.76);
+  color: rgba(45, 36, 29, 0.76);
+  font-size: 13px;
+}
+
+.main-footer-workspace,
+.main-footer-stats {
+  min-width: 0;
+}
+
+.main-footer-action {
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(155, 110, 69, 0.12);
+  color: #8a5a38;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.entry-context-menu {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 156px;
+  padding: 8px;
+  border: 1px solid rgba(128, 96, 68, 0.16);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 20px 40px rgba(45, 36, 29, 0.14);
+}
+
+.context-item {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #2d241d;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-item:hover:not(:disabled) {
+  background: rgba(155, 110, 69, 0.08);
+}
+
+.context-item:disabled {
+  color: rgba(45, 36, 29, 0.36);
+  cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
+  .main-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .main-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 720px) {
+  .main-root {
+    padding: 14px;
+  }
+
+  .main-header {
+    flex-direction: column;
+  }
+
+  .main-toolbar {
+    width: 100%;
+  }
+
+  .main-toolbar-button {
+    flex: 1;
+  }
 }
 </style>
