@@ -8,6 +8,9 @@
 // JoinError 都格式化成 String 返给前端 — 前端有完整错误消息便于排查，
 // 同时避免泄露 DbError 内部结构。
 
+use std::path::PathBuf;
+use std::process::Command;
+
 use tauri::{AppHandle, State};
 
 use crate::db::Db;
@@ -284,6 +287,56 @@ pub fn open_quicknote_window(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn open_zen_window(app: AppHandle, id: Option<String>) -> Result<(), String> {
     window_manager::open_zen(&app, id.as_deref()).map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn open_path_in_file_manager(path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || open_path_in_file_manager_sync(&path))
+        .await
+        .map_err(to_msg)?
+}
+
+fn open_path_in_file_manager_sync(path: &str) -> Result<(), String> {
+    let target = PathBuf::from(path);
+    if target.as_os_str().is_empty() {
+        return Err("路径不能为空".to_string());
+    }
+    if !target.exists() {
+        return Err(format!("路径不存在：{}", target.to_string_lossy()));
+    }
+
+    let status = platform_open_command(&target).status().map_err(to_msg)?;
+    if status.success() {
+        return Ok(());
+    }
+
+    Err(format!(
+        "打开路径失败：{}",
+        target.to_string_lossy()
+    ))
+}
+
+fn platform_open_command(path: &PathBuf) -> Command {
+    #[cfg(target_os = "macos")]
+    {
+        let mut command = Command::new("open");
+        command.arg(path);
+        command
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let mut command = Command::new("explorer");
+        command.arg(path);
+        command
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let mut command = Command::new("xdg-open");
+        command.arg(path);
+        command
+    }
 }
 
 // ----- 快捷键 ----------------------------------------------------------

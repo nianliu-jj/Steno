@@ -482,14 +482,10 @@ impl Db {
                 "SELECT id, kind, title, preview_text, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size
                  FROM library_entries
                  WHERE workspace_id = ?1
-                   AND kind IN ('folder', 'document')
-                   AND ((?2 IS NULL AND parent_id IS NULL) OR parent_id = ?2)
-                 ORDER BY CASE kind WHEN 'folder' THEN 0 ELSE 1 END, updated_at DESC, title COLLATE NOCASE ASC",
+                   AND kind = 'document'
+                 ORDER BY updated_at DESC, title COLLATE NOCASE ASC",
             )?;
-            let rows = stmt.query_map(
-                rusqlite::params![workspace_id, context.folder_entry_id.as_deref()],
-                row_to_library_entry,
-            )?;
+            let rows = stmt.query_map(rusqlite::params![workspace_id], row_to_library_entry)?;
             items.extend(rows.collect::<rusqlite::Result<Vec<_>>>()?);
         }
 
@@ -1442,7 +1438,7 @@ mod tests {
         std::fs::write(root.join("asset.bin"), [0, 1, 2, 3]).unwrap();
 
         let workspace = db.create_workspace("导入测试", root.clone()).unwrap();
-        let top_level = db
+        let workspace_documents = db
             .list_library_entries(MainListContext {
                 workspace_id: Some(workspace.id.clone()),
                 folder_entry_id: None,
@@ -1451,31 +1447,16 @@ mod tests {
             })
             .unwrap();
 
-        assert!(top_level
+        assert!(!workspace_documents
             .iter()
-            .any(|entry| { entry.kind == EntryKind::Folder && entry.title == "research" }));
-        assert!(top_level
+            .any(|entry| entry.kind == EntryKind::Folder));
+        assert!(workspace_documents
             .iter()
             .any(|entry| { entry.kind == EntryKind::Document && entry.title == "overview" }));
-        assert!(!top_level.iter().any(|entry| entry.title == "deep-note"));
-        assert!(!top_level.iter().any(|entry| entry.title == "asset"));
-
-        let folder = top_level
-            .iter()
-            .find(|entry| entry.title == "research")
-            .unwrap();
-        let nested_entries = db
-            .list_library_entries(MainListContext {
-                workspace_id: Some(workspace.id.clone()),
-                folder_entry_id: Some(folder.id.clone()),
-                group_entry_id: None,
-                selected_entry_id: None,
-            })
-            .unwrap();
-
-        assert!(nested_entries
+        assert!(workspace_documents
             .iter()
             .any(|entry| { entry.kind == EntryKind::Document && entry.title == "deep-note" }));
+        assert!(!workspace_documents.iter().any(|entry| entry.title == "asset"));
 
         let tree = db.list_workspace_tree(&workspace.id).unwrap();
         assert!(tree.iter().any(|entry| entry.title == "research"));

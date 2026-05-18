@@ -9,26 +9,41 @@ const emit = defineEmits<{
 }>();
 
 const treeEntries = computed(() => {
-  const entryMap = new Map(props.entries.map(entry => [entry.id, entry]));
+  const childrenByParent = new Map<string | null, LibraryEntry[]>();
+  for (const entry of props.entries) {
+    const parentId = entry.parentId ?? null;
+    childrenByParent.set(parentId, [...(childrenByParent.get(parentId) ?? []), entry]);
+  }
 
-  return props.entries.map((entry) => {
-    let depth = 0;
-    let currentParentId = entry.parentId ?? null;
-
-    while (currentParentId) {
-      const parent = entryMap.get(currentParentId);
-      if (!parent) {
-        break;
+  const sortEntries = (entries: LibraryEntry[]) =>
+    [...entries].sort((left, right) => {
+      if (left.kind !== right.kind) {
+        return left.kind === 'folder' ? -1 : 1;
       }
-      depth += 1;
-      currentParentId = parent.parentId ?? null;
-    }
+      return left.title.localeCompare(right.title, 'zh-Hans-CN');
+    });
 
-    return {
-      entry,
-      depth,
-    };
-  });
+  const output: Array<{ entry: LibraryEntry; depth: number }> = [];
+  const visited = new Set<string>();
+
+  const visit = (parentId: string | null, depth: number) => {
+    for (const entry of sortEntries(childrenByParent.get(parentId) ?? [])) {
+      if (visited.has(entry.id)) {
+        continue;
+      }
+      visited.add(entry.id);
+      output.push({ entry, depth });
+      visit(entry.id, depth + 1);
+    }
+  };
+
+  visit(null, 0);
+
+  for (const entry of sortEntries(props.entries.filter(item => !visited.has(item.id)))) {
+    output.push({ entry, depth: 0 });
+  }
+
+  return output;
 });
 </script>
 
@@ -43,6 +58,30 @@ const treeEntries = computed(() => {
       :style="{ paddingInlineStart: `${12 + depth * 18}px` }"
       @click="emit('select', entry)"
     >
+      <span class="workspace-tree-icon" aria-hidden="true">
+        <svg
+          v-if="entry.kind === 'folder'"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M4 6h6l2 2h8v10H4z" />
+          <path d="M4 10h16" />
+        </svg>
+        <svg
+          v-else
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M6 4h9l3 3v13H6z" />
+          <path d="M14 4v4h4" />
+          <path d="M9 13h6" />
+          <path d="M9 16h4" />
+        </svg>
+      </span>
       <span class="workspace-tree-title">{{ entry.title }}</span>
       <span class="workspace-tree-kind">
         {{ entry.kind === 'folder' ? '目录' : '文档' }}
@@ -95,6 +134,20 @@ const treeEntries = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.workspace-tree-icon {
+  width: 15px;
+  height: 15px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: color-mix(in oklch, var(--app-muted) 80%, var(--app-accent));
+}
+
+.workspace-tree-icon svg {
+  width: 15px;
+  height: 15px;
 }
 
 .workspace-tree-kind {

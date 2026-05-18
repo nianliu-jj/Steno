@@ -19,9 +19,7 @@ interface EntryStats {
   texts: number;
 }
 
-const typeFilterOptions: Array<{ kind: 'folder' | 'group' | 'document' | 'text'; label: string }> = [
-  { kind: 'folder', label: '文件夹' },
-  { kind: 'group', label: '分组' },
+const typeFilterOptions: Array<{ kind: 'document' | 'text'; label: string }> = [
   { kind: 'document', label: '文档' },
   { kind: 'text', label: '文本' },
 ];
@@ -73,6 +71,10 @@ const visibleEntries = computed<LibraryEntry[]>(() => {
   return Array.isArray(value) ? value : [];
 });
 
+const displayEntries = computed<LibraryEntry[]>(() =>
+  visibleEntries.value.filter(entry => entry.kind === 'document' || entry.kind === 'text'),
+);
+
 const workspaceTreeEntries = computed<LibraryEntry[]>(() => {
   const value = unref((library as unknown as { workspaceTree?: LibraryEntry[] }).workspaceTree);
   return Array.isArray(value) ? value : [];
@@ -81,6 +83,11 @@ const workspaceTreeEntries = computed<LibraryEntry[]>(() => {
 const availableWorkspaces = computed<Workspace[]>(() => {
   const value = unref((library as unknown as { workspaces?: Workspace[] }).workspaces);
   return Array.isArray(value) ? value : [];
+});
+
+const currentWorkspace = computed<Workspace | null>(() => {
+  const value = unref((library as unknown as { currentWorkspace?: Workspace | null }).currentWorkspace);
+  return value && typeof value === 'object' ? value : null;
 });
 
 const currentContext = computed<MainListContext>(() => {
@@ -93,13 +100,51 @@ const currentWorkspaceLabel = computed(() => {
   return typeof value === 'string' ? value : '';
 });
 
+const currentWorkspaceName = computed(() => {
+  if (!currentContext.value.workspaceId) {
+    return '未选择工作区';
+  }
+
+  return currentWorkspace.value?.name || currentWorkspaceLabel.value || currentContext.value.workspaceId;
+});
+
+const currentWorkspaceTitle = computed(() => {
+  if (!currentContext.value.workspaceId) {
+    return '未选择工作区';
+  }
+
+  const rootPath = currentWorkspace.value?.rootPath;
+  return rootPath ? `${currentWorkspaceName.value}\n${rootPath}` : currentWorkspaceName.value;
+});
+
 const stats = computed<EntryStats>(() => {
   const value = unref((library as unknown as { stats?: Partial<EntryStats> }).stats);
   return {
     ...defaultStats,
-    ...(value ?? {}),
+    ...value,
   };
 });
+
+const workspaceTreeStats = computed(() => ({
+  folders: workspaceTreeEntries.value.filter(entry => entry.kind === 'folder').length,
+  documents: workspaceTreeEntries.value.filter(entry => entry.kind === 'document').length,
+}));
+
+const footerStats = computed<EntryStats>(() => {
+  if (!currentContext.value.workspaceId || workspaceTreeEntries.value.length === 0) {
+    return stats.value;
+  }
+
+  return {
+    ...stats.value,
+    folders: workspaceTreeStats.value.folders,
+    documents: workspaceTreeStats.value.documents,
+  };
+});
+
+const statsLabel = computed(() =>
+  `文档 ${footerStats.value.documents} · 文本 ${footerStats.value.texts} · 文件夹 ${footerStats.value.folders} · 分组 ${footerStats.value.groups}`,
+);
 
 const activeTypeFilters = computed<Array<'folder' | 'group' | 'document' | 'text'>>(() => {
   const value = unref((library as unknown as {
@@ -113,6 +158,52 @@ const canConvertContextEntry = computed(() => contextTargetEntry.value?.kind ===
 
 function asBadgeKind(kind: LibraryEntry['kind']) {
   return kind as 'folder' | 'group' | 'document' | 'text';
+}
+
+function normalizeDisplayPath(path: string) {
+  return path.replace(/\\/g, '/');
+}
+
+function trimTrailingPathSeparator(path: string) {
+  const trimmed = normalizeDisplayPath(path).replace(/\/+$/, '');
+  return trimmed || normalizeDisplayPath(path);
+}
+
+function workspaceRelativePath(entry: LibraryEntry) {
+  const filePath = entry.filePath?.trim();
+  if (!filePath) {
+    return '';
+  }
+
+  const rootPath = currentWorkspace.value?.rootPath?.trim();
+  if (!rootPath) {
+    return filePath;
+  }
+
+  const normalizedFile = normalizeDisplayPath(filePath);
+  const normalizedRoot = trimTrailingPathSeparator(rootPath);
+  const fileForCompare = normalizedFile.toLowerCase();
+  const rootForCompare = normalizedRoot.toLowerCase();
+
+  if (fileForCompare === rootForCompare) {
+    return entry.title;
+  }
+
+  const rootPrefix = normalizedRoot === '/' ? '/' : `${normalizedRoot}/`;
+  const comparePrefix = normalizedRoot === '/' ? '/' : `${rootForCompare}/`;
+  if (fileForCompare.startsWith(comparePrefix)) {
+    return normalizedFile.slice(rootPrefix.length);
+  }
+
+  return filePath;
+}
+
+function entryMetaLabel(entry: LibraryEntry) {
+  if (entry.kind === 'document') {
+    return workspaceRelativePath(entry) || '工作区文档';
+  }
+
+  return entry.tags.length ? `#${entry.tags.join(' #')}` : '无标签';
 }
 
 function setListContext(next: Partial<MainListContext>) {
@@ -306,6 +397,20 @@ function toggleWorkspaceTree() {
   showWorkspaceTree.value = !showWorkspaceTree.value;
 }
 
+async function onOpenCurrentWorkspaceFolder() {
+  const rootPath = currentWorkspace.value?.rootPath;
+  if (!rootPath) {
+    message.warning('请先选择工作区');
+    return;
+  }
+
+  try {
+    await win.openPathInFileManager(rootPath);
+  } catch (error) {
+    message.error(`打开工作区文件夹失败：${String(error)}`);
+  }
+}
+
 function rememberWorkspace(workspace: Workspace) {
   const maybeUpsert = (library as unknown as { upsertWorkspace?: (workspace: Workspace) => void }).upsertWorkspace;
   if (typeof maybeUpsert === 'function') {
@@ -442,9 +547,9 @@ async function onOpenWorkspaceSwitcher() {
     <div class="main-body">
       <div class="main-layout" :class="{ 'main-layout--with-sidebar': showWorkspaceTree }">
         <div class="main-content" data-testid="main-scroll-region">
-          <div v-if="visibleEntries.length > 0" class="entry-grid">
+          <div v-if="displayEntries.length > 0" class="entry-grid">
             <article
-              v-for="entry in visibleEntries"
+              v-for="entry in displayEntries"
               :key="entry.id"
               class="entry-card"
               :data-kind="entry.kind"
@@ -456,8 +561,8 @@ async function onOpenWorkspaceSwitcher() {
                 <EntryTypeBadge :kind="asBadgeKind(entry.kind)" />
               </div>
               <p class="entry-card-preview">{{ entry.previewText || '暂无摘要内容' }}</p>
-              <div class="entry-card-meta">
-                <span>{{ entry.tags.length ? `#${entry.tags.join(' #')}` : '无标签' }}</span>
+              <div class="entry-card-meta" :title="entryMetaLabel(entry)">
+                <span>{{ entryMetaLabel(entry) }}</span>
               </div>
             </article>
           </div>
@@ -484,30 +589,59 @@ async function onOpenWorkspaceSwitcher() {
     <div class="main-footer-shell" data-testid="main-footer-shell">
       <footer class="main-footer">
         <div class="main-footer-workspace" data-testid="main-footer-workspace">
-          {{
-            currentContext.workspaceId
-              ? `当前工作区：${currentWorkspaceLabel || currentContext.workspaceId}`
-              : '未选择工作区'
-          }}
+          <button
+            type="button"
+            class="main-footer-icon-button"
+            data-testid="main-footer-open-workspace-folder"
+            :disabled="!currentWorkspace?.rootPath"
+            :title="currentWorkspace?.rootPath ? `打开文件夹：${currentWorkspace.rootPath}` : '未选择工作区'"
+            aria-label="打开当前工作区文件夹"
+            @click.stop="onOpenCurrentWorkspaceFolder"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M4 6h6l2 2h8v10H4z" />
+              <path d="M4 10h16" />
+            </svg>
+          </button>
+          <span class="main-footer-workspace-name" :title="currentWorkspaceTitle">
+            {{ currentWorkspaceName }}
+          </span>
+          <button
+            type="button"
+            class="main-footer-icon-button"
+            data-testid="main-footer-switch-workspace"
+            title="切换工作区"
+            aria-label="切换工作区"
+            @click.stop="onOpenWorkspaceSwitcher"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M16 3h5v5" />
+              <path d="M21 3l-7 7" />
+              <path d="M8 21H3v-5" />
+              <path d="M3 21l7-7" />
+            </svg>
+          </button>
         </div>
-        <div class="main-footer-stats" data-testid="main-footer-stats">
-          文档 {{ stats.documents }} · 文本 {{ stats.texts }} · 文件夹 {{ stats.folders }} · 分组 {{ stats.groups }}
+        <div class="main-footer-stats" data-testid="main-footer-stats" :title="statsLabel">
+          {{ statsLabel }}
         </div>
         <button
           type="button"
-          class="main-footer-action"
-          data-testid="main-footer-switch-workspace"
-          @click.stop="onOpenWorkspaceSwitcher"
-        >
-          切换工作区
-        </button>
-        <button
-          type="button"
-          class="main-footer-action"
+          class="main-footer-icon-button main-footer-icon-button--tree"
+          :class="{ 'main-footer-icon-button--active': showWorkspaceTree }"
           data-testid="main-footer-open-tree"
+          :aria-pressed="showWorkspaceTree"
+          :title="showWorkspaceTree ? '收起结构栏' : '展开工作区结构'"
+          :aria-label="showWorkspaceTree ? '收起工作区结构' : '展开工作区结构'"
           @click.stop="toggleWorkspaceTree"
         >
-          {{ showWorkspaceTree ? '收起结构栏' : '工作区结构' }}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M5 4h5v5H5z" />
+            <path d="M14 4h5v5h-5z" />
+            <path d="M14 15h5v5h-5z" />
+            <path d="M10 6.5h2a2 2 0 0 1 2 2V17" />
+            <path d="M10 6.5h4" />
+          </svg>
         </button>
       </footer>
     </div>
@@ -552,13 +686,16 @@ async function onOpenWorkspaceSwitcher() {
   gap: 10px;
   height: 100%;
   min-height: 100%;
-  padding: 14px;
+  padding: 14px 14px 0;
   overflow: hidden;
   background: var(--app-bg);
   color: var(--app-fg);
 }
 
 .main-top {
+  position: sticky;
+  top: 14px;
+  z-index: 20;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -574,6 +711,7 @@ async function onOpenWorkspaceSwitcher() {
   border-radius: 8px;
   background: color-mix(in oklch, var(--app-surface) 94%, var(--app-bg));
   backdrop-filter: blur(12px);
+  box-shadow: 0 14px 28px oklch(14% 0.01 70 / 0.14);
 }
 
 .main-toolbar {
@@ -729,6 +867,7 @@ async function onOpenWorkspaceSwitcher() {
 }
 
 .entry-card-meta {
+  min-width: 0;
   overflow: hidden;
   color: var(--app-faint);
   font-size: 12px;
@@ -764,55 +903,94 @@ async function onOpenWorkspaceSwitcher() {
 }
 
 .main-footer-shell {
-  padding-top: 4px;
+  min-height: 47px;
+  margin-inline: -14px;
+  padding: 0 14px;
+  border-top: 1px solid var(--app-border);
+  background: var(--app-surface);
 }
 
 .main-footer {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto auto;
+  display: flex;
   align-items: center;
+  justify-content: flex-start;
   min-height: 46px;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--app-border);
-  border-radius: 8px;
-  background: color-mix(in oklch, var(--app-surface) 92%, var(--app-bg));
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--app-muted);
   font-size: 13px;
-  backdrop-filter: blur(14px);
 }
 
-.main-footer-workspace,
-.main-footer-stats {
+.main-footer-workspace {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 1 380px;
   min-width: 0;
+  max-width: min(420px, 45vw);
+}
+
+.main-footer-workspace-name {
+  min-width: 0;
+  max-width: min(260px, 28vw);
+  overflow: hidden;
+  color: var(--app-fg);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .main-footer-stats {
-  text-align: center;
+  flex: 0 1 330px;
+  min-width: 0;
+  max-width: 330px;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--app-muted);
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.main-footer-action {
+.main-footer-icon-button {
+  width: 30px;
   height: 30px;
-  padding: 0 10px;
-  border: 1px solid var(--app-border);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
   border-radius: 6px;
-  background: var(--app-surface-2);
+  background: transparent;
   color: var(--app-muted);
   font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
   cursor: pointer;
-  white-space: nowrap;
   transition:
     background 0.12s ease,
-    border-color 0.12s ease,
     color 0.12s ease;
 }
 
-.main-footer-action:hover {
-  border-color: color-mix(in oklch, var(--app-accent) 55%, var(--app-border));
+.main-footer-icon-button:hover:not(:disabled),
+.main-footer-icon-button--active {
   background: var(--app-accent-soft);
   color: var(--app-accent);
+}
+
+.main-footer-icon-button:disabled {
+  color: var(--app-faint);
+  cursor: not-allowed;
+}
+
+.main-footer-icon-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.main-footer-icon-button--tree {
+  margin-left: 2px;
 }
 
 .entry-context-menu {
@@ -858,22 +1036,31 @@ async function onOpenWorkspaceSwitcher() {
   }
 
   .main-footer {
-    grid-template-columns: 1fr 1fr;
+    flex-wrap: wrap;
+    gap: 6px;
   }
 
-  .main-footer-workspace,
-  .main-footer-stats {
-    grid-column: 1 / -1;
+  .main-footer-workspace {
+    flex: 1 1 260px;
+    max-width: calc(100% - 38px);
   }
 
   .main-footer-stats {
+    order: 3;
+    flex-basis: 100%;
+    max-width: 100%;
+    margin-left: 0;
     text-align: left;
   }
 }
 
 @media (max-width: 720px) {
   .main-root {
-    padding: 10px;
+    padding: 10px 10px 0;
+  }
+
+  .main-top {
+    top: 10px;
   }
 
   .main-header {
@@ -889,8 +1076,17 @@ async function onOpenWorkspaceSwitcher() {
     flex: 1;
   }
 
+  .main-footer-shell {
+    margin-inline: -10px;
+    padding: 0 10px;
+  }
+
   .main-footer {
-    grid-template-columns: 1fr;
+    padding: 6px 0;
+  }
+
+  .main-footer-workspace-name {
+    max-width: 48vw;
   }
 }
 </style>

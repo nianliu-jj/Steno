@@ -42,6 +42,7 @@ pub fn run() {
             commands::open_settings_window,
             commands::open_quicknote_window,
             commands::open_zen_window,
+            commands::open_path_in_file_manager,
             commands::reload_shortcuts,
             commands::export_note_markdown,
             commands::export_note_html,

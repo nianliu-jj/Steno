@@ -8,6 +8,7 @@ import { computed, defineComponent, h, ref } from 'vue';
 import MainView from './MainView.vue';
 
 const openQuicknote = vi.fn(() => Promise.resolve());
+const openPathInFileManager = vi.fn(() => Promise.resolve());
 const navigateTo = vi.fn();
 const convertTextToDocument = vi.fn(() => Promise.resolve());
 const createWorkspace = vi.fn();
@@ -16,6 +17,7 @@ const pickWorkspaceDirectory = vi.fn();
 vi.mock('@/composables/useWindow', () => ({
   useWindow: () => ({
     openQuicknote,
+    openPathInFileManager,
   }),
 }));
 
@@ -64,6 +66,9 @@ vi.mock('@/stores/library', () => ({
       const matched = workspaces.value.find(item => item.id === libraryContext.value.workspaceId);
       return matched?.name ?? '';
     }),
+    currentWorkspace: computed(() =>
+      workspaces.value.find(item => item.id === libraryContext.value.workspaceId) ?? null,
+    ),
     stats: computed(() => ({
       folders: libraryEntries.value.filter(entry => entry.kind === 'folder' && typeFilters.value.includes('folder')).length,
       groups: libraryEntries.value.filter(entry => entry.kind === 'group' && typeFilters.value.includes('group')).length,
@@ -131,13 +136,14 @@ describe('MainView', () => {
     toggleTypeFilter.mockClear();
     navigateTo.mockClear();
     openQuicknote.mockClear();
+    openPathInFileManager.mockClear();
     convertTextToDocument.mockClear();
     createWorkspace.mockClear();
     pickWorkspaceDirectory.mockReset();
     pickWorkspaceDirectory.mockResolvedValue(null);
   });
 
-  it('renders mixed cards with type badges and current-page footer stats', async () => {
+  it('renders only document and text cards with footer stats', async () => {
     libraryEntries.value = [
       makeEntry({ id: 'folder-1', kind: 'folder', title: '项目目录' }),
       makeEntry({ id: 'doc-1', kind: 'document', title: '设计文档' }),
@@ -148,14 +154,51 @@ describe('MainView', () => {
     const wrapper = mount(WrappedMainView);
     await flushPromises();
 
-    expect(wrapper.findAll('.entry-card')).toHaveLength(4);
-    expect(wrapper.text()).toContain('文件夹');
+    expect(wrapper.findAll('.entry-card')).toHaveLength(2);
+    expect(wrapper.findAll('[data-kind="folder"]')).toHaveLength(0);
+    expect(wrapper.findAll('[data-kind="group"]')).toHaveLength(0);
+    expect(wrapper.text()).not.toContain('项目目录');
+    expect(wrapper.text()).not.toContain('收件箱');
     expect(wrapper.text()).toContain('文档');
-    expect(wrapper.text()).toContain('分组');
     expect(wrapper.text()).toContain('文本');
     expect(wrapper.get('[data-testid="main-footer-stats"]').text()).toContain('文档 1');
     expect(wrapper.get('[data-testid="main-footer-stats"]').text()).toContain('文本 1');
+    expect(wrapper.get('[data-testid="main-footer-stats"]').attributes('title')).toContain('文件夹 1');
     expect(wrapper.get('[data-testid="main-footer-workspace"]').text()).toContain('未选择工作区');
+  });
+
+  it('shows document relative paths and keeps text tags in the card footer', async () => {
+    workspaces.value = [
+      { id: 'workspace-1', name: '默认工作区', rootPath: 'D:/workspace/default' },
+    ];
+    libraryContext.value = {
+      workspaceId: 'workspace-1',
+      folderEntryId: null,
+      groupEntryId: null,
+      selectedEntryId: null,
+    };
+    workspaceTree.value = [
+      makeEntry({ id: 'folder-1', kind: 'folder', title: 'research' }),
+      makeEntry({ id: 'doc-1', kind: 'document', title: '设计文档', filePath: 'D:/workspace/default/research/design.md' }),
+    ];
+    libraryEntries.value = [
+      makeEntry({
+        id: 'doc-1',
+        kind: 'document',
+        title: '设计文档',
+        filePath: 'D:/workspace/default/research/design.md',
+        tags: ['doc-tag'],
+      }),
+      makeEntry({ id: 'text-1', kind: 'text', title: '速记文本', tags: ['todo'] }),
+    ];
+
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('research/design.md');
+    expect(wrapper.text()).not.toContain('#doc-tag');
+    expect(wrapper.text()).toContain('#todo');
+    expect(wrapper.get('[data-testid="main-footer-stats"]').text()).toContain('文件夹 1');
   });
 
   it('keeps only the top action bar and uses a dedicated middle scroll region', async () => {
@@ -182,18 +225,18 @@ describe('MainView', () => {
 
     await wrapper.get('[data-testid="main-filter-toggle"]').trigger('click');
 
-    expect(wrapper.get('[data-testid="main-type-filter-panel"]').text()).toContain('文件夹');
-    expect(wrapper.get('[data-testid="main-type-filter-panel"]').text()).toContain('分组');
     expect(wrapper.get('[data-testid="main-type-filter-panel"]').text()).toContain('文档');
     expect(wrapper.get('[data-testid="main-type-filter-panel"]').text()).toContain('文本');
+    expect(wrapper.get('[data-testid="main-type-filter-panel"]').text()).not.toContain('文件夹');
+    expect(wrapper.get('[data-testid="main-type-filter-panel"]').text()).not.toContain('分组');
 
-    await wrapper.get('[data-testid="type-filter-folder"]').trigger('click');
+    await wrapper.get('[data-testid="type-filter-document"]').trigger('click');
     await flushPromises();
 
-    expect(toggleTypeFilter).toHaveBeenCalledWith('folder');
-    expect(wrapper.findAll('.entry-card')).toHaveLength(3);
-    expect(wrapper.text()).not.toContain('项目目录');
-    expect(wrapper.get('[data-testid="main-footer-stats"]').text()).toContain('文件夹 0');
+    expect(toggleTypeFilter).toHaveBeenCalledWith('document');
+    expect(wrapper.findAll('.entry-card')).toHaveLength(1);
+    expect(wrapper.text()).not.toContain('设计文档');
+    expect(wrapper.get('[data-testid="main-footer-stats"]').text()).toContain('文档 0');
   });
 
   it('enables convert-to-document only for text cards', async () => {
@@ -265,6 +308,27 @@ describe('MainView', () => {
 
     expect(wrapper.findAll('.workspace-tree-item')).toHaveLength(2);
     expect(wrapper.get('[data-testid="main-footer-workspace"]').text()).toContain('默认工作区');
+    expect(wrapper.get('[data-testid="main-footer-switch-workspace"]').text()).toBe('');
+    expect(wrapper.get('[data-testid="main-footer-open-tree"]').text()).toBe('');
+  });
+
+  it('opens the current workspace folder from the footer icon', async () => {
+    workspaces.value = [
+      { id: 'workspace-1', name: '默认工作区', rootPath: 'D:/workspace/default' },
+    ];
+    libraryContext.value = {
+      workspaceId: 'workspace-1',
+      folderEntryId: null,
+      groupEntryId: null,
+      selectedEntryId: null,
+    };
+
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    await wrapper.get('[data-testid="main-footer-open-workspace-folder"]').trigger('click');
+
+    expect(openPathInFileManager).toHaveBeenCalledWith('D:/workspace/default');
   });
 
   it('opens folders from the workspace tree without changing the current workspace', async () => {
@@ -294,7 +358,7 @@ describe('MainView', () => {
     expect(loadMainList).toHaveBeenCalled();
   });
 
-  it('enters a subgroup from the mixed list while keeping the current workspace unchanged', async () => {
+  it('keeps groups out of the document and text card area', async () => {
     workspaces.value = [
       { id: 'workspace-1', name: '默认工作区', rootPath: 'D:/workspace/default' },
     ];
@@ -311,12 +375,9 @@ describe('MainView', () => {
     const wrapper = mount(WrappedMainView);
     await flushPromises();
 
-    await wrapper.find('.entry-card').trigger('click');
-    await flushPromises();
-
-    expect(libraryContext.value.workspaceId).toBe('workspace-1');
-    expect(libraryContext.value.groupEntryId).toBe('group-1');
-    expect(loadMainList).toHaveBeenCalled();
+    expect(wrapper.find('.entry-card').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('项目分组');
+    expect(wrapper.get('[data-testid="main-footer-stats"]').text()).toContain('分组 1');
   });
 
   it('opens the workspace switcher and switches to an existing workspace', async () => {
