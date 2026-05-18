@@ -111,6 +111,10 @@ const activeTypeFilters = computed<Array<'folder' | 'group' | 'document' | 'text
 const contextTargetEntry = computed(() => contextMenu.value.entry);
 const canConvertContextEntry = computed(() => contextTargetEntry.value?.kind === 'text');
 
+function asBadgeKind(kind: LibraryEntry['kind']) {
+  return kind as 'folder' | 'group' | 'document' | 'text';
+}
+
 function setListContext(next: Partial<MainListContext>) {
   const rawContext = (library as unknown as { context?: MainListContext | { value: MainListContext } }).context;
   if (!rawContext) return;
@@ -386,126 +390,127 @@ async function onOpenWorkspaceSwitcher() {
 
 <template>
   <section class="main-root" @click="closeContextMenu">
-    <header class="main-header">
-      <div>
-        <p class="main-eyebrow">Steno 工作台</p>
-        <h1>文档与文本</h1>
-        <p class="main-subtitle">当前页面同时展示工作区内容与全局文本分组。</p>
-      </div>
-      <div class="main-toolbar">
-        <button
-          type="button"
-          class="main-toolbar-button main-toolbar-button--secondary"
-          data-testid="main-filter-toggle"
-          @click.stop="showTypeFilters = !showTypeFilters"
-        >
-          类型筛选
-        </button>
-        <button
-          type="button"
-          class="main-toolbar-button main-toolbar-button--secondary"
-          data-testid="main-new-quicknote"
-          @click.stop="onNewQuickNote"
-        >
-          速记
-        </button>
-        <button
-          type="button"
-          class="main-toolbar-button"
-          data-testid="main-new-note"
-          @click.stop="onNewNote"
-        >
-          新建笔记
-        </button>
-      </div>
-    </header>
-
-    <section
-      v-if="showTypeFilters"
-      class="main-filter-panel"
-      data-testid="main-type-filter-panel"
-    >
-      <button
-        v-for="option in typeFilterOptions"
-        :key="option.kind"
-        type="button"
-        class="main-filter-chip"
-        :class="{ 'main-filter-chip--active': activeTypeFilters.includes(option.kind) }"
-        :data-testid="`type-filter-${option.kind}`"
-        @click.stop="onToggleTypeFilter(option.kind)"
-      >
-        {{ option.label }}
-      </button>
-    </section>
-
-    <div class="main-layout">
-      <div class="main-content">
-        <div v-if="visibleEntries.length > 0" class="entry-grid">
-          <article
-            v-for="entry in visibleEntries"
-            :key="entry.id"
-            class="entry-card"
-            :data-kind="entry.kind"
-            @click.stop="onOpenEntry(entry)"
-            @contextmenu.stop="openContextMenu($event, entry)"
+    <div class="main-top">
+      <header class="main-header" data-testid="main-toolbar-shell">
+        <div class="main-toolbar">
+          <button
+            type="button"
+            class="main-toolbar-button main-toolbar-button--secondary"
+            data-testid="main-filter-toggle"
+            @click.stop="showTypeFilters = !showTypeFilters"
           >
-            <div class="entry-card-head">
-              <h2>{{ entry.title }}</h2>
-              <EntryTypeBadge :kind="entry.kind as 'folder' | 'group' | 'document' | 'text'" />
-            </div>
-            <p class="entry-card-preview">{{ entry.previewText || '暂无摘要内容' }}</p>
-            <div class="entry-card-meta">
-              <span>{{ entry.tags.length ? `#${entry.tags.join(' #')}` : '无标签' }}</span>
-            </div>
-          </article>
+            类型筛选
+          </button>
+          <button
+            type="button"
+            class="main-toolbar-button main-toolbar-button--secondary"
+            data-testid="main-new-quicknote"
+            @click.stop="onNewQuickNote"
+          >
+            速记
+          </button>
+          <button
+            type="button"
+            class="main-toolbar-button"
+            data-testid="main-new-note"
+            @click.stop="onNewNote"
+          >
+            新建笔记
+          </button>
         </div>
+      </header>
 
-        <div v-else class="main-empty">
-          <h2>这里还没有内容</h2>
-          <p>你可以先创建文档，或者用速记把文本收进默认分组。</p>
-        </div>
-      </div>
-
-      <aside v-if="showWorkspaceTree" class="main-sidebar">
-        <WorkspaceTreePanel
-          v-if="workspaceTreeEntries.length > 0"
-          :entries="workspaceTreeEntries"
-          @select="onOpenEntry"
-        />
-        <div v-else class="workspace-tree-empty">
-          先选择工作区后，再查看当前工作区结构。
-        </div>
-      </aside>
+      <section
+        v-if="showTypeFilters"
+        class="main-filter-panel"
+        data-testid="main-type-filter-panel"
+      >
+        <button
+          v-for="option in typeFilterOptions"
+          :key="option.kind"
+          type="button"
+          class="main-filter-chip"
+          :class="{ 'main-filter-chip--active': activeTypeFilters.includes(option.kind) }"
+          :data-testid="`type-filter-${option.kind}`"
+          @click.stop="onToggleTypeFilter(option.kind)"
+        >
+          {{ option.label }}
+        </button>
+      </section>
     </div>
 
-    <footer class="main-footer">
-      <div class="main-footer-workspace" data-testid="main-footer-workspace">
-        {{
-          currentContext.workspaceId
-            ? `当前工作区：${currentWorkspaceLabel || currentContext.workspaceId}`
-            : '未选择工作区'
-        }}
+    <div class="main-body">
+      <div class="main-layout" :class="{ 'main-layout--with-sidebar': showWorkspaceTree }">
+        <div class="main-content" data-testid="main-scroll-region">
+          <div v-if="visibleEntries.length > 0" class="entry-grid">
+            <article
+              v-for="entry in visibleEntries"
+              :key="entry.id"
+              class="entry-card"
+              :data-kind="entry.kind"
+              @click.stop="onOpenEntry(entry)"
+              @contextmenu.stop="openContextMenu($event, entry)"
+            >
+              <div class="entry-card-head">
+                <h2>{{ entry.title }}</h2>
+                <EntryTypeBadge :kind="asBadgeKind(entry.kind)" />
+              </div>
+              <p class="entry-card-preview">{{ entry.previewText || '暂无摘要内容' }}</p>
+              <div class="entry-card-meta">
+                <span>{{ entry.tags.length ? `#${entry.tags.join(' #')}` : '无标签' }}</span>
+              </div>
+            </article>
+          </div>
+
+          <div v-else class="main-empty">
+            <h2>这里还没有内容</h2>
+            <p>你可以先创建文档，或者用速记把文本收进默认分组。</p>
+          </div>
+        </div>
+
+        <aside v-if="showWorkspaceTree" class="main-sidebar">
+          <WorkspaceTreePanel
+            v-if="workspaceTreeEntries.length > 0"
+            :entries="workspaceTreeEntries"
+            @select="onOpenEntry"
+          />
+          <div v-else class="workspace-tree-empty">
+            先选择工作区后，再查看当前工作区结构。
+          </div>
+        </aside>
       </div>
-      <div class="main-footer-stats" data-testid="main-footer-stats">
-        文档 {{ stats.documents }} · 文本 {{ stats.texts }} · 文件夹 {{ stats.folders }} · 分组 {{ stats.groups }}
-      </div>
-      <button
-        type="button"
-        class="main-footer-action"
-        data-testid="main-footer-switch-workspace"
-        @click.stop="onOpenWorkspaceSwitcher"
-      >
-        切换工作区
-      </button>
-      <button
-        type="button"
-        class="main-footer-action"
-        data-testid="main-footer-open-tree"
-        @click.stop="toggleWorkspaceTree"
-      >
-        {{ showWorkspaceTree ? '收起结构栏' : '工作区结构' }}
-      </button>
-    </footer>
+    </div>
+
+    <div class="main-footer-shell" data-testid="main-footer-shell">
+      <footer class="main-footer">
+        <div class="main-footer-workspace" data-testid="main-footer-workspace">
+          {{
+            currentContext.workspaceId
+              ? `当前工作区：${currentWorkspaceLabel || currentContext.workspaceId}`
+              : '未选择工作区'
+          }}
+        </div>
+        <div class="main-footer-stats" data-testid="main-footer-stats">
+          文档 {{ stats.documents }} · 文本 {{ stats.texts }} · 文件夹 {{ stats.folders }} · 分组 {{ stats.groups }}
+        </div>
+        <button
+          type="button"
+          class="main-footer-action"
+          data-testid="main-footer-switch-workspace"
+          @click.stop="onOpenWorkspaceSwitcher"
+        >
+          切换工作区
+        </button>
+        <button
+          type="button"
+          class="main-footer-action"
+          data-testid="main-footer-open-tree"
+          @click.stop="toggleWorkspaceTree"
+        >
+          {{ showWorkspaceTree ? '收起结构栏' : '工作区结构' }}
+        </button>
+      </footer>
+    </div>
 
     <div
       v-if="contextMenu.visible"
@@ -542,141 +547,155 @@ async function onOpenWorkspaceSwitcher() {
 
 <style scoped>
 .main-root {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  height: 100%;
+  min-height: 100%;
+  padding: 14px;
+  overflow: hidden;
+  background: var(--app-bg);
+  color: var(--app-fg);
+}
+
+.main-top {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  min-height: 100%;
-  padding: 20px;
-  color: #2d241d;
+  gap: 8px;
 }
 
 .main-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 18px 20px;
-  border: 1px solid rgba(128, 96, 68, 0.14);
-  border-radius: 20px;
-  background:
-    linear-gradient(135deg, rgba(245, 235, 223, 0.92), rgba(255, 250, 244, 0.96)),
-    #fffdf8;
-}
-
-.main-eyebrow {
-  margin: 0 0 6px;
-  color: #9b6e45;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.main-header h1 {
-  margin: 0;
-  font-size: 28px;
-  line-height: 1.1;
-}
-
-.main-subtitle {
-  margin: 8px 0 0;
-  color: rgba(45, 36, 29, 0.72);
-  font-size: 14px;
-  line-height: 1.6;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 44px;
+  padding: 6px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--app-surface) 94%, var(--app-bg));
+  backdrop-filter: blur(12px);
 }
 
 .main-toolbar {
   display: flex;
-  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .main-toolbar-button {
-  min-width: 96px;
-  height: 40px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 999px;
-  background: #9b6e45;
+  min-width: 82px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in oklch, var(--app-accent) 78%, transparent);
+  border-radius: 7px;
+  background: var(--app-accent);
   color: #fff;
   font: inherit;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
 }
 
 .main-toolbar-button--secondary {
-  background: rgba(155, 110, 69, 0.12);
-  color: #8a5a38;
+  border-color: var(--app-border);
+  background: var(--app-surface-2);
+  color: var(--app-muted);
+}
+
+.main-toolbar-button:hover {
+  border-color: var(--app-accent);
+}
+
+.main-toolbar-button--secondary:hover {
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.main-body {
+  min-height: 0;
+  overflow: hidden;
 }
 
 .main-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 280px);
-  gap: 16px;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+  height: 100%;
+  min-height: 0;
+}
+
+.main-layout--with-sidebar {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
 }
 
 .main-filter-panel {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  padding: 14px 16px;
-  border: 1px solid rgba(128, 96, 68, 0.12);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.74);
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--app-surface) 92%, var(--app-bg));
+  backdrop-filter: blur(10px);
 }
 
 .main-filter-chip {
-  min-width: 72px;
-  height: 34px;
-  padding: 0 14px;
-  border: 1px solid rgba(155, 110, 69, 0.16);
-  border-radius: 999px;
-  background: rgba(155, 110, 69, 0.08);
-  color: #8a5a38;
+  min-width: 64px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--app-muted);
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .main-filter-chip--active {
-  border-color: #9b6e45;
-  background: #9b6e45;
-  color: #fff;
+  border-color: color-mix(in oklch, var(--app-accent) 70%, var(--app-border));
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
 }
 
 .main-content {
   min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .entry-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
 }
 
 .entry-card {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  min-height: 180px;
-  padding: 18px;
-  border: 1px solid rgba(128, 96, 68, 0.12);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 14px 30px rgba(70, 46, 20, 0.06);
+  gap: 10px;
+  min-height: 132px;
+  padding: 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
   cursor: pointer;
   transition:
-    transform 0.16s ease,
-    box-shadow 0.16s ease,
+    background 0.12s ease,
     border-color 0.16s ease;
 }
 
 .entry-card:hover {
-  border-color: rgba(155, 110, 69, 0.28);
-  box-shadow: 0 20px 36px rgba(70, 46, 20, 0.1);
-  transform: translateY(-2px);
+  border-color: color-mix(in oklch, var(--app-accent) 55%, var(--app-border));
+  background: color-mix(in oklch, var(--app-surface-2) 70%, var(--app-surface));
 }
 
 .entry-card-head {
@@ -688,36 +707,49 @@ async function onOpenWorkspaceSwitcher() {
 
 .entry-card-head h2 {
   margin: 0;
-  font-size: 17px;
+  overflow: hidden;
+  color: var(--app-fg);
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .entry-card-preview {
   flex: 1;
   margin: 0;
-  color: rgba(45, 36, 29, 0.72);
-  font-size: 13px;
-  line-height: 1.7;
+  overflow: hidden;
+  color: var(--app-muted);
+  display: -webkit-box;
+  font-size: 12.5px;
+  line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .entry-card-meta {
-  color: rgba(45, 36, 29, 0.56);
+  overflow: hidden;
+  color: var(--app-faint);
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .main-empty,
 .workspace-tree-empty {
-  padding: 28px 24px;
-  border: 1px dashed rgba(128, 96, 68, 0.18);
-  border-radius: 18px;
-  background: rgba(255, 250, 244, 0.72);
-  color: rgba(45, 36, 29, 0.72);
+  padding: 18px;
+  border: 1px dashed var(--app-border);
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--app-surface) 58%, transparent);
+  color: var(--app-muted);
   line-height: 1.7;
 }
 
 .main-empty h2 {
   margin: 0 0 8px;
-  font-size: 18px;
+  color: var(--app-fg);
+  font-size: 15px;
 }
 
 .main-empty p {
@@ -726,19 +758,28 @@ async function onOpenWorkspaceSwitcher() {
 
 .main-sidebar {
   min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.main-footer-shell {
+  padding-top: 4px;
 }
 
 .main-footer {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 18px;
-  border: 1px solid rgba(128, 96, 68, 0.12);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.76);
-  color: rgba(45, 36, 29, 0.76);
+  min-height: 46px;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--app-surface) 92%, var(--app-bg));
+  color: var(--app-muted);
   font-size: 13px;
+  backdrop-filter: blur(14px);
 }
 
 .main-footer-workspace,
@@ -746,18 +787,32 @@ async function onOpenWorkspaceSwitcher() {
   min-width: 0;
 }
 
+.main-footer-stats {
+  text-align: center;
+}
+
 .main-footer-action {
-  height: 34px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(155, 110, 69, 0.12);
-  color: #8a5a38;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface-2);
+  color: var(--app-muted);
   font: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.main-footer-action:hover {
+  border-color: color-mix(in oklch, var(--app-accent) 55%, var(--app-border));
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
 }
 
 .entry-context-menu {
@@ -767,61 +822,75 @@ async function onOpenWorkspaceSwitcher() {
   flex-direction: column;
   gap: 4px;
   min-width: 156px;
-  padding: 8px;
-  border: 1px solid rgba(128, 96, 68, 0.16);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 20px 40px rgba(45, 36, 29, 0.14);
+  padding: 6px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+  box-shadow: 0 16px 36px oklch(10% 0.01 70 / 0.35);
 }
 
 .context-item {
   min-height: 34px;
-  padding: 0 12px;
+  padding: 0 10px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 6px;
   background: transparent;
-  color: #2d241d;
+  color: var(--app-fg);
   font: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
   text-align: left;
   cursor: pointer;
 }
 
 .context-item:hover:not(:disabled) {
-  background: rgba(155, 110, 69, 0.08);
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
 }
 
 .context-item:disabled {
-  color: rgba(45, 36, 29, 0.36);
+  color: var(--app-faint);
   cursor: not-allowed;
 }
 
 @media (max-width: 900px) {
-  .main-layout {
+  .main-layout--with-sidebar {
     grid-template-columns: 1fr;
   }
 
   .main-footer {
-    flex-direction: column;
-    align-items: stretch;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .main-footer-workspace,
+  .main-footer-stats {
+    grid-column: 1 / -1;
+  }
+
+  .main-footer-stats {
+    text-align: left;
   }
 }
 
 @media (max-width: 720px) {
   .main-root {
-    padding: 14px;
+    padding: 10px;
   }
 
   .main-header {
-    flex-direction: column;
+    padding: 6px;
   }
 
   .main-toolbar {
     width: 100%;
+    justify-content: flex-start;
   }
 
   .main-toolbar-button {
     flex: 1;
+  }
+
+  .main-footer {
+    grid-template-columns: 1fr;
   }
 }
 </style>

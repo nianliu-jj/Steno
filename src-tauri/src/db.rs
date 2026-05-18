@@ -8,17 +8,18 @@
 // Db 必须实现 Clone 且 'static — Connection 被 Arc<Mutex> 包裹，
 // 整个 Db 是廉价克隆的句柄（Arc 引用计数）。
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OptionalExtension};
 
 use crate::models::{
     ConvertTextToDocumentRequest, EditorEntry, EntryKind, LibraryEntry, MainListContext, Note,
-    SaveDocumentEntryRequest, SaveNoteRequest, SaveTextEntryRequest, SearchNotesRequest,
-    Workspace,
+    SaveDocumentEntryRequest, SaveNoteRequest, SaveTextEntryRequest, SearchNotesRequest, Workspace,
 };
-use crate::workspace_fs;
+use crate::workspace_fs::{self, WorkspaceFsEntryKind};
 
 const INBOX_GROUP_ID: &str = "group-inbox";
 
@@ -469,6 +470,10 @@ impl Db {
         &self,
         context: MainListContext,
     ) -> Result<Vec<LibraryEntry>, DbError> {
+        if let Some(workspace_id) = context.workspace_id.as_deref() {
+            self.sync_workspace_entries(workspace_id)?;
+        }
+
         let conn = self.lock()?;
         let mut items = Vec::new();
 
@@ -529,6 +534,8 @@ impl Db {
     }
 
     pub fn list_workspace_tree(&self, workspace_id: &str) -> Result<Vec<LibraryEntry>, DbError> {
+        self.sync_workspace_entries(workspace_id)?;
+
         let conn = self.lock()?;
         let mut stmt = conn.prepare(
             "SELECT id, kind, title, preview_text, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size
@@ -539,6 +546,97 @@ impl Db {
         )?;
         let rows = stmt.query_map(rusqlite::params![workspace_id], row_to_library_entry)?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    fn sync_workspace_entries(&self, workspace_id: &str) -> Result<(), DbError> {
+        let workspace = {
+            let conn = self.lock()?;
+            Self::find_workspace(&conn, workspace_id)?
+        };
+        let root = normalize_workspace_root(Path::new(&workspace.root_path))?;
+        let fs_entries = workspace_fs::scan_workspace(&root)?;
+        if fs_entries.is_empty() {
+            return Ok(());
+        }
+
+        let now = chrono::Utc::now().to_rfc3339();
+        let mut path_to_existing = {
+            let conn = self.lock()?;
+            workspace_entries_by_path(&conn, workspace_id)?
+        };
+        let mut path_to_id = HashMap::new();
+
+        for entry in &fs_entries {
+            let path_key = path_key(&entry.path);
+            let id = path_to_existing
+                .get(&path_key)
+                .map(|existing| existing.id.clone())
+                .unwrap_or_else(|| stable_workspace_entry_id(workspace_id, &entry.path));
+            path_to_id.insert(path_key, id);
+        }
+
+        let conn = self.lock()?;
+        for entry in fs_entries {
+            let entry_path_key = path_key(&entry.path);
+            let id = path_to_id
+                .get(&entry_path_key)
+                .cloned()
+                .unwrap_or_else(|| stable_workspace_entry_id(workspace_id, &entry.path));
+            let existing = path_to_existing.remove(&entry_path_key);
+            let updated_at = fs_modified_or_now(entry.modified_at, &now);
+            let created_at = existing
+                .as_ref()
+                .map(|entry| entry.created_at.clone())
+                .unwrap_or_else(|| updated_at.clone());
+            let parent_id = entry
+                .parent_path
+                .as_ref()
+                .and_then(|parent| path_to_id.get(&path_key(parent)).cloned());
+            let (kind, preview, tags_json, word_count, byte_size) = match entry.kind {
+                WorkspaceFsEntryKind::Folder => ("folder", String::new(), "[]".to_string(), 0, 0),
+                WorkspaceFsEntryKind::Document => (
+                    "document",
+                    preview_text(&entry.content),
+                    serde_json::to_string(&extract_tags(&entry.content, &[]))?,
+                    word_count(&entry.content),
+                    entry.byte_size,
+                ),
+            };
+
+            conn.execute(
+                "INSERT INTO library_entries
+                 (id, kind, title, preview_text, body_markdown, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size)
+                 VALUES (?1, ?2, ?3, ?4, NULL, ?5, ?6, ?7, NULL, ?8, ?9, ?10, ?11, ?12)
+                 ON CONFLICT(id) DO UPDATE SET
+                   kind = excluded.kind,
+                   title = excluded.title,
+                   preview_text = excluded.preview_text,
+                   tags = excluded.tags,
+                   workspace_id = excluded.workspace_id,
+                   parent_id = excluded.parent_id,
+                   group_id = NULL,
+                   file_path = excluded.file_path,
+                   updated_at = excluded.updated_at,
+                   word_count = excluded.word_count,
+                   byte_size = excluded.byte_size",
+                rusqlite::params![
+                    &id,
+                    kind,
+                    &entry.title,
+                    &preview,
+                    &tags_json,
+                    workspace_id,
+                    parent_id.as_deref(),
+                    &entry_path_key,
+                    &created_at,
+                    &updated_at,
+                    word_count,
+                    byte_size,
+                ],
+            )?;
+        }
+
+        Ok(())
     }
 
     pub fn save_text_entry(&self, input: SaveTextEntryRequest) -> Result<LibraryEntry, DbError> {
@@ -986,11 +1084,70 @@ fn normalize_workspace_root(path: &Path) -> Result<PathBuf, DbError> {
 /// 把 Markdown 渲染成 HTML，存到 notes.html_content 列。
 /// pulldown-cmark 默认开启所有标准语法。
 pub fn render_markdown(content: &str) -> String {
-    use pulldown_cmark::{Parser, html};
+    use pulldown_cmark::{html, Parser};
     let parser = Parser::new(content);
     let mut output = String::new();
     html::push_html(&mut output, parser);
     output
+}
+
+struct ExistingWorkspaceEntry {
+    id: String,
+    created_at: String,
+}
+
+fn workspace_entries_by_path(
+    conn: &Connection,
+    workspace_id: &str,
+) -> Result<HashMap<String, ExistingWorkspaceEntry>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT id, file_path, created_at
+         FROM library_entries
+         WHERE workspace_id = ?1
+           AND kind IN ('folder', 'document')
+           AND file_path IS NOT NULL",
+    )?;
+    let rows = stmt.query_map(rusqlite::params![workspace_id], |row| {
+        let file_path: String = row.get(1)?;
+        let normalized_path = PathBuf::from(&file_path)
+            .canonicalize()
+            .unwrap_or_else(|_| PathBuf::from(&file_path));
+        Ok((
+            path_key(&normalized_path),
+            ExistingWorkspaceEntry {
+                id: row.get(0)?,
+                created_at: row.get(2)?,
+            },
+        ))
+    })?;
+    let pairs = rows.collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(pairs.into_iter().collect())
+}
+
+fn path_key(path: &Path) -> String {
+    path.to_string_lossy().into_owned()
+}
+
+fn stable_workspace_entry_id(workspace_id: &str, path: &Path) -> String {
+    let mut hash = 0xcbf29ce484222325_u64;
+    let key = path_key(path);
+    for byte in workspace_id.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash ^= u64::from(b':');
+    hash = hash.wrapping_mul(0x100000001b3);
+    for byte in key.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    format!("fs-{hash:016x}")
+}
+
+fn fs_modified_or_now(modified_at: Option<std::time::SystemTime>, fallback: &str) -> String {
+    modified_at
+        .map(|time| DateTime::<Utc>::from(time).to_rfc3339())
+        .unwrap_or_else(|| fallback.to_string())
 }
 
 // ----- tests ------------------------------------------------------------
@@ -998,7 +1155,10 @@ pub fn render_markdown(content: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{ConvertTextToDocumentRequest, EntryKind, SaveNoteRequest, SaveTextEntryRequest};
+    use crate::models::{
+        ConvertTextToDocumentRequest, EntryKind, MainListContext, SaveNoteRequest,
+        SaveTextEntryRequest,
+    };
 
     fn fresh_db() -> Db {
         let mut conn = Connection::open_in_memory().expect("open in-memory db");
@@ -1264,7 +1424,65 @@ mod tests {
         let created = db.create_workspace("默认工作区", root).unwrap();
         let workspaces = db.list_workspaces().unwrap();
 
-        assert!(workspaces.iter().any(|workspace| workspace.id == created.id));
+        assert!(workspaces
+            .iter()
+            .any(|workspace| workspace.id == created.id));
+    }
+
+    #[test]
+    fn listing_workspace_imports_existing_folders_and_markdown_files() {
+        let db = fresh_db();
+        let root =
+            std::env::temp_dir().join(format!("steno-workspace-sync-{}", uuid::Uuid::new_v4()));
+        let nested = root.join("research");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(root.join("overview.md"), "# Overview\nRoot document #plan").unwrap();
+        std::fs::write(nested.join("deep-note.md"), "Nested document").unwrap();
+        std::fs::write(root.join("asset.bin"), [0, 1, 2, 3]).unwrap();
+
+        let workspace = db.create_workspace("导入测试", root.clone()).unwrap();
+        let top_level = db
+            .list_library_entries(MainListContext {
+                workspace_id: Some(workspace.id.clone()),
+                folder_entry_id: None,
+                group_entry_id: None,
+                selected_entry_id: None,
+            })
+            .unwrap();
+
+        assert!(top_level
+            .iter()
+            .any(|entry| { entry.kind == EntryKind::Folder && entry.title == "research" }));
+        assert!(top_level
+            .iter()
+            .any(|entry| { entry.kind == EntryKind::Document && entry.title == "overview" }));
+        assert!(!top_level.iter().any(|entry| entry.title == "deep-note"));
+        assert!(!top_level.iter().any(|entry| entry.title == "asset"));
+
+        let folder = top_level
+            .iter()
+            .find(|entry| entry.title == "research")
+            .unwrap();
+        let nested_entries = db
+            .list_library_entries(MainListContext {
+                workspace_id: Some(workspace.id.clone()),
+                folder_entry_id: Some(folder.id.clone()),
+                group_entry_id: None,
+                selected_entry_id: None,
+            })
+            .unwrap();
+
+        assert!(nested_entries
+            .iter()
+            .any(|entry| { entry.kind == EntryKind::Document && entry.title == "deep-note" }));
+
+        let tree = db.list_workspace_tree(&workspace.id).unwrap();
+        assert!(tree.iter().any(|entry| entry.title == "research"));
+        assert!(tree.iter().any(|entry| entry.title == "overview"));
+        assert!(tree.iter().any(|entry| entry.title == "deep-note"));
+
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

@@ -158,6 +158,17 @@ describe('MainView', () => {
     expect(wrapper.get('[data-testid="main-footer-workspace"]').text()).toContain('未选择工作区');
   });
 
+  it('keeps only the top action bar and uses a dedicated middle scroll region', async () => {
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain('文档与文本');
+    expect(wrapper.text()).not.toContain('当前页面同时展示工作区内容与全局文本分组。');
+    expect(wrapper.find('[data-testid="main-toolbar-shell"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="main-scroll-region"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="main-footer-shell"]').exists()).toBe(true);
+  });
+
   it('shows type filter options and re-renders cards with persisted filter choices', async () => {
     libraryEntries.value = [
       makeEntry({ id: 'folder-1', kind: 'folder', title: '项目目录' }),
