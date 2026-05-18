@@ -1,0 +1,110 @@
+<h2>编辑模式里的实时 Markdown 渲染，要怎么摆？</h2>
+<p class="subtitle">我建议优先选 A：它最符合“边写边看效果”，也最容易和 Zen 模式的大纲分栏保持一致。</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">A. 左编辑 / 右实时预览</div>
+        <div class="mockup-body" style="display:flex; gap:12px; min-height:300px;">
+          <div style="flex:1; border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:12px;">
+            <div class="label">原始 Markdown</div>
+            <div style="margin-top:8px; line-height:1.7; font-family:monospace; color:#cfd3dc;">
+              # 测试文档<br/>
+              <br/>
+              你好啊<br/>
+              <br/>
+              - 第一项<br/>
+              - 第二项
+            </div>
+          </div>
+          <div style="width:10px; border-radius:999px; background:rgba(255,255,255,.08); align-self:stretch;"></div>
+          <div style="flex:1; border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:12px;">
+            <div class="label">实时排版预览</div>
+            <div style="margin-top:10px; line-height:1.8;">
+              <h3 style="margin:0 0 10px;">测试文档</h3>
+              <p style="margin:0 0 10px;">你好啊</p>
+              <ul style="margin:0; padding-left:18px;">
+                <li>第一项</li>
+                <li>第二项</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 固定双栏</h3>
+      <p>编辑和渲染同时可见，最适合“所写即所得”的工作流，也方便后续加同步滚动。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">B. 上预览 / 下编辑</div>
+        <div class="mockup-body" style="display:flex; flex-direction:column; gap:12px; min-height:300px;">
+          <div style="flex:1; border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:12px;">
+            <div class="label">实时排版预览</div>
+            <div style="margin-top:10px; line-height:1.8;">
+              <h3 style="margin:0 0 10px;">测试文档</h3>
+              <p style="margin:0 0 10px;">你好啊</p>
+              <ul style="margin:0; padding-left:18px;">
+                <li>第一项</li>
+                <li>第二项</li>
+              </ul>
+            </div>
+          </div>
+          <div style="height:10px; border-radius:999px; background:rgba(255,255,255,.08);"></div>
+          <div style="flex:1; border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:12px;">
+            <div class="label">原始 Markdown</div>
+            <div style="margin-top:8px; line-height:1.7; font-family:monospace; color:#cfd3dc;">
+              # 测试文档<br/>
+              <br/>
+              你好啊<br/>
+              <br/>
+              - 第一项<br/>
+              - 第二项
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 上下分栏</h3>
+      <p>更适合高度充足的场景，但在主窗口里可能会压缩正文可见区。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">C. 主编辑区 + 可折叠预览抽屉</div>
+        <div class="mockup-body" style="display:flex; gap:12px; min-height:300px;">
+          <div style="flex:1.45; border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:12px;">
+            <div class="label">原始 Markdown</div>
+            <div style="margin-top:8px; line-height:1.7; font-family:monospace; color:#cfd3dc;">
+              # 测试文档<br/>
+              <br/>
+              你好啊<br/>
+              <br/>
+              - 第一项<br/>
+              - 第二项
+            </div>
+          </div>
+          <div style="width:220px; border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:12px;">
+            <div class="label">预览抽屉</div>
+            <div style="margin-top:10px; line-height:1.7;">
+              <h3 style="margin:0 0 10px; font-size:18px;">测试文档</h3>
+              <p style="margin:0;">可随时展开/收起</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 抽屉预览</h3>
+      <p>主编辑区更大，但“边写边看”会弱一些，交互复杂度也更高。</p>
+    </div>
+  </div>
+</div>

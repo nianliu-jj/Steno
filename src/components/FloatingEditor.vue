@@ -2,25 +2,27 @@
 // 浮窗速记顶层视图（mode === 'floating'）。
 //
 // 数据流：
-//   用户输入 → useAutosave 1000ms debounce → notes.saveDraft → SQLite
+//   用户输入 → useAutosave 1000ms debounce → db.saveTextEntry → SQLite
 //                                                  ↓ 第一次保存生成 id
 //                                              currentNoteId 记下来
 //                                                  ↓
-//   失焦 (blurCloseDelayMs 后) / 关闭按钮 / 置顶按钮 → flushSave → hide + reset
+//   每次保存成功 → emit `library://refresh-main-list` 通知主窗口刷新列表
 //
-// 关闭语义：浮窗是 "quick capture" 模型，每次唤出就是一次新会话。失焦/关闭后
-// hide 当前窗口并把前端状态 reset 成空白，下次唤出就是新笔记。如果用户想继续
-// 编辑某条笔记，在主界面打开它的 Sticky 或 Zen 视图。
+// 关闭语义（多入口区分）：
+//   - 显式"保存"按钮：要求 title 非空 → flushSave → hide + reset，下次 Skip
+//     模式唤起会得到空白窗口（已显式提交完成）。
+//   - X 按钮 / 失焦 / 快捷键切换隐藏：flushSave → hide，**保留前端 state**。
+//     下次快捷键 Skip 模式唤起仍能看到上次未"显式保存"的内容。
+//   - 主页"速记"按钮 / 托盘"新笔记"：Rust 端发 Reset 模式，emit hydrate(null)
+//     → hydrateFromEntry 触发 resetState，得到全新窗口。
+//   - 双击主页文本卡片：Rust 端发 Entry(id) 模式，emit hydrate(id) → 加载该
+//     entry 进入编辑。
 //
-// 空内容丢弃 (plan 5.5)：title/content/tags 都为空 且 currentNoteId 还是 null，
-// 直接 hide 不调 save；后端 db.save_note 在收到空 payload 时也会再做一次防御
-// （返回 None），双重保险。
-//
-// 拖动握手 (frontend-only)：startDragging 之后短暂的 focus loss 不能误触发
-// blurCloseDelayMs 计时器。dragUntil 记一个 500ms 截止时间，blur 时若仍在
-// 截止时间内就跳过，避免一拖窗就保存关闭。
-import { computed, onMounted, onUnmounted, ref, unref, watch } from 'vue';
-import { NButton, NIcon, NInput, NText, useMessage } from 'naive-ui';
+// 标题编辑：默认 readonly，点铅笔图标解锁，输入框失焦或再次点击图标自动
+// flushSave 同步到主页列表。
+import { computed, nextTick, onMounted, onUnmounted, ref, unref, watch } from 'vue';
+import { NButton, NIcon, NInput, NText, useMessage, type InputInst } from 'naive-ui';
+import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 import MarkdownEditor from '@/components/MarkdownEditor.vue';
 import { useAutosave } from '@/composables/useAutosave';
@@ -29,7 +31,9 @@ import { useMarkdown } from '@/composables/useMarkdown';
 import { useWindow } from '@/composables/useWindow';
 import { useLibraryStore } from '@/stores/library';
 import { useSettingsStore } from '@/stores/settings';
-import type { SaveTextEntryRequest } from '@/types/steno';
+import type { EditorEntry, SaveTextEntryRequest } from '@/types/steno';
+
+const REFRESH_EVENT = 'library://refresh-main-list';
 
 const db = useDb();
 const library = useLibraryStore();
@@ -42,6 +46,14 @@ const currentNoteId = ref<string | null>(null);
 const title = ref('');
 const content = ref('');
 const tagsInput = ref('');
+const isTitleEditing = ref(false);
+const titleInputRef = ref<InputInst | null>(null);
+/** hydrate（按 id 加载已有 entry）时短暂屏蔽 autosave watch，防止把刚加载的内容当成"用户编辑"再写一次。 */
+const suppressSave = ref(false);
+
+let blurTimer: ReturnType<typeof setTimeout> | undefined;
+let unlistenFocus: (() => void) | undefined;
+let unlistenHydrate: UnlistenFn | undefined;
 
 const tagsArray = computed(() => {
   const raw = tagsInput.value.trim();
@@ -70,10 +82,13 @@ const { status, savedAt, error, scheduleSave, flushSave } = useAutosave(
     if (!currentNoteId.value) {
       currentNoteId.value = saved.id;
     }
+    // 通知主窗口刷新笔记列表，保证关闭浮窗后能立即看到新条目。
+    void emit(REFRESH_EVENT);
   },
 );
 
 watch([title, content, tagsInput], () => {
+  if (suppressSave.value) return;
   // plan 5.5：空内容不调度保存（后端兜底也会再判一次）。
   if (isEmpty.value && !currentNoteId.value) return;
   scheduleSave({
@@ -128,13 +143,89 @@ function resetState() {
 }
 
 /**
- * 失焦 / 关闭按钮 / pin 路径汇合于此：flush 保存 → 隐藏窗口 → 重置前端状态。
- * 空草稿直接 hide+reset 不保存；保存失败保留窗口让用户看错误。
+ * 主页面双击文本卡片重新进入编辑场景：Rust 端 emit `quicknote://hydrate`，
+ * 携带 entry id（payload string）或 null（新建空白会话）。
+ * 重置 → 加载 entry → 临时屏蔽 autosave watch，避免把刚 hydrate 的字段当成
+ * 用户编辑触发一次冗余写库。
+ */
+async function hydrateFromEntry(entryId: string | null) {
+  if (blurTimer) {
+    clearTimeout(blurTimer);
+    blurTimer = undefined;
+  }
+  if (!entryId) {
+    resetState();
+    return;
+  }
+  let entry: EditorEntry | null = null;
+  try {
+    entry = await db.getEditorEntry(entryId);
+  } catch (err) {
+    console.error('[floating] hydrate failed:', err);
+    message.error(`加载笔记失败：${String(err)}`);
+    return;
+  }
+  if (!entry || entry.kind !== 'text') {
+    resetState();
+    return;
+  }
+  suppressSave.value = true;
+  currentNoteId.value = entry.id;
+  title.value = entry.title ?? '';
+  content.value = entry.content ?? '';
+  tagsInput.value = (entry.tags ?? []).map(t => `#${t}`).join(' ');
+  // 等 watcher 跑完当前同步队列再放开
+  await Promise.resolve();
+  suppressSave.value = false;
+}
+
+/**
+ * 失焦 / X 关闭按钮 / 全局快捷键隐藏 路径汇合于此：flush 保存 → 隐藏窗口。
+ * 注意：**不**重置前端 state，下次 Skip 模式唤起浮窗时仍能看到上次的内容。
+ * 显式 reset 只在两条路径上发生：① 用户点"保存"按钮显式提交 ② 主页"速记"
+ * 或托盘"新笔记"触发 Reset hydrate 事件。
  */
 async function saveAndDismiss(): Promise<void> {
+  // 内容被清空但已存在隐式草稿条目：从列表里删除该条目，避免留下空记录。
+  if (isEmpty.value && currentNoteId.value) {
+    const idToDelete = currentNoteId.value;
+    try {
+      await db.deleteNote(idToDelete);
+    } catch (err) {
+      console.error('[floating] delete empty draft failed:', err);
+    }
+    void emit(REFRESH_EVENT);
+    resetState();
+    await win.hideCurrent();
+    return;
+  }
   if (isEmpty.value && !currentNoteId.value) {
     await win.hideCurrent();
-    resetState();
+    return;
+  }
+  await flushSave();
+  if (status.value === 'error') {
+    return;
+  }
+  await win.hideCurrent();
+}
+
+/**
+ * 显式"保存"按钮：要求 title 非空（用户主动归档时必须给一个标题），保存完毕
+ * 后隐藏并 reset，让下次 Skip 唤起得到空白窗口。
+ */
+async function onExplicitSaveClick() {
+  if (!title.value.trim()) {
+    message.warning('请填写标题后再保存');
+    isTitleEditing.value = true;
+    await nextTick();
+    titleInputRef.value?.focus();
+    return;
+  }
+  isTitleEditing.value = false;
+  if (isEmpty.value && !currentNoteId.value) {
+    // title 已校验非空，理论不会进入此分支；这里只是兜底。
+    await win.hideCurrent();
     return;
   }
   await flushSave();
@@ -145,10 +236,30 @@ async function saveAndDismiss(): Promise<void> {
   resetState();
 }
 
-let blurTimer: ReturnType<typeof setTimeout> | undefined;
-let unlistenFocus: (() => void) | undefined;
+async function onEditTitleClick() {
+  if (isTitleEditing.value) {
+    isTitleEditing.value = false;
+    await flushSave();
+    return;
+  }
+  isTitleEditing.value = true;
+  await nextTick();
+  titleInputRef.value?.focus();
+}
+
+async function onTitleBlur() {
+  if (!isTitleEditing.value) return;
+  isTitleEditing.value = false;
+  // 仅在非空草稿场景下 flush；空草稿继续由 saveAndDismiss 兜底。
+  if (!(isEmpty.value && !currentNoteId.value)) {
+    await flushSave();
+  }
+}
 
 onMounted(async () => {
+  unlistenHydrate = await listen<string | null>('quicknote://hydrate', event => {
+    void hydrateFromEntry(event.payload ?? null);
+  });
   unlistenFocus = await win.onCurrentWindowFocusChange(focused => {
     if (focused) {
       if (blurTimer) {
@@ -170,6 +281,7 @@ onMounted(async () => {
 onUnmounted(() => {
   if (blurTimer) clearTimeout(blurTimer);
   unlistenFocus?.();
+  unlistenHydrate?.();
   // 守护：组件被卸载（webview 真正销毁）之前再 flush 一次
   void flushSave();
 });
@@ -196,19 +308,44 @@ async function onPinClick() {
       @pointerdown="onTitlebarPointerdown"
     >
       <NInput
+        ref="titleInputRef"
         v-model:value="title"
         size="tiny"
         placeholder="无标题"
         :bordered="false"
+        :readonly="!isTitleEditing"
         class="floating-title-input"
+        :class="{ 'floating-title-input--editing': isTitleEditing }"
         @pointerdown.stop
+        @blur="onTitleBlur"
       />
+      <NButton
+        quaternary
+        circle
+        size="tiny"
+        :title="isTitleEditing ? '完成编辑标题' : '编辑标题'"
+        class="floating-title-edit"
+        :class="{ 'floating-title-edit--active': isTitleEditing }"
+        @pointerdown.stop
+        @click="onEditTitleClick"
+      >
+        <template #icon>
+          <NIcon>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+              <path
+                d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0L15.13 5.13l3.75 3.75 1.83-1.84z"
+              />
+            </svg>
+          </NIcon>
+        </template>
+      </NButton>
       <div class="floating-titlebar-actions">
         <NButton
           quaternary
           circle
           size="tiny"
           title="置顶为便签"
+          @pointerdown.stop
           @click="onPinClick"
         >
           <template #icon>
@@ -223,7 +360,24 @@ async function onPinClick() {
           quaternary
           circle
           size="tiny"
-          title="保存并关闭"
+          title="保存到笔记列表"
+          @pointerdown.stop
+          @click="onExplicitSaveClick"
+        >
+          <template #icon>
+            <NIcon>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                <path d="M17 3H5C3.9 3 3 3.9 3 5v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" />
+              </svg>
+            </NIcon>
+          </template>
+        </NButton>
+        <NButton
+          quaternary
+          circle
+          size="tiny"
+          title="关闭（保留草稿）"
+          @pointerdown.stop
           @click="onCloseClick"
         >
           <template #icon>
@@ -302,6 +456,16 @@ async function onPinClick() {
 }
 .floating-title-input :deep(input) {
   font-size: 12px;
+  cursor: default;
+}
+.floating-title-input--editing :deep(input) {
+  cursor: text;
+}
+.floating-title-edit {
+  flex-shrink: 0;
+}
+.floating-title-edit--active {
+  color: var(--app-accent, #8b6cff);
 }
 .floating-titlebar-actions {
   display: flex;

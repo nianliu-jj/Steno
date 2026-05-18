@@ -279,8 +279,19 @@ pub fn open_settings_window(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn open_quicknote_window(app: AppHandle) -> Result<(), String> {
-    quicknote::show(&app);
+pub fn open_quicknote_window(
+    app: AppHandle,
+    entry_id: Option<String>,
+    reset: Option<bool>,
+) -> Result<(), String> {
+    let mode = if let Some(id) = entry_id {
+        quicknote::HydrateMode::Entry(id)
+    } else if reset.unwrap_or(false) {
+        quicknote::HydrateMode::Reset
+    } else {
+        quicknote::HydrateMode::Skip
+    };
+    quicknote::show(&app, mode);
     Ok(())
 }
 

@@ -1,66 +1,122 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import type { LibraryEntry } from '@/types/steno';
 
-const props = defineProps<{ entries: LibraryEntry[] }>();
+const props = defineProps<{ entries: LibraryEntry[]; defaultExpanded?: boolean }>();
 const emit = defineEmits<{
   select: [entry: LibraryEntry];
 }>();
 
-const treeEntries = computed(() => {
-  const childrenByParent = new Map<string | null, LibraryEntry[]>();
+const expanded = ref<Set<string>>(new Set());
+
+const isBranch = (entry: LibraryEntry) => entry.kind === 'folder' || entry.kind === 'group';
+
+const childrenByParent = computed(() => {
+  const map = new Map<string | null, LibraryEntry[]>();
   for (const entry of props.entries) {
     const parentId = entry.parentId ?? null;
-    childrenByParent.set(parentId, [...(childrenByParent.get(parentId) ?? []), entry]);
+    map.set(parentId, [...(map.get(parentId) ?? []), entry]);
   }
+  return map;
+});
 
-  const sortEntries = (entries: LibraryEntry[]) =>
-    [...entries].sort((left, right) => {
-      if (left.kind !== right.kind) {
-        return left.kind === 'folder' ? -1 : 1;
+watch(
+  () => props.entries,
+  () => {
+    if (!props.defaultExpanded) {
+      return;
+    }
+    const next = new Set<string>();
+    for (const entry of props.entries) {
+      if (isBranch(entry)) {
+        next.add(entry.id);
       }
-      return left.title.localeCompare(right.title, 'zh-Hans-CN');
-    });
+    }
+    expanded.value = next;
+  },
+  { immediate: true },
+);
 
-  const output: Array<{ entry: LibraryEntry; depth: number }> = [];
+const sortEntries = (entries: LibraryEntry[]) =>
+  [...entries].sort((left, right) => {
+    if (isBranch(left) !== isBranch(right)) {
+      return isBranch(left) ? -1 : 1;
+    }
+    return left.title.localeCompare(right.title, 'zh-Hans-CN');
+  });
+
+const visibleNodes = computed(() => {
+  const output: Array<{ entry: LibraryEntry; depth: number; hasChildren: boolean; open: boolean }> = [];
   const visited = new Set<string>();
 
   const visit = (parentId: string | null, depth: number) => {
-    for (const entry of sortEntries(childrenByParent.get(parentId) ?? [])) {
+    for (const entry of sortEntries(childrenByParent.value.get(parentId) ?? [])) {
       if (visited.has(entry.id)) {
         continue;
       }
       visited.add(entry.id);
-      output.push({ entry, depth });
-      visit(entry.id, depth + 1);
+      const children = childrenByParent.value.get(entry.id) ?? [];
+      const hasChildren = isBranch(entry) && children.length > 0;
+      const open = hasChildren && expanded.value.has(entry.id);
+      output.push({ entry, depth, hasChildren, open });
+      if (open) {
+        visit(entry.id, depth + 1);
+      }
     }
   };
 
   visit(null, 0);
 
   for (const entry of sortEntries(props.entries.filter(item => !visited.has(item.id)))) {
-    output.push({ entry, depth: 0 });
+    output.push({ entry, depth: 0, hasChildren: false, open: false });
   }
 
   return output;
 });
+
+function toggleNode(entry: LibraryEntry) {
+  const next = new Set(expanded.value);
+  if (next.has(entry.id)) {
+    next.delete(entry.id);
+  } else {
+    next.add(entry.id);
+  }
+  expanded.value = next;
+}
+
+function onRowClick(entry: LibraryEntry, hasChildren: boolean) {
+  if (hasChildren) {
+    toggleNode(entry);
+    return;
+  }
+  emit('select', entry);
+}
 </script>
 
 <template>
-  <aside class="workspace-tree-panel">
+  <div class="workspace-tree-panel">
     <button
-      v-for="{ entry, depth } in treeEntries"
+      v-for="{ entry, depth, hasChildren, open } in visibleNodes"
       :key="entry.id"
       class="workspace-tree-item"
       type="button"
       :data-testid="`workspace-tree-entry-${entry.id}`"
-      :style="{ paddingInlineStart: `${12 + depth * 18}px` }"
-      @click="emit('select', entry)"
+      :style="{ paddingInlineStart: `${8 + depth * 16}px` }"
+      @click="onRowClick(entry, hasChildren)"
     >
+      <span
+        class="workspace-tree-caret"
+        :class="{ 'workspace-tree-caret--open': open, 'workspace-tree-caret--hidden': !hasChildren }"
+        aria-hidden="true"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+      </span>
       <span class="workspace-tree-icon" aria-hidden="true">
         <svg
-          v-if="entry.kind === 'folder'"
+          v-if="entry.kind === 'folder' || entry.kind === 'group'"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -83,49 +139,65 @@ const treeEntries = computed(() => {
         </svg>
       </span>
       <span class="workspace-tree-title">{{ entry.title }}</span>
-      <span class="workspace-tree-kind">
-        {{ entry.kind === 'folder' ? '目录' : '文档' }}
-      </span>
     </button>
-  </aside>
+  </div>
 </template>
 
 <style scoped>
 .workspace-tree-panel {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  min-height: 100%;
-  padding: 8px;
-  border: 1px solid var(--app-border);
-  border-radius: 8px;
-  background: var(--app-surface);
-  color: var(--app-fg);
+  gap: 1px;
+  min-height: 0;
+  padding: 6px;
 }
 
 .workspace-tree-item {
-  min-height: 30px;
+  min-height: 28px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  padding-inline-end: 8px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
-  color: var(--app-muted);
+  color: var(--app-fg);
   font: inherit;
   font-size: 12.5px;
   text-align: left;
   cursor: pointer;
   transition:
     background 0.12s ease,
-    border-color 0.12s ease,
     color 0.12s ease;
 }
 
 .workspace-tree-item:hover {
-  border-color: var(--app-border);
-  background: var(--app-surface-2);
-  color: var(--app-fg);
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.workspace-tree-caret {
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--app-faint);
+  transition: transform 0.15s ease;
+}
+
+.workspace-tree-caret svg {
+  width: 12px;
+  height: 12px;
+}
+
+.workspace-tree-caret--open {
+  transform: rotate(90deg);
+  color: var(--app-muted);
+}
+
+.workspace-tree-caret--hidden {
+  visibility: hidden;
 }
 
 .workspace-tree-title {
@@ -137,8 +209,8 @@ const treeEntries = computed(() => {
 }
 
 .workspace-tree-icon {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -146,13 +218,7 @@ const treeEntries = computed(() => {
 }
 
 .workspace-tree-icon svg {
-  width: 15px;
-  height: 15px;
-}
-
-.workspace-tree-kind {
-  flex-shrink: 0;
-  color: var(--app-faint);
-  font-size: 11px;
+  width: 14px;
+  height: 14px;
 }
 </style>

@@ -241,13 +241,14 @@ describe('NoteEditorView', () => {
     expect(NoteEditorViewSource).toMatch(/color: #7e7469(?: !important)?;/);
   });
 
-  it('renders the lifted rounded editor card shell for the main editor', async () => {
+  it('renders the editor shell that fills the body region', async () => {
     const wrapper = mount(WrappedNoteEditorView);
     await flushPromises();
 
     expect(wrapper.find('[data-testid="note-editor-shell"]').exists()).toBe(true);
     expect(NoteEditorViewSource).toContain('data-testid="note-editor-shell"');
-    expect(NoteEditorViewSource).toContain('border-radius: 18px 18px 14px 14px;');
+    expect(NoteEditorViewSource).toContain('.note-editor-body');
+    expect(NoteEditorViewSource).toContain('.note-editor-shell');
   });
 
   it('saves a new workspace-backed entry as a document when no note id is present', async () => {

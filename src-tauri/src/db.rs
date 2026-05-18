@@ -637,13 +637,12 @@ impl Db {
 
     pub fn save_text_entry(&self, input: SaveTextEntryRequest) -> Result<LibraryEntry, DbError> {
         let byte_size = ensure_text_size_limit(&input.content)?;
-        let title = input
+        let requested_title = input
             .title
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
-            .map(ToOwned::to_owned)
-            .unwrap_or_else(|| derive_title(&input.content));
+            .map(ToOwned::to_owned);
         let tags = extract_tags(&input.content, &input.tags);
         let tags_json = serde_json::to_string(&tags)?;
         let preview_text = preview_text(&input.content);
@@ -659,14 +658,29 @@ impl Db {
         let word_count = word_count(&input.content);
 
         let conn = self.lock()?;
-        let existing_created_at: Option<String> = conn
+        let existing_row: Option<(String, String)> = conn
             .query_row(
-                "SELECT created_at FROM library_entries WHERE id = ?1",
+                "SELECT created_at, title FROM library_entries WHERE id = ?1",
                 rusqlite::params![&id],
-                |row| row.get(0),
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
             )
             .optional()?;
-        let created_at = existing_created_at.unwrap_or_else(|| now.clone());
+        let created_at = existing_row
+            .as_ref()
+            .map(|(c, _)| c.clone())
+            .unwrap_or_else(|| now.clone());
+
+        let title = if let Some(value) = requested_title {
+            value
+        } else if let Some((_, existing_title)) = existing_row.as_ref() {
+            if existing_title.trim().is_empty() {
+                derive_unique_text_title(&conn, &group_id, &id)?
+            } else {
+                existing_title.clone()
+            }
+        } else {
+            derive_unique_text_title(&conn, &group_id, &id)?
+        };
 
         conn.execute(
             "INSERT OR REPLACE INTO library_entries
@@ -1025,6 +1039,36 @@ pub fn derive_title(content: &str) -> String {
     let stripped = first.trim_start_matches('#').trim();
     let source = if stripped.is_empty() { first } else { stripped };
     source.chars().take(48).collect()
+}
+
+/// 浮窗速记默认标题：同一 group 内若已存在"未命名"，则递增为"未命名1"、"未命名2"…
+pub fn derive_unique_text_title(
+    conn: &Connection,
+    group_id: &str,
+    exclude_id: &str,
+) -> Result<String, DbError> {
+    const BASE: &str = "未命名";
+    let mut existing: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut stmt = conn.prepare(
+        "SELECT title FROM library_entries WHERE kind = 'text' AND group_id = ?1 AND id <> ?2",
+    )?;
+    let rows = stmt.query_map(rusqlite::params![group_id, exclude_id], |row| {
+        row.get::<_, String>(0)
+    })?;
+    for row in rows {
+        existing.insert(row?);
+    }
+    if !existing.contains(BASE) {
+        return Ok(BASE.to_string());
+    }
+    let mut n: u32 = 1;
+    loop {
+        let candidate = format!("{BASE}{n}");
+        if !existing.contains(&candidate) {
+            return Ok(candidate);
+        }
+        n += 1;
+    }
 }
 
 /// 解析 `#tag` 形式的标签（字母 / 数字 / 下划线 / 连字符，含中文），与 extra_tags

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, unref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, unref, watch } from 'vue';
 import { useMessage } from 'naive-ui';
 import { open } from '@tauri-apps/plugin-dialog';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 import EntryTypeBadge from '@/components/EntryTypeBadge.vue';
 import WorkspacePickerDialog from '@/components/WorkspacePickerDialog.vue';
@@ -213,8 +214,22 @@ async function refreshListAndTree() {
   await loadWorkspaceTree(currentContext.value.workspaceId);
 }
 
+let unlistenLibraryRefresh: UnlistenFn | undefined;
+
+async function registerLibraryRefreshListener() {
+  unlistenLibraryRefresh = await listen<unknown>('library://refresh-main-list', () => {
+    void refreshListAndTree();
+  });
+}
+
 onMounted(() => {
   void refreshListAndTree();
+  void registerLibraryRefreshListener();
+});
+
+onUnmounted(() => {
+  unlistenLibraryRefresh?.();
+  unlistenLibraryRefresh = undefined;
 });
 
 watch(
@@ -249,7 +264,7 @@ function openContextMenu(event: MouseEvent, entry: LibraryEntry) {
 
 async function onNewQuickNote() {
   try {
-    await win.openQuicknote();
+    await win.openQuicknote({ reset: true });
   } catch (error) {
     message.error(`打开速记失败：${String(error)}`);
   }
@@ -289,6 +304,18 @@ async function onOpenEntry(entry: LibraryEntry) {
 
   closeContextMenu();
   ui.navigateTo('note-editor', entry.id);
+}
+
+async function onDoubleClickEntry(entry: LibraryEntry) {
+  if (entry.kind !== 'text') {
+    return;
+  }
+  closeContextMenu();
+  try {
+    await win.openQuicknote({ entryId: entry.id });
+  } catch (error) {
+    message.error(`打开速记失败：${String(error)}`);
+  }
 }
 
 async function onToggleTypeFilter(kind: 'folder' | 'group' | 'document' | 'text') {
@@ -352,6 +379,17 @@ async function convertTextEntryToDocument(
 
 function toggleWorkspaceTree() {
   showWorkspaceTree.value = !showWorkspaceTree.value;
+}
+
+function closeWorkspaceTree() {
+  if (showWorkspaceTree.value) {
+    showWorkspaceTree.value = false;
+  }
+}
+
+async function onPickWorkspaceFromTree() {
+  showWorkspaceTree.value = false;
+  await onOpenWorkspaceSwitcher();
 }
 
 async function onOpenCurrentWorkspaceFolder() {
@@ -451,7 +489,7 @@ async function onOpenWorkspaceSwitcher() {
 </script>
 
 <template>
-  <section class="main-root" @click="closeContextMenu">
+  <section class="main-root" @click="() => { closeContextMenu(); closeWorkspaceTree(); }">
     <div class="main-top">
       <header class="main-header" data-testid="main-toolbar-shell">
         <div class="main-toolbar">
@@ -502,7 +540,7 @@ async function onOpenWorkspaceSwitcher() {
     </div>
 
     <div class="main-body">
-      <div class="main-layout" :class="{ 'main-layout--with-sidebar': showWorkspaceTree }">
+      <div class="main-layout">
         <div class="main-content" data-testid="main-scroll-region">
           <div v-if="displayEntries.length > 0" class="entry-grid">
             <article
@@ -511,6 +549,7 @@ async function onOpenWorkspaceSwitcher() {
               class="entry-card"
               :data-kind="entry.kind"
               @click.stop="onOpenEntry(entry)"
+              @dblclick.stop="onDoubleClickEntry(entry)"
               @contextmenu.stop="openContextMenu($event, entry)"
             >
               <div class="entry-card-head">
@@ -529,19 +568,50 @@ async function onOpenWorkspaceSwitcher() {
             <p>你可以先创建文档，或者用速记把文本收进默认分组。</p>
           </div>
         </div>
+      </div>
+    </div>
 
-        <aside v-if="showWorkspaceTree" class="main-sidebar">
+    <Transition name="tree-drawer">
+      <aside
+        v-if="showWorkspaceTree"
+        class="main-tree-drawer"
+        data-testid="main-tree-drawer"
+        role="dialog"
+        aria-label="工作区结构"
+        @click.stop
+      >
+        <header class="main-tree-drawer-head">
+          <span class="main-tree-drawer-title">工作区结构</span>
+          <span class="main-tree-drawer-sub" :title="currentWorkspaceTitle">
+            {{ currentWorkspaceName }}
+          </span>
+        </header>
+        <div class="main-tree-drawer-body">
           <WorkspaceTreePanel
-            v-if="workspaceTreeEntries.length > 0"
+            v-if="currentContext.workspaceId && workspaceTreeEntries.length > 0"
             :entries="workspaceTreeEntries"
             @select="onOpenEntry"
           />
-          <div v-else class="workspace-tree-empty">
-            先选择工作区后，再查看当前工作区结构。
+          <div
+            v-else-if="currentContext.workspaceId"
+            class="main-tree-drawer-empty"
+          >
+            当前工作区下还没有任何子文件夹或文档。
           </div>
-        </aside>
-      </div>
-    </div>
+          <div v-else class="main-tree-drawer-empty main-tree-drawer-empty--picker">
+            <p>未选择工作区</p>
+            <button
+              type="button"
+              class="main-tree-drawer-pick"
+              data-testid="main-tree-drawer-pick"
+              @click="onPickWorkspaceFromTree"
+            >
+              选择工作区
+            </button>
+          </div>
+        </div>
+      </aside>
+    </Transition>
 
     <div class="main-footer-shell" data-testid="main-footer-shell">
       <footer class="main-footer">
@@ -635,6 +705,7 @@ async function onOpenWorkspaceSwitcher() {
 
 <style scoped>
 .main-root {
+  position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 10px;
@@ -722,10 +793,6 @@ async function onOpenWorkspaceSwitcher() {
   min-height: 0;
 }
 
-.main-layout--with-sidebar {
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
-}
-
 .main-filter-panel {
   display: flex;
   flex-wrap: wrap;
@@ -761,6 +828,7 @@ async function onOpenWorkspaceSwitcher() {
   min-width: 0;
   min-height: 0;
   overflow: auto;
+  padding-top: 6px;
   padding-right: 2px;
 }
 
@@ -829,8 +897,7 @@ async function onOpenWorkspaceSwitcher() {
   white-space: nowrap;
 }
 
-.main-empty,
-.workspace-tree-empty {
+.main-empty {
   padding: 18px;
   border: 1px dashed var(--app-border);
   border-radius: 8px;
@@ -849,11 +916,104 @@ async function onOpenWorkspaceSwitcher() {
   margin: 0;
 }
 
-.main-sidebar {
+.main-tree-drawer {
+  position: absolute;
+  right: 14px;
+  bottom: 60px;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  width: min(320px, 80vw);
+  max-height: min(60vh, 480px);
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: color-mix(in oklch, var(--app-surface) 96%, var(--app-bg));
+  backdrop-filter: blur(14px);
+  box-shadow: 0 18px 40px oklch(8% 0.01 70 / 0.42);
+}
+
+.main-tree-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--app-border);
+  background: color-mix(in oklch, var(--app-surface-2) 60%, transparent);
+}
+
+.main-tree-drawer-title {
+  color: var(--app-fg);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.main-tree-drawer-sub {
   min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+  color: var(--app-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.main-tree-drawer-body {
   min-height: 0;
+  flex: 1;
   overflow: auto;
-  padding-right: 2px;
+}
+
+.main-tree-drawer-empty {
+  padding: 18px 14px;
+  color: var(--app-muted);
+  font-size: 12.5px;
+  text-align: center;
+  line-height: 1.7;
+}
+
+.main-tree-drawer-empty--picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+.main-tree-drawer-empty--picker p {
+  margin: 0;
+  color: var(--app-fg);
+  font-weight: 600;
+}
+
+.main-tree-drawer-pick {
+  min-width: 96px;
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in oklch, var(--app-accent) 78%, transparent);
+  border-radius: 7px;
+  background: var(--app-accent);
+  color: #fff;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.main-tree-drawer-pick:hover {
+  background: color-mix(in oklch, var(--app-accent) 88%, var(--app-fg));
+}
+
+.tree-drawer-enter-active,
+.tree-drawer-leave-active {
+  transition: opacity 0.16s ease, transform 0.18s ease;
+}
+
+.tree-drawer-enter-from,
+.tree-drawer-leave-to {
+  opacity: 0;
+  transform: translateY(6px) scale(0.98);
 }
 
 .main-footer-shell {
@@ -932,7 +1092,7 @@ async function onOpenWorkspaceSwitcher() {
 }
 
 .main-footer-icon-button--tree {
-  margin-left: 2px;
+  margin-left: auto;
 }
 
 .entry-context-menu {
@@ -973,8 +1133,9 @@ async function onOpenWorkspaceSwitcher() {
 }
 
 @media (max-width: 900px) {
-  .main-layout--with-sidebar {
-    grid-template-columns: 1fr;
+  .main-tree-drawer {
+    right: 10px;
+    width: min(86vw, 320px);
   }
 
   .main-footer {

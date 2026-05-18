@@ -41,7 +41,7 @@ pub fn setup(app: &App) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
-            "new_note" => quicknote::show(app),
+            "new_note" => quicknote::show(app, quicknote::HydrateMode::Reset),
             "show" => window_manager::show_main(app),
             "show_stickies" => {
                 // 查 db 拿所有置顶笔记，逐一打开 sticky 窗口；DB 查询很快，

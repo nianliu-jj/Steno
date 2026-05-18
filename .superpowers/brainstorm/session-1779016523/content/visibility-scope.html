@@ -1,0 +1,68 @@
+<h2>先确认一个最关键的模型边界</h2>
+<p class="subtitle">我目前理解：文档属于工作区/文件夹树；文本和分组是全局的，不属于任何工作区。现在需要确认“当用户正停留在某个工作区或文件夹时，中间列表应该显示什么”。</p>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">当前理解的对象关系</div>
+    <div class="mockup-body" style="display:grid; grid-template-columns: 1.1fr 1fr; gap:18px;">
+      <div style="border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:16px;">
+        <div class="label">磁盘侧</div>
+        <h3 style="margin:8px 0 10px;">工作区</h3>
+        <div style="line-height:1.8; color:#d7dbe6;">
+          工作区 A<br/>
+          ├─ 文件夹 1<br/>
+          │&nbsp;&nbsp;├─ 文档 a.md<br/>
+          │&nbsp;&nbsp;└─ 文档 b.md<br/>
+          └─ 文件夹 2<br/>
+          &nbsp;&nbsp;&nbsp;└─ 文档 c.md
+        </div>
+      </div>
+      <div style="border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:16px;">
+        <div class="label">数据库侧</div>
+        <h3 style="margin:8px 0 10px;">全局分组 / 文本</h3>
+        <div style="line-height:1.8; color:#d7dbe6;">
+          分组 A<br/>
+          ├─ 子分组 A-1<br/>
+          └─ 文本 1 / 文本 2<br/><br/>
+          分组 B<br/>
+          └─ 文本 3
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>推荐：工作区视图只看当前工作区树</h3>
+      <p>当选中工作区或文件夹时，中间列表只显示该工作区/文件夹下的文件夹与文档；文本和分组作为全局对象，只在“分组视图 / 文本视图 / 全部内容”里出现。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>混合：工作区视图里继续混显示全局文本</h3>
+      <p>当选中工作区或文件夹时，中间列表既显示该工作区下的文件夹与文档，也继续混入全局文本 / 分组，只是它们本身不受工作区切换影响。</p>
+    </div>
+  </div>
+</div>
+
+<div class="pros-cons" style="margin-top:18px;">
+  <div class="pros">
+    <h4>我为什么更推荐 A</h4>
+    <ul>
+      <li>工作区和分组的边界最清楚，不会把磁盘对象和数据库对象混在一个容器里。</li>
+      <li>右侧树、统计信息、筛选项和“切换工作区”按钮都更容易解释。</li>
+      <li>后面做“转为文档”时，文档落到哪个工作区/文件夹也更自然。</li>
+    </ul>
+  </div>
+  <div class="cons">
+    <h4>如果选 B 的代价</h4>
+    <ul>
+      <li>同一列表里会同时出现磁盘层级对象和全局对象，排序、统计和筛选会更复杂。</li>
+      <li>用户更难理解“为什么这个文本不属于当前工作区，却还在这里”。</li>
+    </ul>
+  </div>
+</div>

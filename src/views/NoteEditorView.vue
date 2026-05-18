@@ -356,15 +356,13 @@ async function onOpenZen() {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 10px 24px 8px;
+  padding: 0;
 }
 
 .note-editor-shell {
   flex: 1;
   min-height: 0;
-  margin-top: -4px;
-  border: 1px solid rgba(55, 46, 36, 0.1);
-  border-radius: 18px 18px 14px 14px;
+  border-top: 1px solid rgba(55, 46, 36, 0.1);
   background: rgba(255, 255, 255, 0.55);
   overflow: hidden;
 }
