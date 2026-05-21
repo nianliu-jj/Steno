@@ -12,10 +12,12 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { NDropdown, NInput, NText, useMessage } from 'naive-ui';
 
+import DocumentOutlineTree from '@/components/DocumentOutlineTree.vue';
 import MarkdownEditor from '@/components/MarkdownEditor.vue';
 import { useAutosave } from '@/composables/useAutosave';
 import { useDb } from '@/composables/useDb';
 import { useMarkdown } from '@/composables/useMarkdown';
+import { useMarkdownOutline } from '@/composables/useMarkdownOutline';
 import { useNotesStore } from '@/stores/notes';
 import { useUiStore } from '@/stores/ui';
 import type { Note, SaveNoteRequest } from '@/types/steno';
@@ -24,6 +26,7 @@ const db = useDb();
 const notes = useNotesStore();
 const ui = useUiStore();
 const { countWords } = useMarkdown();
+const { buildOutline } = useMarkdownOutline();
 const message = useMessage();
 
 const currentNoteId = ref<string | null>(null);
@@ -36,6 +39,7 @@ const wordCount = computed(() => countWords(content.value));
 const isEmpty = computed(
   () => !title.value.trim() && !content.value.trim() && tags.value.length === 0,
 );
+const outlineNodes = computed(() => buildOutline(content.value));
 
 // ----- 启动加载 -------------------------------------------------------
 
@@ -124,6 +128,15 @@ function onKeydown(e: KeyboardEvent) {
   }
 }
 
+function onSelectOutline(node: { id: string }) {
+  requestAnimationFrame(() => {
+    document.getElementById(node.id)?.scrollIntoView({
+      block: 'center',
+      behavior: 'smooth',
+    });
+  });
+}
+
 // ----- 导出 ----------------------------------------------------------
 
 const exportOptions = [
@@ -201,12 +214,21 @@ onUnmounted(() => {
           :bordered="false"
           class="zen-title"
         />
-        <div class="zen-body">
-          <MarkdownEditor
-            v-model="content"
-            autofocus
-            placeholder="开始写作… 按 Esc 返回主界面"
-          />
+        <div class="zen-layout">
+          <div class="zen-body">
+            <MarkdownEditor
+              v-model="content"
+              autofocus
+              placeholder="开始写作… 按 Esc 返回主界面"
+            />
+          </div>
+          <aside class="zen-outline-shell">
+            <header class="zen-outline-shell__header">大纲</header>
+            <DocumentOutlineTree
+              :nodes="outlineNodes"
+              @select="onSelectOutline"
+            />
+          </aside>
         </div>
       </div>
     </div>
@@ -295,9 +317,18 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 760px;
+  max-width: 1080px;
   min-height: 0;
   gap: 16px;
+}
+
+.zen-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 24px;
+  align-items: stretch;
 }
 
 .zen-title :deep(input) {
@@ -329,5 +360,24 @@ onUnmounted(() => {
 .zen-body :deep(.md-editor__toolbar) {
   background: transparent;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.zen-outline-shell {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  overflow: auto;
+}
+
+.zen-outline-shell__header {
+  color: #b8b8c1;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 </style>

@@ -2,7 +2,7 @@
 
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { nextTick } from 'vue';
+import { nextTick, reactive } from 'vue';
 
 import MainWorkbenchShell from './MainWorkbenchShell.vue';
 import MainWorkbenchShellSource from './MainWorkbenchShell.vue?raw';
@@ -14,11 +14,21 @@ const minimizeCurrent = vi.fn();
 const toggleMaximizeCurrent = vi.fn();
 const closeCurrent = vi.fn();
 const openQuicknote = vi.fn(() => Promise.resolve());
+const settingsState = reactive({
+  mainSidebarWidth: 220,
+  mainSidebarCollapsed: false,
+});
 
 vi.mock('@/stores/ui', () => ({
   useUiStore: () => ({
     navigateTo,
     navigateToMain,
+  }),
+}));
+
+vi.mock('@/stores/settings', () => ({
+  useSettingsStore: () => ({
+    state: settingsState,
   }),
 }));
 
@@ -46,6 +56,8 @@ describe('MainWorkbenchShell', () => {
     toggleMaximizeCurrent.mockClear();
     closeCurrent.mockClear();
     openQuicknote.mockClear();
+    settingsState.mainSidebarWidth = 220;
+    settingsState.mainSidebarCollapsed = false;
   });
 
   it('renders the workbench frame and slot content', () => {
@@ -213,6 +225,20 @@ describe('MainWorkbenchShell', () => {
 
     await wrapper.get('[data-testid="rail-collapse"]').trigger('click');
     expect(wrapper.get('.workbench-root').attributes('data-rail')).toBe('expanded');
+  });
+
+  it('hides the main resize handle when the rail is collapsed', async () => {
+    const wrapper = mount(MainWorkbenchShell, {
+      props: {
+        navItems: [{ key: 'main', label: '笔记列表', active: true }],
+      },
+    });
+
+    expect(wrapper.find('[data-testid="workbench-rail-resize"]').exists()).toBe(true);
+
+    await wrapper.get('[data-testid="rail-collapse"]').trigger('click');
+
+    expect(wrapper.find('[data-testid="workbench-rail-resize"]').exists()).toBe(false);
   });
 
   it('does not load pinned notes or render legacy footer chrome', () => {

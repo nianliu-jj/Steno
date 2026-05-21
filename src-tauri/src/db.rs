@@ -151,6 +151,9 @@ impl Db {
             ("themeMode", "system"),
             ("editorMode", "split"),
             ("backupEveryChanges", "10"),
+            ("mainSidebarWidth", "220"),
+            ("mainSidebarCollapsed", "false"),
+            ("zenOutlineWidth", "280"),
         ];
         let now = chrono::Utc::now().to_rfc3339();
         for (k, v) in defaults {

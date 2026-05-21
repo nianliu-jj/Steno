@@ -9,6 +9,8 @@ import NoteEditorView from './NoteEditorView.vue';
 import NoteEditorViewSource from './NoteEditorView.vue?raw';
 
 let autosaveStatus = 'saved';
+const navigateToMain = vi.fn();
+const navigateTo = vi.fn();
 
 const getNote = vi.fn(() =>
   Promise.resolve({
@@ -43,7 +45,8 @@ vi.mock('@/stores/notes', () => ({
 vi.mock('@/stores/ui', () => ({
   useUiStore: () => ({
     noteId: 'note-1',
-    navigateToMain: vi.fn(),
+    navigateToMain,
+    navigateTo,
   }),
 }));
 
@@ -64,11 +67,49 @@ vi.mock('@/composables/useAutosave', () => ({
 }));
 
 vi.mock('@/components/MarkdownEditor.vue', () => ({
-  default: {
+  default: defineComponent({
     props: ['modelValue'],
     emits: ['update:modelValue'],
+    setup(_props, { emit, expose }) {
+      expose({
+        focus: vi.fn(),
+        scrollToLine: vi.fn(),
+      });
+
+      return () =>
+        h('textarea', {
+          value: _props.modelValue,
+          onInput: (event: Event) =>
+            emit('update:modelValue', (event.target as HTMLTextAreaElement).value),
+        });
+    },
+  }),
+}));
+
+vi.mock('@/components/MarkdownReadSurface.vue', () => ({
+  default: {
+    props: ['title', 'content'],
     template:
-      '<textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+      '<section data-testid="note-read-surface"><h1>{{ title }}</h1><div>{{ content }}</div></section>',
+  },
+}));
+
+vi.mock('@/components/DocumentOutlineTree.vue', () => ({
+  default: {
+    props: ['nodes'],
+    emits: ['select'],
+    template: `
+      <div data-testid="note-outline-tree">
+        <button
+          v-for="node in nodes"
+          :key="node.id"
+          :data-testid="'note-outline-node-' + node.id"
+          @click="$emit('select', node)"
+        >
+          {{ node.text }}
+        </button>
+      </div>
+    `,
   },
 }));
 
@@ -89,6 +130,8 @@ describe('NoteEditorView', () => {
     autosaveStatus = 'saved';
     getNote.mockClear();
     saveDraft.mockClear();
+    navigateToMain.mockClear();
+    navigateTo.mockClear();
   });
 
   it('loads the target note into the main-window editor', async () => {
@@ -177,6 +220,41 @@ describe('NoteEditorView', () => {
     }));
     expect(wrapper.get('.note-editor-footer-tags').text()).toContain('#rust-updated');
     expect(wrapper.get('.note-editor-footer-tags').text()).toContain('#标签');
+  });
+
+  it('switches between read mode and edit mode from the footer', async () => {
+    const wrapper = mount(WrappedNoteEditorView);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="note-read-surface"]').exists()).toBe(false);
+    expect(wrapper.find('textarea').exists()).toBe(true);
+
+    await wrapper.get('[data-testid="note-mode-read"]').trigger('click');
+
+    expect(wrapper.find('[data-testid="note-read-surface"]').exists()).toBe(true);
+    expect(wrapper.find('textarea').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="note-read-surface"]').text()).toContain('Rust 生命周期笔记');
+
+    await wrapper.get('[data-testid="note-mode-edit"]').trigger('click');
+
+    expect(wrapper.find('[data-testid="note-read-surface"]').exists()).toBe(false);
+    expect(wrapper.find('textarea').exists()).toBe(true);
+  });
+
+  it('opens the floating outline and routes zen back to note-editor', async () => {
+    const wrapper = mount(WrappedNoteEditorView);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="note-outline-panel"]').exists()).toBe(false);
+
+    await wrapper.get('[data-testid="note-outline-toggle"]').trigger('click');
+
+    expect(wrapper.find('[data-testid="note-outline-panel"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="note-outline-tree"]').exists()).toBe(true);
+
+    await wrapper.get('[data-testid="note-open-zen"]').trigger('click');
+
+    expect(navigateTo).toHaveBeenCalledWith('zen', 'note-1', 'note-editor');
   });
 
   it('declares readable local colors for the tag editing dialog controls', () => {
