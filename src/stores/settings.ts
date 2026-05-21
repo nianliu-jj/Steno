@@ -25,6 +25,9 @@ export interface StenoSettings {
   blurCloseDelayMs: number;
   editorMode: EditorMode;
   backupEveryChanges: number;
+  mainSidebarWidth: number;
+  mainSidebarCollapsed: boolean;
+  zenOutlineWidth: number;
 }
 
 const DEFAULTS: StenoSettings = {
@@ -37,6 +40,9 @@ const DEFAULTS: StenoSettings = {
   blurCloseDelayMs: 800,
   editorMode: 'split',
   backupEveryChanges: 10,
+  mainSidebarWidth: 220,
+  mainSidebarCollapsed: false,
+  zenOutlineWidth: 280,
 };
 
 /** 后端 settings 表都是 TEXT；这里按字段把字符串还原成正确的 TS 类型。 */
@@ -51,9 +57,14 @@ function decode<K extends keyof StenoSettings>(
     case 'floatingWidth':
     case 'floatingHeight':
     case 'blurCloseDelayMs':
-    case 'backupEveryChanges': {
+    case 'backupEveryChanges':
+    case 'mainSidebarWidth':
+    case 'zenOutlineWidth': {
       const n = Number.parseInt(raw, 10);
-      return (Number.isFinite(n) ? n : DEFAULTS[key]) as StenoSettings[K];
+      return (Number.isFinite(n) && n > 0 ? n : DEFAULTS[key]) as StenoSettings[K];
+    }
+    case 'mainSidebarCollapsed': {
+      return (raw === 'true') as StenoSettings[K];
     }
     case 'themeMode': {
       return (['light', 'dark', 'system'].includes(raw)
@@ -89,7 +100,7 @@ export const useSettingsStore = defineStore('settings', () => {
       loaded.value = true;
     } catch (e) {
       error.value = String(e);
-    }
+}
   }
 
   /**
