@@ -100,7 +100,7 @@ export const useSettingsStore = defineStore('settings', () => {
       loaded.value = true;
     } catch (e) {
       error.value = String(e);
-}
+    }
   }
 
   /**
