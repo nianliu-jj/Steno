@@ -713,12 +713,14 @@ function formatUpdatedAt(iso: string): string {
               size="small"
               placeholder="输入标签"
               :aria-label="`标签 ${index + 1}`"
+              class="main-tag-input"
               :data-testid="`main-tag-input-${index}`"
             />
             <NButton
               quaternary
               circle
               size="small"
+              class="main-tag-delete"
               :aria-label="`删除标签 ${index + 1}`"
               :data-testid="`main-tag-delete-${index}`"
               @click="onDeleteTagRow(index)"
@@ -726,12 +728,18 @@ function formatUpdatedAt(iso: string): string {
               ×
             </NButton>
           </div>
-          <NButton size="small" tertiary data-testid="main-tag-add" @click="onAddTagRow">
+          <NButton
+            size="small"
+            tertiary
+            class="main-dialog-cancel"
+            data-testid="main-tag-add"
+            @click="onAddTagRow"
+          >
             添加标签
           </NButton>
         </div>
         <div class="main-dialog-actions">
-          <NButton size="small" @click="onCloseTagDialog">取消</NButton>
+          <NButton size="small" class="main-dialog-cancel" @click="onCloseTagDialog">取消</NButton>
           <NButton size="small" type="primary" data-testid="main-tags-confirm" @click="onConfirmTagDialog">
             保存
           </NButton>
@@ -752,10 +760,11 @@ function formatUpdatedAt(iso: string): string {
           size="small"
           placeholder="输入文档名称"
           aria-label="文档名称"
+          class="main-rename-dialog-input"
           data-testid="main-rename-input"
         />
         <div class="main-dialog-actions">
-          <NButton size="small" @click="onCloseRenameDialog">取消</NButton>
+          <NButton size="small" class="main-dialog-cancel" @click="onCloseRenameDialog">取消</NButton>
           <NButton size="small" type="primary" data-testid="main-rename-confirm" @click="onConfirmRenameDialog">
             保存
           </NButton>
@@ -1129,6 +1138,52 @@ function formatUpdatedAt(iso: string): string {
   grid-template-columns: minmax(0, 1fr) 32px;
   align-items: center;
   gap: 8px;
+}
+
+.main-tag-input,
+.main-rename-dialog-input {
+  --n-text-color: #2a2a2a !important;
+  --n-placeholder-color: #8a7c70 !important;
+  --n-color: #fffdf9 !important;
+  --n-color-focus: #fffdf9 !important;
+  --n-caret-color: #2a2a2a !important;
+  --n-border: 1px solid rgba(55, 46, 36, 0.22) !important;
+  --n-border-hover: 1px solid rgba(55, 46, 36, 0.38) !important;
+  --n-border-focus: 1px solid #18a058 !important;
+}
+
+.main-tag-input :deep(.n-input__placeholder),
+.main-tag-input :deep(input::placeholder),
+.main-rename-dialog-input :deep(.n-input__placeholder),
+.main-rename-dialog-input :deep(input::placeholder) {
+  color: #8a7c70 !important;
+}
+
+.main-tag-input :deep(.n-input__input-el),
+.main-tag-input :deep(input),
+.main-rename-dialog-input :deep(.n-input__input-el),
+.main-rename-dialog-input :deep(input) {
+  color: #2a2a2a !important;
+  -webkit-text-fill-color: #2a2a2a;
+  caret-color: #2a2a2a;
+}
+
+.main-tag-delete :deep(.n-button),
+.main-dialog-cancel,
+.main-tag-delete {
+  --n-text-color: #6f5c4c !important;
+  --n-text-color-hover: #2f2923 !important;
+  --n-text-color-pressed: #2f2923 !important;
+  --n-text-color-focus: #2f2923 !important;
+  --n-color-hover: rgba(55, 46, 36, 0.08) !important;
+  --n-color-pressed: rgba(55, 46, 36, 0.12) !important;
+  --n-color-focus: rgba(55, 46, 36, 0.08) !important;
+  color: #6f5c4c !important;
+}
+
+.main-tag-delete :deep(.n-button__content),
+.main-dialog-cancel :deep(.n-button__content) {
+  color: inherit;
 }
 
 .main-dialog-actions {

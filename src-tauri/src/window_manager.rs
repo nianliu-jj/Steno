@@ -74,6 +74,7 @@ pub fn open_sticky_note(app: &AppHandle, note_id: &str) -> tauri::Result<()> {
         .transparent(true)
         .resizable(true)
         .skip_taskbar(true)
+        .visible(false)
         .build()?;
     Ok(())
 }

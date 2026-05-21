@@ -39,6 +39,10 @@ export function useWindow() {
     return getCurrentWindow().hide();
   }
 
+  function showCurrent() {
+    return getCurrentWindow().show();
+  }
+
   function minimizeCurrent() {
     return getCurrentWindow().minimize();
   }
@@ -100,6 +104,7 @@ export function useWindow() {
     openSettings,
     openZen,
     hideCurrent,
+    showCurrent,
     minimizeCurrent,
     maximizeCurrent,
     unmaximizeCurrent,

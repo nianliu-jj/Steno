@@ -25,6 +25,7 @@ const setCurrentPosition = vi.fn(() => Promise.resolve());
 const closeStickyNote = vi.fn(() => Promise.resolve());
 const closeCurrent = vi.fn(() => Promise.resolve());
 const hideCurrent = vi.fn(() => Promise.resolve());
+const showCurrent = vi.fn(() => Promise.resolve());
 
 vi.mock('@/composables/useAutosave', () => ({
   useAutosave: () => ({
@@ -71,6 +72,7 @@ vi.mock('@/composables/useWindow', () => ({
     startDragCurrent,
     setCurrentSize,
     setCurrentPosition,
+    showCurrent,
     closeStickyNote,
     closeCurrent,
     hideCurrent,
@@ -135,6 +137,7 @@ describe('StickyNote', () => {
     startDragCurrent.mockClear();
     setCurrentSize.mockClear();
     setCurrentPosition.mockClear();
+    showCurrent.mockClear();
     closeStickyNote.mockClear();
     closeCurrent.mockClear();
     hideCurrent.mockClear();
@@ -155,6 +158,14 @@ describe('StickyNote', () => {
     expect(wrapper.get('[data-testid="sticky-title-text"]').text()).toBe('置顶便签');
     expect(wrapper.find('[data-testid="sticky-title-input"] input').exists()).toBe(false);
     expect(wrapper.find('[data-testid="sticky-title-edit"]').exists()).toBe(true);
+  });
+
+  it('mount 完成后才显示当前便签窗口', async () => {
+    await mountStickyNote();
+
+    expect(setCurrentSize).toHaveBeenCalledOnce();
+    expect(showCurrent).toHaveBeenCalledOnce();
+    expect(setCurrentSize.mock.invocationCallOrder[0]).toBeLessThan(showCurrent.mock.invocationCallOrder[0]);
   });
 
   it('点击标题编辑图标后进入编辑态', async () => {

@@ -503,4 +503,16 @@ describe('MainView', () => {
 
     consoleError.mockRestore();
   });
+
+  it('declares readable local colors for the light tag and rename dialogs', () => {
+    expect(MainViewSource).toContain('class="main-dialog-cancel"');
+    expect(MainViewSource).toContain('class="main-tag-input"');
+    expect(MainViewSource).toContain('class="main-rename-dialog-input"');
+    expect(MainViewSource).toContain('--n-text-color: #2a2a2a');
+    expect(MainViewSource).toContain('--n-placeholder-color: #8a7c70');
+    expect(MainViewSource).toContain('--n-color: #fffdf9');
+    expect(MainViewSource).toContain('-webkit-text-fill-color: #2a2a2a');
+    expect(MainViewSource).toContain('--n-text-color: #6f5c4c');
+    expect(MainViewSource).toContain('--n-color-hover: rgba(55, 46, 36, 0.08)');
+  });
 });

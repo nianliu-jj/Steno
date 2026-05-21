@@ -133,12 +133,15 @@ onMounted(async () => {
     const note = await db.getNote(props.noteId);
     if (!note) {
       console.warn('[sticky] note not found:', props.noteId);
+      await win.showCurrent();
       return;
     }
     hydrateFromNote(note);
     await applyConfig(config.value);
+    await win.showCurrent();
   } catch (e) {
     console.error('[sticky] load failed:', e);
+    await win.showCurrent();
   } finally {
     loaded.value = true;
   }
