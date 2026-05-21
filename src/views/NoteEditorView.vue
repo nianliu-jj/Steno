@@ -2,10 +2,13 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { NButton, NIcon, NInput, NText } from 'naive-ui';
 
+import DocumentOutlineTree from '@/components/DocumentOutlineTree.vue';
+import MarkdownReadSurface from '@/components/MarkdownReadSurface.vue';
 import MarkdownEditor from '@/components/MarkdownEditor.vue';
 import { useAutosave } from '@/composables/useAutosave';
 import { useDb } from '@/composables/useDb';
 import { useMarkdown } from '@/composables/useMarkdown';
+import { useMarkdownOutline } from '@/composables/useMarkdownOutline';
 import { useNotesStore } from '@/stores/notes';
 import { useUiStore } from '@/stores/ui';
 import type { Note, SaveNoteRequest } from '@/types/steno';
@@ -24,9 +27,14 @@ const editingTitle = ref(false);
 const tagsDialogVisible = ref(false);
 const tagsDraftRows = ref<string[]>([]);
 const titleInputRef = ref<{ focus: () => void } | null>(null);
+const editorRef = ref<{ focus: () => void; scrollToLine: (line: number) => void } | null>(null);
+const viewMode = ref<'edit' | 'read'>('edit');
+const outlineOpen = ref(false);
 
 const wordCount = computed(() => countWords(content.value));
 const displayTitle = computed(() => title.value.trim() || '无标题');
+const { buildOutline } = useMarkdownOutline();
+const outlineNodes = computed(() => buildOutline(content.value));
 
 function hydrateFromNote(note: Note) {
   currentNoteId.value = note.id;
@@ -132,6 +140,32 @@ function onConfirmTagsDialog() {
   tags.value = parseTagRows(tagsDraftRows.value);
   tagsDialogVisible.value = false;
 }
+
+function onToggleReadMode() {
+  viewMode.value = 'read';
+}
+
+function onToggleEditMode() {
+  viewMode.value = 'edit';
+  nextTick(() => editorRef.value?.focus());
+}
+
+async function onOpenZen() {
+  await flushSave();
+  ui.navigateTo('zen', currentNoteId.value, 'note-editor');
+}
+
+function onSelectOutline(node: { line: number; id: string }) {
+  if (viewMode.value === 'edit') {
+    editorRef.value?.scrollToLine(node.line);
+    return;
+  }
+
+  document.getElementById(node.id)?.scrollIntoView({
+    block: 'center',
+    behavior: 'smooth',
+  });
+}
 </script>
 
 <template>
@@ -201,10 +235,33 @@ function onConfirmTagsDialog() {
     </header>
 
     <div class="note-editor-body">
+      <button
+        class="note-editor-outline-fab"
+        data-testid="note-outline-toggle"
+        type="button"
+        @click="outlineOpen = !outlineOpen"
+      >
+        大纲
+      </button>
+      <aside
+        v-if="outlineOpen"
+        class="note-editor-outline-panel"
+        data-testid="note-outline-panel"
+      >
+        <DocumentOutlineTree :nodes="outlineNodes" @select="onSelectOutline" />
+      </aside>
       <MarkdownEditor
+        v-if="viewMode === 'edit'"
+        ref="editorRef"
         v-model="content"
         autofocus
         placeholder="开始写作…"
+      />
+      <MarkdownReadSurface
+        v-else
+        data-testid="note-read-surface"
+        :title="displayTitle"
+        :content="content"
       />
     </div>
 
@@ -220,6 +277,32 @@ function onConfirmTagsDialog() {
             #{{ tag }}
           </span>
         </template>
+      </div>
+      <div class="note-editor-footer-actions">
+        <NButton
+          size="small"
+          tertiary
+          data-testid="note-mode-read"
+          @click="onToggleReadMode"
+        >
+          只读模式
+        </NButton>
+        <NButton
+          size="small"
+          tertiary
+          data-testid="note-mode-edit"
+          @click="onToggleEditMode"
+        >
+          编辑模式
+        </NButton>
+        <NButton
+          size="small"
+          type="primary"
+          data-testid="note-open-zen"
+          @click="onOpenZen"
+        >
+          Zen 模式
+        </NButton>
       </div>
       <div class="note-editor-footer-meta">
         <NText depth="3" class="note-editor-meta-text">{{ wordCount }} 字</NText>
@@ -383,7 +466,8 @@ function onConfirmTagsDialog() {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 24px 24px 8px;
+  padding: 14px 24px 8px;
+  position: relative;
 }
 
 .note-editor-footer {
@@ -435,6 +519,13 @@ function onConfirmTagsDialog() {
   gap: 12px;
   font-size: 12px;
   white-space: nowrap;
+}
+
+.note-editor-footer-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
 }
 
 .note-editor-title {
@@ -578,12 +669,52 @@ function onConfirmTagsDialog() {
   gap: 8px;
 }
 
+.note-editor-outline-fab {
+  position: absolute;
+  right: 40px;
+  bottom: 32px;
+  z-index: 2;
+  min-width: 64px;
+  height: 32px;
+  border: 1px solid rgba(132, 82, 47, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 250, 244, 0.96);
+  color: #6f5c4c;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(38, 31, 25, 0.12);
+}
+
+.note-editor-outline-panel {
+  position: absolute;
+  right: 24px;
+  top: 18px;
+  z-index: 3;
+  width: 220px;
+  max-height: calc(100% - 36px);
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid rgba(55, 46, 36, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 250, 244, 0.98);
+  box-shadow: 0 18px 36px rgba(38, 31, 25, 0.16);
+}
+
 .note-editor-body :deep(.md-editor) {
   flex: 1;
   min-height: 420px;
   border: 1px solid rgba(55, 46, 36, 0.1);
-  border-radius: 10px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.55);
+}
+
+.note-editor-body :deep(.markdown-read-surface) {
+  flex: 1;
+  min-height: 420px;
+  border: 1px solid rgba(55, 46, 36, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .note-editor-body :deep(.md-editor__toolbar) {

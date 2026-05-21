@@ -47,7 +47,18 @@ function focus() {
   textarea.value?.focus();
 }
 
-defineExpose({ focus });
+function scrollToLine(line: number) {
+  const el = textarea.value;
+  if (!el) return;
+
+  const lines = el.value.split('\n');
+  const offset = lines.slice(0, Math.max(0, line - 1)).join('\n').length;
+  el.focus();
+  el.setSelectionRange(offset, offset);
+  el.scrollTop = Math.max(0, line - 1) * 24;
+}
+
+defineExpose({ focus, scrollToLine });
 
 // autofocus 由父组件控制；onMounted 时 ref 已就位。
 if (props.autofocus) {
