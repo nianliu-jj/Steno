@@ -64,3 +64,19 @@
 - 不引入 PureMark 自研的 ProseMirror schema / parser / serializer 那一整套（工程量过大、与速记应用定位不符）。
 - 不做工具栏可视化编辑按钮（保留命令式快捷键即可，未来若有需要再加）。
 - 不动 SQLite schema、autosave、跨窗口事件协议。
+
+## 决议（2026-05-23）
+
+经用户拍板，**采用方案 B：CodeMirror 6 + 自建装饰器**。已加入项目依赖：
+
+- `@codemirror/state`、`@codemirror/view`：编辑器核心
+- `@codemirror/lang-markdown`：Markdown 语言解析（Lezer 语法树）
+- `@codemirror/language`：syntaxTree / HighlightStyle 等公共能力
+- `@codemirror/commands`：撤销/重做、默认 keymap、history
+- `@codemirror/search`：查找替换（后续可选用）
+- `@lezer/highlight`：syntax tags 与高亮规则
+
+实施重心：在 `MarkdownEditor.vue` 内组装最小可用的 `EditorView`，并写一个 `live-render` `ViewPlugin`，按 lezer 语法树定位 `HeaderMark`、`EmphasisMark`、`StrongEmphasisMark`、`InlineCodeMark`、`StrikethroughMark`、`ListMark`、`QuoteMark` 等位置，输出 `Decoration.mark`/`Decoration.replace` 切换"显示符号 / 隐藏并应用样式"。光标所在行（或语法标记 cover 区域）保留符号，其余隐藏 — 这就是 Obsidian Live Preview 与 PureMark 的同路实现。
+
+体积考量：核心 6 个包合计约 150-180KB gzip，对速记浮窗仍属可接受。
+

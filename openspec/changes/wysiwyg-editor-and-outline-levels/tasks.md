@@ -1,8 +1,8 @@
 ## 1. 方案选型与依赖准备
 
-- [ ] 1.1 由用户在 design.md 的 A/B/C 三套方案中拍板
-- [ ] 1.2 安装所选方案对应的依赖（默认 A：`@milkdown/core`、`@milkdown/vue`、`@milkdown/preset-crepe`、`@milkdown/theme-nord`、`@milkdown/prose` 等；如选 B：`@codemirror/state` `@codemirror/view` `@codemirror/lang-markdown` `@codemirror/commands` `@lezer/highlight`；如选 C：`vditor`）
-- [ ] 1.3 在 README 或 docs 简要登记编辑器内核选择（一段话即可）
+- [x] 1.1 由用户在 design.md 的 A/B/C 三套方案中拍板 → 选定 **方案 B：CodeMirror 6 + 自建装饰器**
+- [x] 1.2 安装 CodeMirror 6 依赖：`@codemirror/state` `@codemirror/view` `@codemirror/lang-markdown` `@codemirror/commands` `@codemirror/language` `@codemirror/search` `@lezer/highlight`
+- [x] 1.3 在 design.md "决议" 小节登记编辑器内核选择（含包列表与体积估算）
 
 ## 2. WYSIWYG 编辑器内核（capability: markdown-wysiwyg-editor）
 
