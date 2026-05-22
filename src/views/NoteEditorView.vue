@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
-import { NButton, NIcon, NInput, NText } from 'naive-ui';
+import { NButton, NIcon, NInput, NText, useMessage } from 'naive-ui';
+import { onClickOutside } from '@vueuse/core';
 
 import DocumentOutlineTree from '@/components/DocumentOutlineTree.vue';
 import MarkdownReadSurface from '@/components/MarkdownReadSurface.vue';
@@ -16,6 +17,7 @@ import type { Note, SaveNoteRequest } from '@/types/steno';
 const db = useDb();
 const notes = useNotesStore();
 const ui = useUiStore();
+const message = useMessage();
 const { countWords } = useMarkdown();
 
 const currentNoteId = ref<string | null>(ui.noteId ?? null);
@@ -30,11 +32,22 @@ const titleInputRef = ref<{ focus: () => void } | null>(null);
 const editorRef = ref<{ focus: () => void; scrollToLine: (line: number) => void } | null>(null);
 const viewMode = ref<'edit' | 'read'>('edit');
 const outlineOpen = ref(false);
+const modeDropdownOpen = ref(false);
+const modeDropdownRef = ref<HTMLElement | null>(null);
 
 const wordCount = computed(() => countWords(content.value));
 const displayTitle = computed(() => title.value.trim() || '无标题');
 const { buildOutline } = useMarkdownOutline();
 const outlineNodes = computed(() => buildOutline(content.value));
+
+const MAX_TAGS = 3;
+const displayedTags = computed(() => tags.value.slice(0, 2));
+const extraTagCount = computed(() => Math.max(0, tags.value.length - 2));
+const modeLabel = computed(() => (viewMode.value === 'read' ? '只读模式' : '编辑模式'));
+
+onClickOutside(modeDropdownRef, () => {
+  modeDropdownOpen.value = false;
+});
 
 function hydrateFromNote(note: Note) {
   currentNoteId.value = note.id;
@@ -126,6 +139,10 @@ function onCloseTagsDialog() {
 }
 
 function onAddTagRow() {
+  if (tagsDraftRows.value.length >= MAX_TAGS) {
+    message.warning('最多只能添加 3 个标签');
+    return;
+  }
   tagsDraftRows.value.push('');
 }
 
@@ -137,7 +154,12 @@ function onDeleteTagRow(index: number) {
 }
 
 function onConfirmTagsDialog() {
-  tags.value = parseTagRows(tagsDraftRows.value);
+  const parsed = parseTagRows(tagsDraftRows.value);
+  if (parsed.length > MAX_TAGS) {
+    message.warning('最多只能添加 3 个标签');
+    return;
+  }
+  tags.value = parsed;
   tagsDialogVisible.value = false;
 }
 
@@ -153,6 +175,19 @@ function onToggleEditMode() {
 async function onOpenZen() {
   await flushSave();
   ui.navigateTo('zen', currentNoteId.value, 'note-editor');
+}
+
+function onSelectMode(mode: 'edit' | 'read' | 'zen') {
+  modeDropdownOpen.value = false;
+  if (mode === 'zen') {
+    void onOpenZen();
+    return;
+  }
+  if (mode === 'read') {
+    onToggleReadMode();
+    return;
+  }
+  onToggleEditMode();
 }
 
 function onSelectOutline(node: { line: number; id: string }) {
@@ -171,7 +206,6 @@ function onSelectOutline(node: { line: number; id: string }) {
 <template>
   <div class="note-editor-root">
     <header class="note-editor-header">
-      <div class="note-editor-header-spacer" aria-hidden="true" />
       <div class="note-editor-title">
         <NInput
           v-if="editingTitle"
@@ -209,25 +243,6 @@ function onSelectOutline(node: { line: number; id: string }) {
         </div>
       </div>
       <div class="note-editor-actions">
-        <NButton
-          quaternary
-          circle
-          size="small"
-          title="编辑标签"
-          aria-label="编辑标签"
-          class="note-editor-icon-button"
-          data-testid="note-tags-edit"
-          @click="onOpenTagsDialog"
-        >
-          <template #icon>
-            <NIcon>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20.6 13.1 13.1 20.6a2 2 0 0 1-2.8 0l-7-7V3h10.6l6.7 6.7a2 2 0 0 1 0 2.8z" />
-                <path d="M7.5 7.5h.01" />
-              </svg>
-            </NIcon>
-          </template>
-        </NButton>
         <NButton size="small" tertiary class="note-editor-back-button" @click="onBack">
           返回列表
         </NButton>
@@ -270,39 +285,83 @@ function onSelectOutline(node: { line: number; id: string }) {
         <span v-if="tags.length === 0" class="note-editor-tag-empty">无标签</span>
         <template v-else>
           <span
-            v-for="tag in tags"
+            v-for="tag in displayedTags"
             :key="tag"
             class="note-editor-tag"
           >
             #{{ tag }}
           </span>
+          <span v-if="extraTagCount > 0" class="note-editor-tag-more">
+            +{{ extraTagCount }}
+          </span>
         </template>
+        <NButton
+          quaternary
+          circle
+          size="small"
+          title="编辑标签"
+          aria-label="编辑标签"
+          class="note-editor-icon-button note-editor-tags-edit-button"
+          data-testid="note-tags-edit"
+          @click="onOpenTagsDialog"
+        >
+          <template #icon>
+            <NIcon>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+              </svg>
+            </NIcon>
+          </template>
+        </NButton>
       </div>
-      <div class="note-editor-footer-actions">
-        <NButton
-          size="small"
-          tertiary
-          data-testid="note-mode-read"
-          @click="onToggleReadMode"
+      <div ref="modeDropdownRef" class="note-editor-mode-dropdown">
+        <button
+          type="button"
+          class="note-editor-mode-trigger"
+          aria-haspopup="listbox"
+          :aria-expanded="modeDropdownOpen"
+          @click="modeDropdownOpen = !modeDropdownOpen"
         >
-          只读模式
-        </NButton>
-        <NButton
-          size="small"
-          tertiary
-          data-testid="note-mode-edit"
-          @click="onToggleEditMode"
+          <span>{{ modeLabel }}</span>
+          <span class="note-editor-mode-caret" aria-hidden="true">▾</span>
+        </button>
+        <ul
+          v-show="modeDropdownOpen"
+          class="note-editor-mode-options"
+          role="listbox"
         >
-          编辑模式
-        </NButton>
-        <NButton
-          size="small"
-          type="primary"
-          data-testid="note-open-zen"
-          @click="onOpenZen"
-        >
-          Zen 模式
-        </NButton>
+          <li class="note-editor-mode-item">
+            <button
+              type="button"
+              class="note-editor-mode-option"
+              data-testid="note-mode-edit"
+              @click="onSelectMode('edit')"
+            >
+              编辑模式
+            </button>
+          </li>
+          <li class="note-editor-mode-item">
+            <button
+              type="button"
+              class="note-editor-mode-option"
+              data-testid="note-mode-read"
+              @click="onSelectMode('read')"
+            >
+              只读模式
+            </button>
+          </li>
+          <li class="note-editor-mode-item">
+            <button
+              type="button"
+              class="note-editor-mode-option"
+              data-testid="note-open-zen"
+              @click="onSelectMode('zen')"
+            >
+              Zen 模式
+            </button>
+          </li>
+        </ul>
       </div>
       <div class="note-editor-footer-meta">
         <NText depth="3" class="note-editor-meta-text">{{ wordCount }} 字</NText>
@@ -361,6 +420,7 @@ function onSelectOutline(node: { line: number; id: string }) {
             tertiary
             class="note-editor-tag-add"
             data-testid="note-tag-add"
+            :disabled="tagsDraftRows.length >= MAX_TAGS"
             @click="onAddTagRow"
           >
             <template #icon>
@@ -402,15 +462,11 @@ function onSelectOutline(node: { line: number; id: string }) {
 
 .note-editor-header {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) minmax(180px, 420px) minmax(160px, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   padding: 12px 24px;
   border-bottom: 1px solid rgba(55, 46, 36, 0.1);
-}
-
-.note-editor-header-spacer {
-  min-width: 0;
 }
 
 .note-editor-meta-text {
@@ -497,7 +553,7 @@ function onSelectOutline(node: { line: number; id: string }) {
 }
 
 .note-editor-tag {
-  max-width: 160px;
+  max-width: 120px;
   overflow: hidden;
   padding: 0 7px;
   border: 1px solid rgba(132, 82, 47, 0.16);
@@ -509,6 +565,21 @@ function onSelectOutline(node: { line: number; id: string }) {
 
 .note-editor-tag-empty {
   color: #8a8178;
+}
+
+.note-editor-tag-more {
+  flex-shrink: 0;
+  padding: 0 7px;
+  border: 1px solid rgba(132, 82, 47, 0.16);
+  border-radius: 6px;
+  background: rgba(132, 82, 47, 0.1);
+  color: #6f5c4c;
+  font-size: 12px;
+  line-height: 24px;
+}
+
+.note-editor-tags-edit-button {
+  margin-left: 2px;
 }
 
 .note-editor-footer-meta {
@@ -528,16 +599,87 @@ function onSelectOutline(node: { line: number; id: string }) {
   gap: 8px;
 }
 
+.note-editor-mode-dropdown {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.note-editor-mode-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid rgba(132, 82, 47, 0.18);
+  border-radius: 6px;
+  background: rgba(255, 250, 244, 0.96);
+  color: #6f5c4c;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.note-editor-mode-trigger:hover,
+.note-editor-mode-trigger:focus-visible {
+  background: rgba(132, 82, 47, 0.08);
+  color: #2f2923;
+  outline: none;
+}
+
+.note-editor-mode-caret {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.note-editor-mode-options {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 4;
+  min-width: 120px;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  border: 1px solid rgba(55, 46, 36, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 250, 244, 0.98);
+  box-shadow: 0 12px 32px rgba(38, 31, 25, 0.16);
+}
+
+.note-editor-mode-item {
+  margin: 0;
+  padding: 0;
+}
+
+.note-editor-mode-option {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  border: 0;
+  background: transparent;
+  color: #5f564d;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.note-editor-mode-option:hover,
+.note-editor-mode-option:focus-visible {
+  background: rgba(132, 82, 47, 0.08);
+  color: #2a2a2a;
+  outline: none;
+}
+
 .note-editor-title {
   width: 100%;
   min-width: 0;
-  justify-self: center;
+  justify-self: start;
 }
 
 .note-editor-title-display {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
   min-width: 0;
 }
@@ -559,7 +701,7 @@ function onSelectOutline(node: { line: number; id: string }) {
 
 .note-editor-title-input :deep(input) {
   padding: 0;
-  text-align: center;
+  text-align: left;
   font-size: 18px;
   font-weight: 600;
   color: #2a2a2a !important;
