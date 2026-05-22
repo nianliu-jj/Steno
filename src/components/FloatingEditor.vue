@@ -2,22 +2,21 @@
 // 浮窗 / 便签双模式顶层视图。
 //
 // 两种模式由 `props.noteId` 决定：
-//   - quicknote 模式（props.noteId == null）：单例 quick-capture 浮窗
-//     · 失焦/关闭 → flushSave → hide + reset 状态，下次唤出是新会话
-//     · 置顶按钮 → pin + 创建独立便签窗口，然后 hide quicknote
-//   - sticky 模式（props.noteId 非空）：每条置顶笔记一个独立 webview
-//     · mount 时按 noteId 从 SQLite hydrate
-//     · 失焦不自动关闭（便签需要持久显示）
-//     · 关闭/取消置顶按钮 → flushSave → unpin + closeStickyNote
+//   - quicknote 模式（props.noteId == null）：单例 quick-capture 浮窗。
+//     标题与标签是 NInput 直接编辑；失焦/关闭 → flushSave → hide + reset；
+//     置顶按钮 → pin + 创建独立便签窗口，然后 hide quicknote。
+//   - sticky 模式（props.noteId 非空）：每条置顶笔记一个独立 webview。
+//     mount 时按 noteId 从 SQLite hydrate；
+//     标题与标签默认以只读文本展示，旁侧编辑按钮切换 NInput；
+//     失焦不自动关闭；关闭 / 取消置顶 → flushSave → unpin + closeStickyNote。
 //
-// 自动保存：useAutosave 1000ms debounce。sticky 模式 hydrate 期间用 loaded
-// 标志位阻断初次 watch，避免 mount 即触发保存。
-//
-// 拖动握手：startDragCurrent 之后 500ms 内的失焦忽略，避免误触发关闭计时器。
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { NButton, NIcon, NInput, NText } from 'naive-ui';
+// 跨窗口同步：autosave 成功后 emit `steno:note-saved`，MainView 监听后调用
+// syncExternalNote 让笔记列表卡片实时更新（包括标题/标签/内容）。
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { NButton, NIcon, NInput, NText, useMessage } from 'naive-ui';
 
 import MarkdownEditor from '@/components/MarkdownEditor.vue';
+import { useAppEvents } from '@/composables/useAppEvents';
 import { useAutosave } from '@/composables/useAutosave';
 import { useDb } from '@/composables/useDb';
 import { useMarkdown } from '@/composables/useMarkdown';
@@ -36,9 +35,14 @@ const notes = useNotesStore();
 const settings = useSettingsStore();
 const win = useWindow();
 const db = useDb();
+const appEvents = useAppEvents();
+const message = useMessage();
 const { countWords } = useMarkdown();
 
 const isSticky = computed(() => !!props.noteId);
+
+// quicknote 模式下"已锁定"开关——pin 按钮 toggle 后不再失焦关闭。
+const quicknotePinned = ref(false);
 
 const currentNoteId = ref<string | null>(props.noteId ?? null);
 const title = ref('');
@@ -46,18 +50,28 @@ const content = ref('');
 const tagsInput = ref('');
 const loaded = ref(!isSticky.value);
 
-const tagsArray = computed(() => {
-  const raw = tagsInput.value.trim();
-  if (!raw) return [];
+const titleEditing = ref(false);
+const titleDraft = ref('');
+const titleInputRef = ref<{ focus: () => void } | null>(null);
+
+const tagsEditing = ref(false);
+const tagsDraft = ref('');
+const tagsInputRef = ref<{ focus: () => void } | null>(null);
+
+const tagsArray = computed(() => parseTags(tagsInput.value));
+
+function parseTags(raw: string): string[] {
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
   return Array.from(
     new Set(
-      raw
+      trimmed
         .split(/[,，\s]+/)
         .map(t => t.replace(/^#/, '').toLowerCase().trim())
         .filter(Boolean),
     ),
   );
-});
+}
 
 const wordCount = computed(() => countWords(content.value));
 
@@ -70,9 +84,9 @@ const isEmpty = computed(
 const { status, savedAt, error, scheduleSave, flushSave } = useAutosave(
   async (payload: SaveNoteRequest) => {
     const saved = await notes.saveDraft(payload);
-    if (saved && !currentNoteId.value) {
-      currentNoteId.value = saved.id;
-    }
+    if (!saved) return;
+    if (!currentNoteId.value) currentNoteId.value = saved.id;
+    void appEvents.emitNoteSaved(saved);
   },
 );
 
@@ -106,8 +120,59 @@ const statusText = computed(() => {
   }
 });
 
-const pinButtonTitle = computed(() => (isSticky.value ? '取消置顶并关闭' : '置顶为便签'));
-const closeButtonTitle = computed(() => (isSticky.value ? '关闭便签' : '保存并关闭'));
+const pinButtonTitle = computed(() => {
+  if (isSticky.value) return '取消置顶并关闭';
+  return quicknotePinned.value ? '取消置顶' : '置顶为便签';
+});
+
+const displayTitle = computed(() => title.value.trim() || '无标题');
+const displayTags = computed(() => {
+  const tags = tagsArray.value;
+  if (tags.length === 0) return '点击编辑标签';
+  return tags.map(t => `#${t}`).join(' ');
+});
+
+// ----- 标题编辑 -------------------------------------------------------
+
+async function onStartTitleEdit() {
+  titleDraft.value = title.value;
+  titleEditing.value = true;
+  await nextTick();
+  titleInputRef.value?.focus();
+}
+
+function onCancelTitleEdit() {
+  titleDraft.value = '';
+  titleEditing.value = false;
+}
+
+function onSaveTitle() {
+  const next = titleDraft.value.trim();
+  titleEditing.value = false;
+  if (next === title.value) return;
+  title.value = next;
+}
+
+// ----- 标签编辑 -------------------------------------------------------
+
+async function onStartTagsEdit() {
+  tagsDraft.value = tagsInput.value;
+  tagsEditing.value = true;
+  await nextTick();
+  tagsInputRef.value?.focus();
+}
+
+function onCancelTagsEdit() {
+  tagsDraft.value = '';
+  tagsEditing.value = false;
+}
+
+function onSaveTags() {
+  const next = tagsDraft.value;
+  tagsEditing.value = false;
+  if (next === tagsInput.value) return;
+  tagsInput.value = next;
+}
 
 // ----- 拖拽 + 失焦关闭 ------------------------------------------------
 
@@ -115,6 +180,7 @@ const dragUntil = ref(0);
 
 async function onTitlebarPointerdown(e: PointerEvent) {
   if (e.button !== 0) return;
+  if ((e.target as HTMLElement | null)?.closest('button, input, [contenteditable]')) return;
   e.preventDefault();
   dragUntil.value = Date.now() + 500;
   try {
@@ -129,6 +195,8 @@ function resetState() {
   title.value = '';
   content.value = '';
   tagsInput.value = '';
+  titleEditing.value = false;
+  tagsEditing.value = false;
 }
 
 async function dismissSticky() {
@@ -139,7 +207,8 @@ async function dismissSticky() {
   await flushSave();
   if (status.value === 'error') return;
   try {
-    await notes.unpinNote(currentNoteId.value);
+    const updated = await notes.unpinNote(currentNoteId.value);
+    void appEvents.emitNoteSaved(updated);
   } catch (e) {
     console.error('[sticky] unpin failed:', e);
   }
@@ -201,6 +270,7 @@ onMounted(async () => {
       return;
     }
     if (Date.now() < dragUntil.value) return;
+    if (quicknotePinned.value) return;
     if (blurTimer) clearTimeout(blurTimer);
     blurTimer = setTimeout(() => {
       blurTimer = undefined;
@@ -217,31 +287,51 @@ onUnmounted(() => {
 
 // ----- 关闭 / 置顶 -----------------------------------------------------
 
-async function onCloseClick() {
-  await saveAndDismiss();
+async function nextUntitledName(): Promise<string> {
+  const base = '未命名';
+  try {
+    const existing = await db.listNotes(1000);
+    const titles = new Set(existing.map(n => n.title));
+    if (!titles.has(base)) return base;
+    let i = 1;
+    while (titles.has(`${base}${i}`)) i++;
+    return `${base}${i}`;
+  } catch (e) {
+    console.error('[floating] list notes failed:', e);
+    return base;
+  }
 }
 
-/**
- * quicknote 模式：flushSave → pin → 开 sticky → hide quicknote。
- * sticky 模式：等同于 dismissSticky（取消置顶并关闭）。
- */
+async function onSaveClick() {
+  if (!content.value.trim()) {
+    message.warning('笔记内容为空，无法保存');
+    return;
+  }
+  if (!title.value.trim()) {
+    title.value = await nextUntitledName();
+  }
+  await flushSave();
+}
+
+async function onCloseClick() {
+  if (isSticky.value) {
+    await dismissSticky();
+    return;
+  }
+  await dismissQuicknote();
+}
+
 async function onPinClick() {
   if (isSticky.value) {
     await dismissSticky();
     return;
   }
-  if (isEmpty.value && !currentNoteId.value) return;
-  await flushSave();
-  if (status.value === 'error' || !currentNoteId.value) return;
-  try {
-    await notes.pinNote(currentNoteId.value);
-    await win.openStickyNote(currentNoteId.value);
-  } catch (e) {
-    console.error('[floating] pin failed:', e);
-    return;
+  // quicknote 模式：toggle 锁定状态，禁用 / 恢复失焦关闭。
+  quicknotePinned.value = !quicknotePinned.value;
+  if (quicknotePinned.value && blurTimer) {
+    clearTimeout(blurTimer);
+    blurTimer = undefined;
   }
-  await win.hideCurrent();
-  resetState();
 }
 </script>
 
@@ -251,21 +341,88 @@ async function onPinClick() {
       class="floating-titlebar"
       @pointerdown="onTitlebarPointerdown"
     >
+      <span
+        v-if="!titleEditing"
+        class="floating-title-readonly"
+        :class="{ 'floating-title-empty': !title.trim() }"
+        data-testid="floating-title-text"
+        @click="onStartTitleEdit"
+      >
+        {{ displayTitle }}
+      </span>
       <NInput
-        v-model:value="title"
+        v-else
+        ref="titleInputRef"
+        v-model:value="titleDraft"
         size="tiny"
         placeholder="无标题"
         :bordered="false"
         class="floating-title-input"
+        data-testid="floating-title-input"
         @pointerdown.stop
+        @keydown.enter.prevent="onSaveTitle"
+        @keydown.esc.prevent="onCancelTitleEdit"
+        @blur="onSaveTitle"
       />
+      <NButton
+        quaternary
+        circle
+        size="tiny"
+        :title="titleEditing ? '保存标题' : '编辑标题'"
+        :data-testid="titleEditing ? 'floating-title-save' : 'floating-title-edit'"
+        class="floating-title-action"
+        @pointerdown.stop
+        @click="titleEditing ? onSaveTitle() : onStartTitleEdit()"
+      >
+        <template #icon>
+          <NIcon>
+            <svg
+              v-if="titleEditing"
+              viewBox="0 0 24 24"
+              width="12"
+              height="12"
+              fill="currentColor"
+            >
+              <path d="m9 16.17-3.88-3.88a.996.996 0 1 0-1.41 1.41l4.59 4.59c.39.39 1.02.39 1.41 0L21.7 6.7a.996.996 0 1 0-1.41-1.41z" />
+            </svg>
+            <svg
+              v-else
+              viewBox="0 0 24 24"
+              width="12"
+              height="12"
+              fill="currentColor"
+            >
+              <path d="M3 17.46V21h3.54l10.4-10.4-3.54-3.54L3 17.46zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.54 3.54 2.04-2.04z" />
+            </svg>
+          </NIcon>
+        </template>
+      </NButton>
       <div class="floating-titlebar-actions">
         <NButton
           quaternary
           circle
           size="tiny"
+          title="保存笔记"
+          data-testid="floating-save"
+          @pointerdown.stop
+          @click="onSaveClick"
+        >
+          <template #icon>
+            <NIcon>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                <path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" />
+              </svg>
+            </NIcon>
+          </template>
+        </NButton>
+        <NButton
+          quaternary
+          circle
+          size="tiny"
           :title="pinButtonTitle"
+          :class="{ 'pin-active': !isSticky && quicknotePinned }"
           data-testid="floating-pin"
+          @pointerdown.stop
           @click="onPinClick"
         >
           <template #icon>
@@ -280,8 +437,9 @@ async function onPinClick() {
           quaternary
           circle
           size="tiny"
-          :title="closeButtonTitle"
+          title="关闭浮窗"
           data-testid="floating-close"
+          @pointerdown.stop
           @click="onCloseClick"
         >
           <template #icon>
@@ -304,13 +462,60 @@ async function onPinClick() {
     </div>
 
     <footer class="floating-footer">
+      <span
+        v-if="!tagsEditing"
+        class="floating-tags-readonly"
+        :class="{ 'floating-tags-empty': tagsArray.length === 0 }"
+        data-testid="floating-tags-text"
+        @click="onStartTagsEdit"
+      >
+        {{ displayTags }}
+      </span>
       <NInput
-        v-model:value="tagsInput"
+        v-else
+        ref="tagsInputRef"
+        v-model:value="tagsDraft"
         size="tiny"
         :bordered="false"
         placeholder="#tag1 #tag2"
         class="floating-tags-input"
+        data-testid="floating-tags-input"
+        @keydown.enter.prevent="onSaveTags"
+        @keydown.esc.prevent="onCancelTagsEdit"
+        @blur="onSaveTags"
       />
+      <NButton
+        quaternary
+        circle
+        size="tiny"
+        :title="tagsEditing ? '保存标签' : '编辑标签'"
+        :data-testid="tagsEditing ? 'floating-tags-save' : 'floating-tags-edit'"
+        class="floating-tags-action"
+        @click="tagsEditing ? onSaveTags() : onStartTagsEdit()"
+      >
+        <template #icon>
+          <NIcon>
+            <svg
+              v-if="tagsEditing"
+              viewBox="0 0 24 24"
+              width="12"
+              height="12"
+              fill="currentColor"
+            >
+              <path d="m9 16.17-3.88-3.88a.996.996 0 1 0-1.41 1.41l4.59 4.59c.39.39 1.02.39 1.41 0L21.7 6.7a.996.996 0 1 0-1.41-1.41z" />
+            </svg>
+            <svg
+              v-else
+              viewBox="0 0 24 24"
+              width="12"
+              height="12"
+              fill="currentColor"
+            >
+              <path d="M3 17.46V21h3.54l10.4-10.4-3.54-3.54L3 17.46zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.54 3.54 2.04-2.04z" />
+            </svg>
+          </NIcon>
+        </template>
+      </NButton>
       <div class="floating-footer-meta">
         <NText depth="3" class="floating-meta-item">{{ wordCount }} 字</NText>
         <NText
@@ -353,8 +558,29 @@ async function onPinClick() {
 .floating-titlebar:active {
   cursor: grabbing;
 }
+
+.floating-title-readonly {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e8e8ea;
+  cursor: text;
+}
+
+.floating-title-empty {
+  color: #6f6f78;
+  font-weight: 500;
+  font-style: italic;
+}
+
 .floating-title-input {
   flex: 1;
+  min-width: 0;
   background: transparent;
   font-size: 12px;
   color: #cfcfd4;
@@ -362,10 +588,22 @@ async function onPinClick() {
 .floating-title-input :deep(input) {
   font-size: 12px;
 }
+
+.floating-title-action {
+  flex: 0 0 auto;
+  color: #8a8a92 !important;
+}
+
 .floating-titlebar-actions {
   display: flex;
   align-items: center;
   gap: 2px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.pin-active :deep(svg) {
+  color: #ff8a4c;
 }
 
 .floating-body {
@@ -384,19 +622,46 @@ async function onPinClick() {
   border-top: 1px solid rgba(255, 255, 255, 0.04);
   font-size: 11px;
 }
+
+.floating-tags-readonly {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: #cfcfd4;
+  cursor: text;
+}
+
+.floating-tags-empty {
+  color: #6f6f78;
+  font-style: italic;
+}
+
 .floating-tags-input {
-  flex: 1;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 60%;
   font-size: 11px;
 }
 .floating-tags-input :deep(input) {
   font-size: 11px;
 }
+
+.floating-tags-action {
+  flex: 0 0 auto;
+  color: #8a8a92 !important;
+}
+
 .floating-footer-meta {
   display: flex;
   align-items: center;
   gap: 10px;
   color: #6f6f78;
   white-space: nowrap;
+  margin-left: auto;
 }
 .floating-meta-item {
   font-size: 11px;

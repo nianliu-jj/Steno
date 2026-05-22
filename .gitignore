@@ -38,6 +38,7 @@ yarn.lock
 .claude/
 .codex/
 .worktrees/
+agentignore/
 
 # Tauri / Rust build artifacts
 src-tauri/target/

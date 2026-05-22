@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // 主窗口落地页（mode === 'main'）。
 // 当前作为工作台内容页渲染：原型 v2 的笔记卡片网格和空状态。
-import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { NButton, NDropdown, NIcon, NInput, useMessage } from 'naive-ui';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { NButton, NDropdown, NIcon, NInput, NPopconfirm, useMessage } from 'naive-ui';
 
 import { useAppEvents } from '@/composables/useAppEvents';
 import { useDb } from '@/composables/useDb';
@@ -283,7 +283,7 @@ async function onContextDelete() {
   const note = contextTargetNote.value;
   if (!note) return;
   closeContextMenu();
-  await onDelete(note);
+  await onConfirmDelete(note);
 }
 
 function onCloseTagDialog() {
@@ -293,6 +293,10 @@ function onCloseTagDialog() {
 }
 
 function onAddTagRow() {
+  if (tagDraftRows.value.length >= 3) {
+    message.warning('最多只能添加 3 个标签');
+    return;
+  }
   tagDraftRows.value.push('');
 }
 
@@ -328,8 +332,13 @@ function buildSaveRequest(note: Note, overrides: Partial<Pick<Note, 'title' | 't
 async function onConfirmTagDialog() {
   const note = tagDialogNote.value;
   if (!note) return;
+  const tags = parseTagRows(tagDraftRows.value);
+  if (tags.length > 3) {
+    message.warning('最多只能添加 3 个标签');
+    return;
+  }
   try {
-    await notes.saveDraft(buildSaveRequest(note, { tags: parseTagRows(tagDraftRows.value) }));
+    await notes.saveDraft(buildSaveRequest(note, { tags }));
     onCloseTagDialog();
   } catch (e) {
     message.error(String(e));
@@ -367,19 +376,63 @@ async function onTogglePin(note: Note) {
   }
 }
 
-async function onDelete(note: Note) {
-  if (note.isPinned) {
-    try {
-      await win.closeStickyNote(note.id);
-    } catch {
-      // ignore
+const editingTitleId = ref<string | null>(null);
+const titleDraft = ref('');
+
+async function onStartTitleEdit(note: Note) {
+  editingTitleId.value = note.id;
+  titleDraft.value = note.title;
+  await nextTick();
+  const input = document.querySelector<HTMLInputElement>(
+    `[data-testid="card-title-input-${note.id}"] input`,
+  );
+  input?.focus();
+  input?.select();
+}
+
+function onCancelTitleEdit() {
+  editingTitleId.value = null;
+  titleDraft.value = '';
+}
+
+async function onSaveTitleEdit(note: Note) {
+  const next = titleDraft.value.trim();
+  if (next === note.title) {
+    editingTitleId.value = null;
+    return;
+  }
+  if (next) {
+    const conflict = notes.notes.find(n => n.id !== note.id && n.title === next);
+    if (conflict) {
+      message.error(`已存在同名笔记「${next}」，请更换标题`);
+      return;
     }
   }
   try {
-    await notes.removeNote(note.id);
+    await notes.saveDraft(buildSaveRequest(note, { title: next }));
+    editingTitleId.value = null;
+    message.success('标题已保存');
   } catch (e) {
-    message.error(String(e));
+    message.error(`保存失败：${String(e)}`);
   }
+}
+
+async function onConfirmDelete(note: Note) {
+  try {
+    if (note.isPinned) {
+      await win.closeStickyNote(note.id).catch(() => undefined);
+    }
+    await notes.removeNote(note.id);
+    message.success(`已删除「${note.title || '无标题'}」`);
+  } catch (e) {
+    message.error(`删除失败：${String(e)}`);
+  }
+}
+
+function onOpenTagDialogForCard(note: Note) {
+  tagDialogNote.value = note;
+  tagDraftRows.value = note.tags.length ? [...note.tags] : [''];
+  tagDialogVisible.value = true;
 }
 
 function previewText(content: string): string {
@@ -499,82 +552,171 @@ function formatUpdatedAt(iso: string): string {
         :key="note.id"
         class="note-card"
         :class="{ 'paper-1': note.isPinned }"
-        @dblclick="onOpenNoteEditor(note)"
         @contextmenu.stop="onContextMenuNote($event, note)"
       >
-        <div class="note-head">
-          <span v-if="note.isPinned" class="note-pin"></span>
-          <h3>{{ note.title || '无标题' }}</h3>
-        </div>
-        <p>{{ previewText(note.content) }}</p>
-        <div class="note-foot">
-          <div class="note-tags">
-            <span v-for="tag in note.tags.slice(0, 2)" :key="tag">#{{ tag }}</span>
-          </div>
-          <span>{{ formatUpdatedAt(note.updatedAt) }}</span>
-        </div>
-        <div class="note-actions" data-testid="card-actions" @click.stop>
-          <NButton
-            quaternary
-            size="tiny"
-            title="编辑"
-            data-testid="card-action-edit"
-            @click="onOpenNoteEditor(note)"
-          >
-            <template #icon>
-              <NIcon>
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                  <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 0 0 0-1.42l-2.34-2.33a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75z" />
-                </svg>
-              </NIcon>
-            </template>
-          </NButton>
-          <NButton
-            quaternary
-            size="tiny"
-            :title="note.isPinned ? '取消置顶' : '置顶为便签'"
-            data-testid="card-action-pin"
-            @click="onTogglePin(note)"
-          >
-            <template #icon>
-              <NIcon>
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                  <path d="M14.4 6 14 4H7.7L7 5.2l3 5.3L7.3 13 4 16.3V17h6.7L12 22l1.3-5h6.7v-.7L16.7 13 14 10.5 17 5.2 16.3 4H14.4z" />
-                </svg>
-              </NIcon>
-            </template>
-          </NButton>
-          <NDropdown
-            :options="cardExportOptions"
-            trigger="click"
-            @select="key => onCardExportSelect(key, note)"
-          >
-            <NButton quaternary size="tiny" title="导出" data-testid="card-action-export">
+        <header class="note-card-header" @click.stop>
+          <div class="note-card-title-area">
+            <span v-if="note.isPinned" class="note-pin"></span>
+            <h3
+              v-if="editingTitleId !== note.id"
+              class="note-card-title"
+              @click="onStartTitleEdit(note)"
+            >
+              {{ note.title || '无标题' }}
+            </h3>
+            <NInput
+              v-else
+              v-model:value="titleDraft"
+              size="tiny"
+              :bordered="false"
+              class="note-card-title-input"
+              :data-testid="`card-title-input-${note.id}`"
+              @keydown.enter.prevent="onSaveTitleEdit(note)"
+              @keydown.esc.prevent="onCancelTitleEdit"
+              @blur="onSaveTitleEdit(note)"
+            />
+            <NButton
+              quaternary
+              circle
+              size="tiny"
+              :title="editingTitleId === note.id ? '保存标题' : '编辑标题'"
+              :data-testid="`card-title-edit-${note.id}`"
+              class="note-card-title-action"
+              @click="editingTitleId === note.id ? onSaveTitleEdit(note) : onStartTitleEdit(note)"
+            >
               <template #icon>
                 <NIcon>
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                    <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z" />
+                  <svg
+                    v-if="editingTitleId === note.id"
+                    viewBox="0 0 24 24"
+                    width="12"
+                    height="12"
+                    fill="currentColor"
+                  >
+                    <path d="m9 16.17-3.88-3.88a.996.996 0 1 0-1.41 1.41l4.59 4.59c.39.39 1.02.39 1.41 0L21.7 6.7a.996.996 0 1 0-1.41-1.41z" />
+                  </svg>
+                  <svg
+                    v-else
+                    viewBox="0 0 24 24"
+                    width="12"
+                    height="12"
+                    fill="currentColor"
+                  >
+                    <path d="M3 17.46V21h3.54l10.4-10.4-3.54-3.54L3 17.46zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.54 3.54 2.04-2.04z" />
                   </svg>
                 </NIcon>
               </template>
             </NButton>
-          </NDropdown>
-          <NButton
-            quaternary
-            size="tiny"
-            title="删除"
-            data-testid="card-action-delete"
-            @click="onDelete(note)"
+          </div>
+          <NPopconfirm
+            placement="bottom-end"
+            positive-text="删除"
+            negative-text="取消"
+            @positive-click="onConfirmDelete(note)"
           >
-            <template #icon>
-              <NIcon>
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                  <path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6zM19 4h-3.5l-1-1h-5l-1 1H5v2h14z" />
-                </svg>
-              </NIcon>
+            <template #trigger>
+              <NButton
+                quaternary
+                circle
+                size="tiny"
+                title="删除"
+                data-testid="card-action-delete"
+              >
+                <template #icon>
+                  <NIcon>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                      <path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6zM19 4h-3.5l-1-1h-5l-1 1H5v2h14z" />
+                    </svg>
+                  </NIcon>
+                </template>
+              </NButton>
             </template>
-          </NButton>
+            确定删除「{{ note.title || '无标题' }}」吗？此操作不可恢复。
+          </NPopconfirm>
+        </header>
+
+        <div class="note-card-content" @dblclick="onOpenNoteEditor(note)">
+          <p class="note-card-preview">{{ previewText(note.content) }}</p>
+          <span class="note-card-time">{{ formatUpdatedAt(note.updatedAt) }}</span>
         </div>
+
+        <footer class="note-card-footer" @click.stop>
+          <div
+            class="note-card-tags"
+            :class="{ 'note-card-tags-empty': note.tags.length === 0 }"
+            :data-testid="`card-tags-${note.id}`"
+          >
+            <template v-if="note.tags.length > 0">
+              <span v-for="tag in note.tags.slice(0, 2)" :key="tag" class="note-card-tag">#{{ tag }}</span>
+              <span v-if="note.tags.length > 2" class="note-card-tag note-card-tag-more">+{{ note.tags.length - 2 }}</span>
+            </template>
+            <span v-else>空标签</span>
+            <NButton
+              quaternary
+              circle
+              size="tiny"
+              title="编辑标签"
+              :data-testid="`card-tags-edit-${note.id}`"
+              class="note-card-tags-action"
+              @click="onOpenTagDialogForCard(note)"
+            >
+              <template #icon>
+                <NIcon>
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                    <path d="M3 17.46V21h3.54l10.4-10.4-3.54-3.54L3 17.46zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.54 3.54 2.04-2.04z" />
+                  </svg>
+                </NIcon>
+              </template>
+            </NButton>
+          </div>
+          <div class="note-card-actions" data-testid="card-actions">
+            <NButton
+              quaternary
+              size="tiny"
+              title="编辑"
+              data-testid="card-action-edit"
+              @click="onOpenNoteEditor(note)"
+            >
+              <template #icon>
+                <NIcon>
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 0 0 0-1.42l-2.34-2.33a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75z" />
+                  </svg>
+                </NIcon>
+              </template>
+            </NButton>
+            <NButton
+              quaternary
+              size="tiny"
+              :title="note.isPinned ? '取消置顶' : '置顶为便签'"
+              data-testid="card-action-pin"
+              @click="onTogglePin(note)"
+            >
+              <template #icon>
+                <NIcon>
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                    <path d="M14.4 6 14 4H7.7L7 5.2l3 5.3L7.3 13 4 16.3V17h6.7L12 22l1.3-5h6.7v-.7L16.7 13 14 10.5 17 5.2 16.3 4H14.4z" />
+                  </svg>
+                </NIcon>
+              </template>
+            </NButton>
+            <NDropdown
+              :options="cardExportOptions"
+              trigger="click"
+              @select="key => onCardExportSelect(key, note)"
+            >
+              <NButton quaternary size="tiny" title="导出" data-testid="card-action-export">
+                <template #icon>
+                  <NIcon>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                      <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z" />
+                    </svg>
+                  </NIcon>
+                </template>
+              </NButton>
+            </NDropdown>
+          </div>
+        </footer>
       </article>
     </section>
 
@@ -736,6 +878,7 @@ function formatUpdatedAt(iso: string): string {
             tertiary
             class="main-dialog-cancel"
             data-testid="main-tag-add"
+            :disabled="tagDraftRows.length >= 3"
             @click="onAddTagRow"
           >
             添加标签
@@ -1209,7 +1352,7 @@ function formatUpdatedAt(iso: string): string {
   border: 1px solid oklch(88% 0.012 78);
   border-radius: 11px;
   background: oklch(99% 0.006 78);
-  cursor: pointer;
+  cursor: default;
   transition:
     border-color 0.15s ease,
     box-shadow 0.15s ease,
@@ -1226,11 +1369,19 @@ function formatUpdatedAt(iso: string): string {
   background: oklch(96% 0.038 88);
 }
 
-.note-head {
+.note-card-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.note-card-title-area {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .note-pin {
@@ -1241,19 +1392,54 @@ function formatUpdatedAt(iso: string): string {
   background: oklch(61% 0.13 42);
 }
 
-.note-card h3 {
+.note-card-title {
   margin: 0;
   min-width: 0;
-  flex: 1;
   overflow: hidden;
   font-size: 14.5px;
   font-weight: 600;
   line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: text;
+  flex: 0 1 auto;
 }
 
-.note-card p {
+.note-card-title-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.note-card-title-input :deep(input) {
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  padding: 0;
+}
+
+.note-card-title-action {
+  flex: 0 0 auto;
+}
+
+.note-card-header :deep(.n-button) {
+  color: oklch(45% 0.018 70);
+}
+
+.note-card-header :deep(.n-button:hover) {
+  color: oklch(35% 0.02 70);
+}
+
+.note-card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  margin-bottom: 8px;
+  min-height: 56px;
+  cursor: text;
+}
+
+.note-card-preview {
   flex: 1;
   margin: 0;
   color: color-mix(in oklch, oklch(20% 0.02 70) 78%, oklch(49% 0.018 70));
@@ -1263,53 +1449,84 @@ function formatUpdatedAt(iso: string): string {
   overflow: hidden;
   font-size: 12.5px;
   line-height: 1.55;
+  padding-right: 64px;
 }
 
-.note-foot {
+.note-card-time {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 10.5px;
+  color: oklch(49% 0.018 70);
+}
+
+.note-card-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-top: 12px;
-  color: oklch(49% 0.018 70);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
-  font-size: 10.5px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed oklch(90% 0.012 78);
 }
 
-.note-tags {
-  min-width: 0;
+.note-card.paper-1 .note-card-footer {
+  border-top-color: oklch(86% 0.04 88);
+}
+
+.note-card-tags {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 4px;
   overflow: hidden;
+  font-size: 10.5px;
+  color: oklch(49% 0.018 70);
 }
 
-.note-tags span {
+.note-card-tag {
+  flex: 0 0 auto;
+  max-width: 84px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 1px 6px;
   border: 1px solid oklch(88% 0.012 78);
   border-radius: 3px;
   background: color-mix(in oklch, oklch(99% 0.006 78) 60%, transparent);
 }
 
-.note-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 2px;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px dashed oklch(90% 0.012 78);
+.note-card-tag-more {
+  font-weight: 600;
+  color: oklch(45% 0.018 70);
+  background: color-mix(in oklch, oklch(94% 0.012 78) 70%, transparent);
 }
 
-.note-actions :deep(.n-button) {
+.note-card-tags-empty {
+  font-style: italic;
+  color: oklch(60% 0.012 78);
+}
+
+.note-card-tags-action {
+  flex: 0 0 auto;
   color: oklch(45% 0.018 70);
 }
 
-.note-actions :deep(.n-button:hover) {
-  color: oklch(35% 0.02 70);
+.note-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
 }
 
-.note-card.paper-1 .note-actions {
-  border-top-color: oklch(86% 0.04 88);
+.note-card-actions :deep(.n-button) {
+  color: oklch(45% 0.018 70);
+}
+
+.note-card-actions :deep(.n-button:hover) {
+  color: oklch(35% 0.02 70);
 }
 
 .empty-state {

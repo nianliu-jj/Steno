@@ -212,10 +212,10 @@ describe('MainView', () => {
     expect(card.find('p').text()).toContain('标题');
     expect(card.find('p').text()).toContain('加粗内容');
     expect(card.find('p').text()).toContain('链接');
-    expect(card.find('.note-tags').text()).toContain('#alpha');
-    expect(card.find('.note-tags').text()).toContain('#beta');
-    expect(card.find('.note-tags').text()).not.toContain('#gamma');
-    expect(card.find('.note-foot').text()).toContain(expectedTime);
+    expect(card.find('.note-card-tags').text()).toContain('#alpha');
+    expect(card.find('.note-card-tags').text()).toContain('#beta');
+    expect(card.find('.note-card-tags').text()).not.toContain('#gamma');
+    expect(card.find('.note-card-content').text()).toContain(expectedTime);
   });
 
   it('renders the layout v2 empty state when there are no notes', async () => {
