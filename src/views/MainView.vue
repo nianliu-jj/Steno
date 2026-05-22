@@ -52,6 +52,16 @@ onMounted(() => {
       notes.syncExternalNote(note);
     }
   });
+  void notes.loadPinned().then(() => {
+    if (noteSavedListenerDisposed) return;
+    for (const n of notes.pinned) {
+      void win.openStickyNote(n.id).catch((e) => {
+        console.error('[main] failed to restore sticky note', n.id, e);
+      });
+    }
+  }).catch((e) => {
+    console.error('[main] failed to load pinned notes:', e);
+  });
   void appEvents.listenNoteSaved((note) => {
     syncExternalNote(note);
   }).then((unlisten) => {
@@ -350,15 +360,12 @@ async function onConfirmRenameDialog() {
   }
 }
 
-async function onTogglePin(note: Note) {
+async function onPinClick(note: Note) {
   try {
-    if (note.isPinned) {
-      await notes.unpinNote(note.id);
-      await win.closeStickyNote(note.id);
-    } else {
+    if (!note.isPinned) {
       await notes.pinNote(note.id);
-      await win.openStickyNote(note.id);
     }
+    await win.openStickyNote(note.id);
   } catch (e) {
     message.error(String(e));
   }
@@ -529,9 +536,9 @@ function formatUpdatedAt(iso: string): string {
           <NButton
             quaternary
             size="tiny"
-            :title="note.isPinned ? '取消置顶' : '置顶为便签'"
+            title="显示便签"
             data-testid="card-action-pin"
-            @click="onTogglePin(note)"
+            @click="onPinClick(note)"
           >
             <template #icon>
               <NIcon>

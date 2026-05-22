@@ -238,7 +238,7 @@ describe('MainView', () => {
     expect(MainViewSource).toContain('padding: 18px 20px 20px;');
     expect(MainViewSource).toContain('padding: 14px 14px 16px;');
     expect(loadNotes).toHaveBeenCalledWith(50);
-    expect(loadPinned).not.toHaveBeenCalled();
+    expect(loadPinned).toHaveBeenCalled();
   });
 
   it('opens the note editor from the empty-state new note entry', async () => {
