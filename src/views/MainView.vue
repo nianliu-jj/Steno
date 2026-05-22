@@ -360,12 +360,15 @@ async function onConfirmRenameDialog() {
   }
 }
 
-async function onPinClick(note: Note) {
+async function onTogglePin(note: Note) {
   try {
-    if (!note.isPinned) {
+    if (note.isPinned) {
+      await notes.unpinNote(note.id);
+      await win.closeStickyNote(note.id);
+    } else {
       await notes.pinNote(note.id);
+      await win.openStickyNote(note.id);
     }
-    await win.openStickyNote(note.id);
   } catch (e) {
     message.error(String(e));
   }
@@ -536,9 +539,9 @@ function formatUpdatedAt(iso: string): string {
           <NButton
             quaternary
             size="tiny"
-            title="显示便签"
+            :title="note.isPinned ? '取消置顶' : '置顶为便签'"
             data-testid="card-action-pin"
-            @click="onPinClick(note)"
+            @click="onTogglePin(note)"
           >
             <template #icon>
               <NIcon>

@@ -313,8 +313,17 @@ async function onUnpinClick() {
 }
 
 async function onCloseClick() {
-  await contentSave.flushSave();
-  await win.hideCurrent();
+  try {
+    await contentSave.flushSave();
+    await notes.unpinNote(props.noteId);
+  } catch (e) {
+    console.error('[sticky] close failed:', e);
+  }
+  try {
+    await win.closeStickyNote(props.noteId);
+  } catch {
+    await win.closeCurrent();
+  }
 }
 
 // ----- CSS 样式绑定 ----------------------------------------------------
@@ -409,7 +418,7 @@ const rootStyle = computed(() => ({
           quaternary
           circle
           size="tiny"
-          title="隐藏便签"
+          title="关闭便签"
           class="sticky-icon-button"
           @click="onCloseClick"
         >
@@ -522,8 +531,9 @@ const rootStyle = computed(() => ({
 }
 
 .sticky-title-text {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 140px;
   overflow: hidden;
   color: var(--sticky-fg);
   font-size: 12px;
@@ -534,8 +544,9 @@ const rootStyle = computed(() => ({
 }
 
 .sticky-title-input {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 140px;
 }
 
 .sticky-title-input :deep(input) {
