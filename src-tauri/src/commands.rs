@@ -146,13 +146,19 @@ pub async fn set_setting(db: State<'_, Db>, key: String, value: String) -> Resul
 // ----- 窗口管理 commands（Plan Task 3 Step 2 暴露给前端） ---------------
 
 #[tauri::command]
-pub fn open_sticky_note_window(app: AppHandle, id: String) -> Result<(), String> {
-    window_manager::open_sticky_note(&app, &id).map_err(to_msg)
+pub async fn open_sticky_note_window(app: AppHandle, id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || window_manager::open_sticky_note(&app, &id))
+        .await
+        .map_err(|e| format!("spawn_blocking failed: {e}"))?
+        .map_err(to_msg)
 }
 
 #[tauri::command]
-pub fn close_sticky_note_window(app: AppHandle, id: String) -> Result<(), String> {
-    window_manager::close_sticky_note(&app, &id).map_err(to_msg)
+pub async fn close_sticky_note_window(app: AppHandle, id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || window_manager::close_sticky_note(&app, &id))
+        .await
+        .map_err(|e| format!("spawn_blocking failed: {e}"))?
+        .map_err(to_msg)
 }
 
 #[tauri::command]

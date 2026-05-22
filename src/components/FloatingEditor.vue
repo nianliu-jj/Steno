@@ -1,44 +1,50 @@
 <script setup lang="ts">
-// 浮窗速记顶层视图（mode === 'floating'）。
+// 浮窗 / 便签双模式顶层视图。
 //
-// 数据流：
-//   用户输入 → useAutosave 1000ms debounce → notes.saveDraft → SQLite
-//                                                  ↓ 第一次保存生成 id
-//                                              currentNoteId 记下来
-//                                                  ↓
-//   失焦 (blurCloseDelayMs 后) / 关闭按钮 / 置顶按钮 → flushSave → hide + reset
+// 两种模式由 `props.noteId` 决定：
+//   - quicknote 模式（props.noteId == null）：单例 quick-capture 浮窗
+//     · 失焦/关闭 → flushSave → hide + reset 状态，下次唤出是新会话
+//     · 置顶按钮 → pin + 创建独立便签窗口，然后 hide quicknote
+//   - sticky 模式（props.noteId 非空）：每条置顶笔记一个独立 webview
+//     · mount 时按 noteId 从 SQLite hydrate
+//     · 失焦不自动关闭（便签需要持久显示）
+//     · 关闭/取消置顶按钮 → flushSave → unpin + closeStickyNote
 //
-// 关闭语义：浮窗是 "quick capture" 模型，每次唤出就是一次新会话。失焦/关闭后
-// hide 当前窗口并把前端状态 reset 成空白，下次唤出就是新笔记。如果用户想继续
-// 编辑某条笔记，在主界面打开它的 Sticky 或 Zen 视图。
+// 自动保存：useAutosave 1000ms debounce。sticky 模式 hydrate 期间用 loaded
+// 标志位阻断初次 watch，避免 mount 即触发保存。
 //
-// 空内容丢弃 (plan 5.5)：title/content/tags 都为空 且 currentNoteId 还是 null，
-// 直接 hide 不调 save；后端 db.save_note 在收到空 payload 时也会再做一次防御
-// （返回 None），双重保险。
-//
-// 拖动握手 (frontend-only)：startDragging 之后短暂的 focus loss 不能误触发
-// blurCloseDelayMs 计时器。dragUntil 记一个 500ms 截止时间，blur 时若仍在
-// 截止时间内就跳过，避免一拖窗就保存关闭。
+// 拖动握手：startDragCurrent 之后 500ms 内的失焦忽略，避免误触发关闭计时器。
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { NButton, NIcon, NInput, NText } from 'naive-ui';
 
 import MarkdownEditor from '@/components/MarkdownEditor.vue';
 import { useAutosave } from '@/composables/useAutosave';
+import { useDb } from '@/composables/useDb';
 import { useMarkdown } from '@/composables/useMarkdown';
 import { useWindow } from '@/composables/useWindow';
 import { useNotesStore } from '@/stores/notes';
 import { useSettingsStore } from '@/stores/settings';
 import type { SaveNoteRequest } from '@/types/steno';
 
+const props = withDefaults(defineProps<{
+  noteId?: string | null;
+}>(), {
+  noteId: null,
+});
+
 const notes = useNotesStore();
 const settings = useSettingsStore();
 const win = useWindow();
+const db = useDb();
 const { countWords } = useMarkdown();
 
-const currentNoteId = ref<string | null>(null);
+const isSticky = computed(() => !!props.noteId);
+
+const currentNoteId = ref<string | null>(props.noteId ?? null);
 const title = ref('');
 const content = ref('');
 const tagsInput = ref('');
+const loaded = ref(!isSticky.value);
 
 const tagsArray = computed(() => {
   const raw = tagsInput.value.trim();
@@ -71,7 +77,7 @@ const { status, savedAt, error, scheduleSave, flushSave } = useAutosave(
 );
 
 watch([title, content, tagsInput], () => {
-  // plan 5.5：空内容不调度保存（后端兜底也会再判一次）。
+  if (!loaded.value) return;
   if (isEmpty.value && !currentNoteId.value) return;
   scheduleSave({
     id: currentNoteId.value ?? undefined,
@@ -100,13 +106,15 @@ const statusText = computed(() => {
   }
 });
 
+const pinButtonTitle = computed(() => (isSticky.value ? '取消置顶并关闭' : '置顶为便签'));
+const closeButtonTitle = computed(() => (isSticky.value ? '关闭便签' : '保存并关闭'));
+
 // ----- 拖拽 + 失焦关闭 ------------------------------------------------
 
 const dragUntil = ref(0);
 
 async function onTitlebarPointerdown(e: PointerEvent) {
   if (e.button !== 0) return;
-  // 阻止 textarea 抢焦点之类的副作用
   e.preventDefault();
   dragUntil.value = Date.now() + 500;
   try {
@@ -123,28 +131,67 @@ function resetState() {
   tagsInput.value = '';
 }
 
-/**
- * 失焦 / 关闭按钮 / pin 路径汇合于此：flush 保存 → 隐藏窗口 → 重置前端状态。
- * 空草稿直接 hide+reset 不保存；保存失败保留窗口让用户看错误。
- */
-async function saveAndDismiss(): Promise<void> {
+async function dismissSticky() {
+  if (!currentNoteId.value) {
+    await win.closeCurrent();
+    return;
+  }
+  await flushSave();
+  if (status.value === 'error') return;
+  try {
+    await notes.unpinNote(currentNoteId.value);
+  } catch (e) {
+    console.error('[sticky] unpin failed:', e);
+  }
+  try {
+    await win.closeStickyNote(currentNoteId.value);
+  } catch {
+    await win.closeCurrent();
+  }
+}
+
+async function dismissQuicknote() {
   if (isEmpty.value && !currentNoteId.value) {
     await win.hideCurrent();
     resetState();
     return;
   }
   await flushSave();
-  if (status.value === 'error') {
-    return;
-  }
+  if (status.value === 'error') return;
   await win.hideCurrent();
   resetState();
+}
+
+async function saveAndDismiss(): Promise<void> {
+  if (isSticky.value) {
+    await dismissSticky();
+    return;
+  }
+  await dismissQuicknote();
 }
 
 let blurTimer: ReturnType<typeof setTimeout> | undefined;
 let unlistenFocus: (() => void) | undefined;
 
 onMounted(async () => {
+  if (isSticky.value && props.noteId) {
+    try {
+      const note = await db.getNote(props.noteId);
+      if (note) {
+        currentNoteId.value = note.id;
+        title.value = note.title;
+        content.value = note.content;
+        tagsInput.value = note.tags.map(t => `#${t}`).join(' ');
+      } else {
+        console.warn('[sticky] note not found:', props.noteId);
+      }
+    } catch (e) {
+      console.error('[sticky] hydrate failed:', e);
+    }
+    loaded.value = true;
+    return;
+  }
+
   unlistenFocus = await win.onCurrentWindowFocusChange(focused => {
     if (focused) {
       if (blurTimer) {
@@ -153,7 +200,6 @@ onMounted(async () => {
       }
       return;
     }
-    // 拖动握手期内的失焦忽略
     if (Date.now() < dragUntil.value) return;
     if (blurTimer) clearTimeout(blurTimer);
     blurTimer = setTimeout(() => {
@@ -166,7 +212,6 @@ onMounted(async () => {
 onUnmounted(() => {
   if (blurTimer) clearTimeout(blurTimer);
   unlistenFocus?.();
-  // 守护：组件被卸载（webview 真正销毁）之前再 flush 一次
   void flushSave();
 });
 
@@ -177,10 +222,14 @@ async function onCloseClick() {
 }
 
 /**
- * plan 5.6：flushSave → set_note_pinned(id, true) → open_sticky_note_window
- * 然后 hide 浮窗。空内容时不允许置顶（也没意义）。
+ * quicknote 模式：flushSave → pin → 开 sticky → hide quicknote。
+ * sticky 模式：等同于 dismissSticky（取消置顶并关闭）。
  */
 async function onPinClick() {
+  if (isSticky.value) {
+    await dismissSticky();
+    return;
+  }
   if (isEmpty.value && !currentNoteId.value) return;
   await flushSave();
   if (status.value === 'error' || !currentNoteId.value) return;
@@ -215,7 +264,8 @@ async function onPinClick() {
           quaternary
           circle
           size="tiny"
-          title="置顶为便签"
+          :title="pinButtonTitle"
+          data-testid="floating-pin"
           @click="onPinClick"
         >
           <template #icon>
@@ -230,7 +280,8 @@ async function onPinClick() {
           quaternary
           circle
           size="tiny"
-          title="保存并关闭"
+          :title="closeButtonTitle"
+          data-testid="floating-close"
           @click="onCloseClick"
         >
           <template #icon>
@@ -285,6 +336,7 @@ async function onPinClick() {
   border-radius: 8px;
   overflow: hidden;
   font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
 .floating-titlebar {

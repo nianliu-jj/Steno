@@ -16,7 +16,6 @@ import { useSettingsStore } from '@/stores/settings';
 import { getAppThemeVars } from '@/theme';
 import FloatingEditor from '@/components/FloatingEditor.vue';
 import MainWorkbenchShell from '@/components/MainWorkbenchShell.vue';
-import StickyNote from '@/components/StickyNote.vue';
 import CanvasView from '@/views/CanvasView.vue';
 import MainView from '@/views/MainView.vue';
 import NoteEditorView from '@/views/NoteEditorView.vue';
@@ -155,8 +154,9 @@ watch(
           </NModal>
         </template>
         <FloatingEditor v-else-if="ui.mode === 'floating'" />
-        <StickyNote
+        <FloatingEditor
           v-else-if="ui.mode === 'sticky' && ui.noteId"
+          :key="ui.noteId"
           :note-id="ui.noteId"
         />
         <SettingsView v-else-if="ui.mode === 'settings'" />

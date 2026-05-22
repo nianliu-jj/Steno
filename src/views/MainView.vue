@@ -52,14 +52,7 @@ onMounted(() => {
       notes.syncExternalNote(note);
     }
   });
-  void notes.loadPinned().then(() => {
-    if (noteSavedListenerDisposed) return;
-    for (const n of notes.pinned) {
-      void win.openStickyNote(n.id).catch((e) => {
-        console.error('[main] failed to restore sticky note', n.id, e);
-      });
-    }
-  }).catch((e) => {
+  void notes.loadPinned().catch((e) => {
     console.error('[main] failed to load pinned notes:', e);
   });
   void appEvents.listenNoteSaved((note) => {
