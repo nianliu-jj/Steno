@@ -193,8 +193,8 @@ onUnmounted(() => {
 
 <template>
   <div class="zen-root">
-    <header class="zen-header">
-      <div class="zen-title-area">
+    <header class="zen-header" data-tauri-drag-region="true">
+      <div class="zen-title-area" data-tauri-drag-region="true">
         <NInput
           v-if="titleEditing"
           ref="titleInputRef"
@@ -204,6 +204,7 @@ onUnmounted(() => {
           placeholder="标题"
           class="zen-title-input"
           data-testid="zen-title-input"
+          data-tauri-drag-region="false"
           @blur="onFinishTitleEdit"
           @keydown.enter="onFinishTitleEdit"
         />
@@ -211,6 +212,7 @@ onUnmounted(() => {
           <span
             class="zen-title-text"
             data-testid="zen-title-text"
+            data-tauri-drag-region="true"
             :title="displayTitle"
           >{{ displayTitle }}</span>
         </template>
@@ -218,6 +220,7 @@ onUnmounted(() => {
           type="button"
           class="zen-title-edit"
           data-testid="zen-title-edit"
+          data-tauri-drag-region="false"
           :title="titleEditing ? '完成编辑' : '编辑标题'"
           :aria-label="titleEditing ? '完成编辑' : '编辑标题'"
           @click="titleEditing ? onFinishTitleEdit() : onStartTitleEdit()"
@@ -253,15 +256,20 @@ onUnmounted(() => {
           </svg>
         </button>
       </div>
-      <div class="zen-actions">
+      <div class="zen-actions" data-tauri-drag-region="false">
         <NDropdown
           :options="exportOptions"
           trigger="click"
           @select="onExport"
         >
-          <button class="zen-export" title="导出">↓</button>
+          <button class="zen-export" title="导出" data-tauri-drag-region="false">↓</button>
         </NDropdown>
-        <button class="zen-exit" title="返回主界面 (Esc)" @click="exitZen">
+        <button
+          class="zen-exit"
+          title="返回主界面 (Esc)"
+          data-tauri-drag-region="false"
+          @click="exitZen"
+        >
           ✕
         </button>
       </div>
