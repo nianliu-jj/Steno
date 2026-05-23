@@ -1,26 +1,27 @@
 <script setup lang="ts">
-// 通用 Markdown 编辑器：textarea + 工具栏 + 可选预览。
-// 在 FloatingEditor / StickyNote / Zen / Canvas 卡片都会复用。
+// 通用 Markdown 编辑器：CodeMirror 6 + 自建 live-render 装饰器。
 //
 // 设计取舍：
-// - 工具栏只做最常用的"包裹/插入文本"操作；复杂语法用户直接打 markdown 即可。
-// - 预览用 marked 直接 render 进 v-html；MVP 阶段所有内容都是用户自己本地写的，
-//   不接入 sanitizer，等 plan Task 8/9 收尾时再决定是否加 DOMPurify。
-// - 不在此组件里做自动保存：上层（FloatingEditor 等）用 useAutosave 监听
-//   v-model 变化即可，保持组件单一职责。
-import { computed, ref, useTemplateRef, watch } from 'vue';
+// - 编辑区采用所见即所得（WYSIWYG）模式：用户输入 Markdown 语法后原位渲染样式，
+//   光标进入对应行时再显示语法符号，便于继续编辑。
+// - 不再渲染右侧预览面板；只读视图由 MarkdownReadSurface 单独负责。
+// - 不在此组件里做自动保存：上层（FloatingEditor / NoteEditorView）继续用
+//   useAutosave 监听 v-model 变化，保持组件单一职责。
+// - 工具栏改为快捷键体系，常用绑定见 ./markdown-editor/keymap.ts。
+import { onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
 
-import { useMarkdown } from '@/composables/useMarkdown';
+import { EditorState } from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
+
+import { createMarkdownExtensions } from './markdown-editor/extensions';
 
 interface Props {
   modelValue: string;
-  preview?: boolean;
   autofocus?: boolean;
   placeholder?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  preview: false,
   autofocus: false,
   placeholder: '此刻在想什么？支持 Markdown',
 });
@@ -31,106 +32,83 @@ const emit = defineEmits<{
   blur: [];
 }>();
 
-const textarea = useTemplateRef<HTMLTextAreaElement>('textarea');
-const local = ref(props.modelValue);
-const { renderHtml } = useMarkdown();
+const containerRef = useTemplateRef<HTMLDivElement>('container');
+const view = ref<EditorView | null>(null);
+let suppressNextDocSync = false;
 
-watch(() => props.modelValue, v => {
-  if (v !== local.value) {
-    local.value = v;
+function emitFocusChange(focused: boolean) {
+  if (focused) emit('focus');
+  else emit('blur');
+}
+
+function emitDocChange(next: string) {
+  if (suppressNextDocSync) {
+    suppressNextDocSync = false;
+    return;
+  }
+  emit('update:modelValue', next);
+}
+
+onMounted(() => {
+  if (!containerRef.value) return;
+  const instance = new EditorView({
+    state: EditorState.create({
+      doc: props.modelValue,
+      extensions: createMarkdownExtensions({
+        placeholder: props.placeholder,
+        onDocChange: emitDocChange,
+        onFocusChange: emitFocusChange,
+      }),
+    }),
+    parent: containerRef.value,
+  });
+  view.value = instance;
+  if (props.autofocus) {
+    queueMicrotask(() => instance.focus());
   }
 });
 
-watch(local, v => emit('update:modelValue', v));
+onBeforeUnmount(() => {
+  view.value?.destroy();
+  view.value = null;
+});
+
+watch(
+  () => props.modelValue,
+  next => {
+    const instance = view.value;
+    if (!instance) return;
+    const current = instance.state.doc.toString();
+    if (current === next) return;
+    suppressNextDocSync = true;
+    instance.dispatch({
+      changes: { from: 0, to: current.length, insert: next },
+    });
+  },
+);
 
 function focus() {
-  textarea.value?.focus();
+  view.value?.focus();
 }
 
 function scrollToLine(line: number) {
-  const el = textarea.value;
-  if (!el) return;
-
-  const lines = el.value.split('\n');
-  const offset = lines.slice(0, Math.max(0, line - 1)).join('\n').length;
-  el.focus();
-  el.setSelectionRange(offset, offset);
-  el.scrollTop = Math.max(0, line - 1) * 24;
+  const instance = view.value;
+  if (!instance) return;
+  const total = instance.state.doc.lines;
+  const target = Math.max(1, Math.min(line, total));
+  const lineInfo = instance.state.doc.line(target);
+  instance.dispatch({
+    selection: { anchor: lineInfo.from },
+    effects: EditorView.scrollIntoView(lineInfo.from, { y: 'start', yMargin: 12 }),
+  });
+  instance.focus();
 }
 
 defineExpose({ focus, scrollToLine });
-
-// autofocus 由父组件控制；onMounted 时 ref 已就位。
-if (props.autofocus) {
-  queueMicrotask(focus);
-}
-
-// ----- 工具栏：包裹 / 行首插入 ----------------------------------------
-
-function applyWrap(left: string, right: string = left) {
-  const el = textarea.value;
-  if (!el) return;
-  const { selectionStart: a, selectionEnd: b, value } = el;
-  const before = value.slice(0, a);
-  const sel = value.slice(a, b);
-  const after = value.slice(b);
-  local.value = `${before}${left}${sel}${right}${after}`;
-  // 选区放到包裹内容内部，方便继续输入
-  queueMicrotask(() => {
-    el.focus();
-    const start = a + left.length;
-    const end = start + sel.length;
-    el.setSelectionRange(start, end);
-  });
-}
-
-function applyLinePrefix(prefix: string) {
-  const el = textarea.value;
-  if (!el) return;
-  const { selectionStart: a, value } = el;
-  // 把光标所在行行首插入 prefix
-  const lineStart = value.lastIndexOf('\n', a - 1) + 1;
-  local.value = `${value.slice(0, lineStart)}${prefix}${value.slice(lineStart)}`;
-  queueMicrotask(() => {
-    el.focus();
-    const next = a + prefix.length;
-    el.setSelectionRange(next, next);
-  });
-}
-
-const previewHtml = computed(() => renderHtml(local.value));
 </script>
 
 <template>
-  <div class="md-editor" :class="{ 'md-editor--preview': preview }">
-    <div class="md-editor__toolbar">
-      <button type="button" title="加粗 (**text**)" @click="applyWrap('**')">B</button>
-      <button type="button" title="斜体 (*text*)" @click="applyWrap('*')">I</button>
-      <button type="button" title="行内代码 (`text`)" @click="applyWrap('`')">{ }</button>
-      <span class="md-editor__sep" />
-      <button type="button" title="标题 (# )" @click="applyLinePrefix('# ')">H1</button>
-      <button type="button" title="列表 (- )" @click="applyLinePrefix('- ')">•</button>
-      <button type="button" title="引用 (&gt; )" @click="applyLinePrefix('> ')">&ldquo;</button>
-    </div>
-    <div class="md-editor__body">
-      <textarea
-        ref="textarea"
-        v-model="local"
-        class="md-editor__textarea"
-        :placeholder="placeholder"
-        spellcheck="false"
-        @focus="emit('focus')"
-        @blur="emit('blur')"
-      />
-      <!-- eslint-disable vue/no-v-html -->
-      <div
-        v-if="preview"
-        class="md-editor__preview prose"
-        v-html="previewHtml"
-      />
-      <!-- eslint-enable vue/no-v-html -->
-    </div>
-  </div>
+  <div ref="container" class="md-editor" data-testid="md-editor" />
 </template>
 
 <style scoped>
@@ -139,83 +117,123 @@ const previewHtml = computed(() => renderHtml(local.value));
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  overflow: hidden;
+  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
-.md-editor__toolbar {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px 6px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.02);
-}
-.md-editor__toolbar button {
-  height: 22px;
-  min-width: 26px;
-  padding: 0 6px;
-  font-size: 11px;
-  font-family: ui-monospace, "Consolas", monospace;
-  color: #b3b3bb;
-  background: transparent;
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-  transition: background 0.12s;
-}
-.md-editor__toolbar button:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #e8e8ea;
-}
-.md-editor__sep {
-  width: 1px;
-  height: 14px;
-  margin: 0 4px;
-  background: rgba(255, 255, 255, 0.08);
-}
-.md-editor__body {
+
+.md-editor :deep(.cm-editor) {
   flex: 1;
-  display: flex;
   min-height: 0;
-}
-.md-editor__textarea {
-  flex: 1;
-  padding: 12px 14px;
-  font-size: 14px;
-  line-height: 1.55;
-  color: inherit;
+  height: 100%;
   background: transparent;
-  border: none;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.md-editor :deep(.cm-editor.cm-focused) {
   outline: none;
-  resize: none;
-  font-family: ui-monospace, "JetBrains Mono", "Cascadia Code", "Consolas", monospace;
 }
-.md-editor__preview {
-  flex: 1;
-  padding: 12px 14px;
-  border-left: 1px solid rgba(255, 255, 255, 0.06);
-  overflow: auto;
-  font-size: 13px;
-  line-height: 1.6;
+
+.md-editor :deep(.cm-scroller) {
+  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  padding: 12px 16px;
 }
-.md-editor__preview :deep(h1) { font-size: 18px; margin: 0 0 8px; }
-.md-editor__preview :deep(h2) { font-size: 16px; margin: 12px 0 6px; }
-.md-editor__preview :deep(h3) { font-size: 14px; margin: 10px 0 4px; }
-.md-editor__preview :deep(p) { margin: 4px 0; }
-.md-editor__preview :deep(code) {
-  background: rgba(255, 255, 255, 0.08);
-  padding: 1px 4px;
-  border-radius: 3px;
-  font-size: 12px;
+
+.md-editor :deep(.cm-content) {
+  caret-color: currentColor;
+  padding: 0;
 }
-.md-editor__preview :deep(pre) {
-  background: rgba(0, 0, 0, 0.25);
-  padding: 8px;
+
+.md-editor :deep(.cm-line) {
+  padding: 0;
+}
+
+.md-editor :deep(.cm-placeholder) {
+  color: rgba(127, 127, 127, 0.6);
+  font-style: italic;
+}
+
+/* 标题 */
+.md-editor :deep(.cm-md-h1) {
+  font-size: 1.85em;
+  font-weight: 700;
+  line-height: 1.3;
+  margin-top: 0.4em;
+}
+.md-editor :deep(.cm-md-h2) {
+  font-size: 1.55em;
+  font-weight: 700;
+  line-height: 1.32;
+  margin-top: 0.35em;
+}
+.md-editor :deep(.cm-md-h3) {
+  font-size: 1.3em;
+  font-weight: 600;
+  line-height: 1.36;
+}
+.md-editor :deep(.cm-md-h4) {
+  font-size: 1.15em;
+  font-weight: 600;
+}
+.md-editor :deep(.cm-md-h5) {
+  font-size: 1.05em;
+  font-weight: 600;
+}
+.md-editor :deep(.cm-md-h6) {
+  font-size: 1em;
+  font-weight: 600;
+  color: rgba(127, 127, 127, 0.85);
+}
+
+/* 内联强调 */
+.md-editor :deep(.cm-md-strong) {
+  font-weight: 700;
+}
+.md-editor :deep(.cm-md-em) {
+  font-style: italic;
+}
+.md-editor :deep(.cm-md-strike) {
+  text-decoration: line-through;
+  opacity: 0.75;
+}
+.md-editor :deep(.cm-md-inline-code) {
+  padding: 1px 6px;
   border-radius: 4px;
-  overflow: auto;
+  background: rgba(127, 127, 127, 0.14);
+  font-family: ui-monospace, "Consolas", "Cascadia Code", monospace;
+  font-size: 0.92em;
 }
-.md-editor__preview :deep(blockquote) {
-  margin: 6px 0;
+.md-editor :deep(.cm-md-link) {
+  color: #3b82f6;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* 引用 / 列表 */
+.md-editor :deep(.cm-md-quote) {
+  border-left: 3px solid rgba(132, 82, 47, 0.4);
   padding-left: 10px;
-  border-left: 2px solid rgba(255, 255, 255, 0.18);
-  color: #9a9aa3;
+  color: rgba(95, 86, 77, 0.85);
+  background: rgba(132, 82, 47, 0.04);
+}
+.md-editor :deep(.cm-md-list-item) {
+  padding-left: 4px;
+}
+
+/* 暗色主题适配（与 useDark 联动；app-theme-root.dark 在 App.vue 根节点） */
+:global(.app-theme-root.dark) .md-editor :deep(.cm-md-inline-code) {
+  background: rgba(255, 255, 255, 0.12);
+}
+:global(.app-theme-root.dark) .md-editor :deep(.cm-md-quote) {
+  border-left-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(220, 220, 224, 0.86);
+}
+:global(.app-theme-root.dark) .md-editor :deep(.cm-placeholder) {
+  color: rgba(180, 180, 184, 0.55);
+}
+:global(.app-theme-root.dark) .md-editor :deep(.cm-md-link) {
+  color: #60a5fa;
 }
 </style>

@@ -6,12 +6,12 @@
 
 ## 2. WYSIWYG 编辑器内核（capability: markdown-wysiwyg-editor）
 
-- [ ] 2.1 重写 `src/components/MarkdownEditor.vue`，对外保持 `v-model:value/modelValue` 与 `defineExpose({ focus, scrollToLine })` 不变
-- [ ] 2.2 内核接入：根据所选方案，挂载到 `<div ref="containerRef">`；初始化时把 `props.modelValue` 设为 markdown 源；用户编辑后将 markdown 通过 `emit('update:value', md)` 回写
-- [ ] 2.3 注册快捷键集合（粗体 / 斜体 / 删除线 / 行内代码 / H1-H6 / 段落 / 引用 / 列表 / 待办 / 代码块 / 链接 / 撤销 / 重做）
-- [ ] 2.4 暗色 / 亮色主题适配，与 Steno 当前 `darkTheme` 切换联动
-- [ ] 2.5 删除旧的工具栏 / textarea / v-html 预览代码
-- [ ] 2.6 为编辑器对外接口与快捷键命令编写 Vitest 用例（jsdom + 必要时 mock 第三方库）
+- [x] 2.1 重写 `src/components/MarkdownEditor.vue`，对外保持 `v-model:value/modelValue` 与 `defineExpose({ focus, scrollToLine })` 不变
+- [x] 2.2 内核接入：挂载 EditorView 到 `<div ref="container">`；初始化时把 `props.modelValue` 设为 markdown 源；用户编辑后通过 updateListener `emit('update:modelValue', md)` 回写
+- [x] 2.3 注册快捷键集合（见 `src/components/markdown-editor/keymap.ts`：粗体 / 斜体 / 删除线 / 行内代码 / H1-H6 / 段落 / 引用 / 列表 / 待办 / 代码块 / 链接 / 撤销 / 重做）
+- [x] 2.4 暗色 / 亮色主题适配，与 Steno 当前 `useDark` + `app-theme-root.dark` 类名联动
+- [x] 2.5 删除旧的工具栏 / textarea / v-html 预览代码
+- [x] 2.6 为编辑器对外接口（focus / scrollToLine）、初始/外部 v-model 同步、editor → emit 链路编写 Vitest 用例
 
 ## 3. 速记浮窗适配
 
