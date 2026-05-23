@@ -10,6 +10,7 @@ import { useWindow } from '@/composables/useWindow';
 import { useNotesStore } from '@/stores/notes';
 import { useUiStore } from '@/stores/ui';
 import type { Note } from '@/types/steno';
+import { QUICKNOTE_DRAFT_ID } from '@/types/steno';
 
 const cardExportOptions = [
   { key: 'markdown', label: '导出为 Markdown' },
@@ -155,6 +156,7 @@ const contextMenu = ref<{
 
 const contextTargetNote = computed(() => contextMenu.value.note);
 const contextHasTarget = computed(() => contextTargetNote.value !== null);
+const contextTargetIsDraft = computed(() => contextTargetNote.value?.isDraft === true);
 
 const tagDialogVisible = ref(false);
 const tagDialogNote = ref<Note | null>(null);
@@ -217,9 +219,35 @@ function blockDraftEdit(note: Note): boolean {
   return false;
 }
 
-function onOpenNoteEditor(note: Note) {
-  if (blockDraftEdit(note)) return;
+async function onOpenNoteEditor(note: Note) {
+  if (note.isDraft) {
+    // 未保存草稿走速记浮窗：浮窗 onMounted / focus 时会自动 hydrate quicknote-draft。
+    try {
+      await win.openQuicknote();
+    } catch (e) {
+      message.error(`打开速记浮窗失败：${String(e)}`);
+    }
+    return;
+  }
   ui.navigateTo('note-editor', note.id);
+}
+
+async function onSaveDraftFromCard(note: Note) {
+  if (!note.isDraft) return;
+  try {
+    const promoted = await db.promoteQuicknoteDraft();
+    if (promoted) {
+      notes.syncExternalNote(promoted);
+      notes.purgeLocal(QUICKNOTE_DRAFT_ID);
+      void appEvents.emitNoteSaved(promoted);
+      void appEvents.emitNoteRemoved({ id: QUICKNOTE_DRAFT_ID });
+      message.success('笔记已保存');
+    } else {
+      message.warning('草稿内容为空，无法保存');
+    }
+  } catch (e) {
+    message.error(`保存失败：${String(e)}`);
+  }
 }
 
 function closeContextMenu() {
@@ -255,7 +283,14 @@ function onContextEdit() {
   const note = contextTargetNote.value;
   if (!note) return;
   closeContextMenu();
-  onOpenNoteEditor(note);
+  void onOpenNoteEditor(note);
+}
+
+async function onContextSaveDraft() {
+  const note = contextTargetNote.value;
+  if (!note || !note.isDraft) return;
+  closeContextMenu();
+  await onSaveDraftFromCard(note);
 }
 
 function onContextTags() {
@@ -728,6 +763,7 @@ function formatUpdatedAt(iso: string): string {
               size="tiny"
               :title="note.isPinned ? '取消置顶' : '置顶为便签'"
               data-testid="card-action-pin"
+              :disabled="note.isDraft"
               @click="onTogglePin(note)"
             >
               <template #icon>
@@ -739,6 +775,7 @@ function formatUpdatedAt(iso: string): string {
               </template>
             </NButton>
             <NDropdown
+              v-if="!note.isDraft"
               :options="cardExportOptions"
               trigger="click"
               @select="key => onCardExportSelect(key, note)"
@@ -753,6 +790,22 @@ function formatUpdatedAt(iso: string): string {
                 </template>
               </NButton>
             </NDropdown>
+            <NButton
+              v-else
+              quaternary
+              size="tiny"
+              title="未保存的草稿，请先在速记浮窗中保存"
+              data-testid="card-action-export"
+              :disabled="true"
+            >
+              <template #icon>
+                <NIcon>
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                    <path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z" />
+                  </svg>
+                </NIcon>
+              </template>
+            </NButton>
           </div>
         </footer>
       </article>
@@ -810,6 +863,17 @@ function formatUpdatedAt(iso: string): string {
         @click="onContextEdit"
       >
         编辑
+      </button>
+      <button
+        class="context-item"
+        type="button"
+        data-testid="context-save-draft"
+        :disabled="!contextTargetIsDraft"
+        :aria-disabled="!contextTargetIsDraft"
+        role="menuitem"
+        @click="onContextSaveDraft"
+      >
+        保存
       </button>
       <button
         class="context-item"

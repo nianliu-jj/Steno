@@ -233,14 +233,22 @@ async function dismissSticky() {
 }
 
 async function dismissQuicknote() {
-  if (isEmpty.value) {
-    // 清空内容关闭：把可能残留的 quicknote-draft 行也一并清掉，避免下次
-    // 打开浮窗又把旧内容 hydrate 回来。
+  // 草稿持久化策略：
+  // - 内存白板（currentNoteId 为 null 且 isEmpty）：什么都没有，直接 hide，不动 db；
+  // - 用户主动清空了 quicknote-draft（currentNoteId 命中草稿且 isEmpty）：顺手把 db 行清掉，
+  //   下次打开浮窗就是干净状态；
+  // - 其它（有内容）：flushSave 保留到 db，下次打开浮窗 / 重启应用都能恢复。
+  if (currentNoteId.value === null && isEmpty.value) {
+    await win.hideCurrent();
+    resetState();
+    return;
+  }
+  if (currentNoteId.value === QUICKNOTE_DRAFT_ID && isEmpty.value) {
     try {
       await db.deleteNote(QUICKNOTE_DRAFT_ID);
       void appEvents.emitNoteRemoved({ id: QUICKNOTE_DRAFT_ID });
     } catch {
-      // 草稿原本就不存在时 deleteNote 不会抛错，这里 catch 兜底其他偶发情况。
+      // 草稿原本就不存在时 deleteNote 不抛错，这里 catch 兜底其他偶发情况。
     }
     await win.hideCurrent();
     resetState();
@@ -263,6 +271,21 @@ async function saveAndDismiss(): Promise<void> {
 let blurTimer: ReturnType<typeof setTimeout> | undefined;
 let unlistenFocus: (() => void) | undefined;
 
+async function hydrateDraftFromDb(): Promise<boolean> {
+  try {
+    const draft = await db.getNote(QUICKNOTE_DRAFT_ID);
+    if (!draft) return false;
+    currentNoteId.value = draft.id;
+    title.value = draft.title === '未命名' ? '' : draft.title;
+    content.value = draft.content;
+    tagsInput.value = draft.tags.map(t => `#${t}`).join(' ');
+    return true;
+  } catch (e) {
+    console.error('[quicknote] hydrate draft failed:', e);
+    return false;
+  }
+}
+
 onMounted(async () => {
   if (isSticky.value && props.noteId) {
     try {
@@ -283,21 +306,19 @@ onMounted(async () => {
   }
 
   // quicknote 路径：先尝试从 SQLite 拉上次未保存的草稿；存在则回填 UI。
-  try {
-    const draft = await db.getNote(QUICKNOTE_DRAFT_ID);
-    if (draft) {
-      currentNoteId.value = draft.id;
-      title.value = draft.title === '未命名' ? '' : draft.title;
-      content.value = draft.content;
-      tagsInput.value = draft.tags.map(t => `#${t}`).join(' ');
-    }
-  } catch (e) {
-    console.error('[quicknote] hydrate draft failed:', e);
-  }
+  await hydrateDraftFromDb();
   loaded.value = true;
 
   unlistenFocus = await win.onCurrentWindowFocusChange(focused => {
     if (focused) {
+      // 浮窗单例 hide / show 复用同一组件实例，onMounted 不会再触发；
+      // 这里在窗口被激活时按需重新 hydrate，让用户在 close → open 之间
+      // 仍能看到上一次未保存的草稿。
+      // 只有"内存白板"（dismissQuicknote 后 resetState 留下的空态）才补 hydrate，
+      // 否则可能覆盖用户正在编辑的内容。
+      if (currentNoteId.value === null && isEmpty.value) {
+        void hydrateDraftFromDb();
+      }
       if (blurTimer) {
         clearTimeout(blurTimer);
         blurTimer = undefined;
