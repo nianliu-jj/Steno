@@ -15,9 +15,9 @@
 
 ## 3. 速记浮窗适配
 
-- [ ] 3.1 在 `FloatingEditor.vue` 内继续使用 `MarkdownEditor`，仅通过 `density="compact"` / `showToolbar={false}` 等 prop 调整密度
-- [ ] 3.2 验证 hint placeholder、autofocus、自动保存、聚焦失焦关闭逻辑在新内核下仍生效
-- [ ] 3.3 在浮窗回归用例（若有）或新增用例中覆盖输入触发自动保存
+- [x] 3.1 `FloatingEditor.vue` 继续使用同一 `MarkdownEditor` 组件；浮窗为固定暗色容器，密度通过 `.floating-body :deep(.cm-*)` 局部覆写 padding 与字号
+- [x] 3.2 验证 hint placeholder、autofocus、聚焦失焦关闭逻辑在新内核下仍生效（CodeMirror placeholder 扩展接管，autofocus 通过 view.focus()，失焦关闭依赖 window-level 监听不受编辑器影响）
+- [ ] 3.3 浮窗自动保存链路依赖上层 `useAutosave` 监听 v-model；交由 step 6 手工回归覆盖，本次不新增 mount 测试（FloatingEditor 需 mock 大量 Tauri / db / useWindow 桩）
 
 ## 4. 大纲入口图标化（capability: document-outline-headings）
 
