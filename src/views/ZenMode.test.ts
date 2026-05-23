@@ -86,10 +86,15 @@ describe('ZenMode', () => {
     expect(navigateToMain).not.toHaveBeenCalled();
   });
 
-  it('renders the outline sidebar in zen mode', async () => {
+  it('renders the outline sidebar after toggling the FAB', async () => {
     const wrapper = mount(WrappedZenMode);
     await flushPromises();
 
+    expect(wrapper.find('[data-testid="zen-outline"]').exists()).toBe(false);
+
+    await wrapper.find('[data-testid="zen-outline-toggle"]').trigger('click');
+
+    expect(wrapper.find('[data-testid="zen-outline-panel"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="zen-outline"]').exists()).toBe(true);
   });
 });

@@ -1,15 +1,13 @@
 <script setup lang="ts">
 // Zen 写作窗口顶层视图（mode === 'zen'）。
-// 页面由主窗口路由切入，noteId 优先来自 ui store；hash/query 仅作为浏览器
-// 调试兜底。no id 时是空白草稿。
 //
-// 行为（plan Task 8.1 / spec zen-writing）：
-// - mount：若有 ?id= 则 getNote 拉数据；否则空白草稿（hide 时若空内容则不写库）
-// - 全屏沉浸式：左上角微缩 meta（保存状态/字数）；右上退出按钮
-// - 1000ms 防抖自动保存；Esc 触发 flushSave + hide 当前窗口
-// - 隐藏 toolbar 中所有非"标题/正文/字数/保存状态/退出"的元素
-//   （MarkdownEditor 本身自带 toolbar，这里关掉它的 preview，保留极简工具栏）
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+// 头部栏：左侧"标题（含编辑按钮）"，右侧"导出 / 退出"。
+// 底部栏：左侧"标签（带省略号 + tooltip）"，右侧"字数 + 保存状态"。
+// 大纲：右下角 FAB 按钮，点击后从底部弹出固定面板，默认隐藏。
+//
+// mount：若 ui.noteId 或 ?id= 存在则从 SQLite hydrate；否则空白草稿。
+// 自动保存：useAutosave 1000ms 防抖；Esc / 退出按钮触发 flushSave + exitZen。
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { NDropdown, NInput, NText, useMessage } from 'naive-ui';
 
 import DocumentOutlineTree from '@/components/DocumentOutlineTree.vue';
@@ -35,11 +33,16 @@ const content = ref('');
 const tags = ref<string[]>([]);
 const loaded = ref(false);
 
+const titleEditing = ref(false);
+const titleInputRef = ref<{ focus: () => void } | null>(null);
+const outlineOpen = ref(false);
+
 const wordCount = computed(() => countWords(content.value));
 const isEmpty = computed(
   () => !title.value.trim() && !content.value.trim() && tags.value.length === 0,
 );
 const outlineNodes = computed(() => buildOutline(content.value));
+const displayTitle = computed(() => title.value.trim() || '无标题');
 
 // ----- 启动加载 -------------------------------------------------------
 
@@ -111,6 +114,18 @@ const statusText = computed(() => {
   }
 });
 
+// ----- 标题编辑 -------------------------------------------------------
+
+async function onStartTitleEdit() {
+  titleEditing.value = true;
+  await nextTick();
+  titleInputRef.value?.focus();
+}
+
+function onFinishTitleEdit() {
+  titleEditing.value = false;
+}
+
 // ----- 退出（Esc / 关闭按钮） -----------------------------------------
 
 async function exitZen() {
@@ -149,7 +164,6 @@ async function onExport(key: string) {
     message.warning('请先输入内容（保存后才能导出）');
     return;
   }
-  // 先 flush 一次，确保磁盘上是最新内容
   await flushSave();
   if (status.value === 'error') {
     message.error('保存失败，已取消导出');
@@ -173,7 +187,6 @@ onMounted(() => {
 });
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown);
-  // 守护：webview 销毁前再 flush 一次
   void flushSave();
 });
 </script>
@@ -181,15 +194,64 @@ onUnmounted(() => {
 <template>
   <div class="zen-root">
     <header class="zen-header">
-      <div class="zen-meta">
-        <NText depth="3" class="zen-meta-item">{{ wordCount }} 字</NText>
-        <NText
-          depth="3"
-          class="zen-meta-item"
-          :class="{ 'zen-meta-error': status === 'error' }"
+      <div class="zen-title-area">
+        <NInput
+          v-if="titleEditing"
+          ref="titleInputRef"
+          v-model:value="title"
+          :bordered="false"
+          size="small"
+          placeholder="标题"
+          class="zen-title-input"
+          data-testid="zen-title-input"
+          @blur="onFinishTitleEdit"
+          @keydown.enter="onFinishTitleEdit"
+        />
+        <template v-else>
+          <span
+            class="zen-title-text"
+            data-testid="zen-title-text"
+            :title="displayTitle"
+          >{{ displayTitle }}</span>
+        </template>
+        <button
+          type="button"
+          class="zen-title-edit"
+          data-testid="zen-title-edit"
+          :title="titleEditing ? '完成编辑' : '编辑标题'"
+          :aria-label="titleEditing ? '完成编辑' : '编辑标题'"
+          @click="titleEditing ? onFinishTitleEdit() : onStartTitleEdit()"
         >
-          {{ statusText }}
-        </NText>
+          <svg
+            v-if="titleEditing"
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+          <svg
+            v-else
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+          </svg>
+        </button>
       </div>
       <div class="zen-actions">
         <NDropdown
@@ -207,31 +269,84 @@ onUnmounted(() => {
 
     <div class="zen-stage">
       <div class="zen-paper">
-        <NInput
-          v-model:value="title"
-          size="large"
-          placeholder="标题"
-          :bordered="false"
-          class="zen-title"
-        />
-        <div class="zen-layout">
-          <div class="zen-body">
-            <MarkdownEditor
-              v-model="content"
-              autofocus
-              placeholder="开始写作… 按 Esc 返回主界面"
-            />
-          </div>
-          <aside class="zen-outline-shell">
-            <header class="zen-outline-shell__header">大纲</header>
-            <DocumentOutlineTree
-              :nodes="outlineNodes"
-              @select="onSelectOutline"
-            />
-          </aside>
+        <div class="zen-body">
+          <MarkdownEditor
+            v-model="content"
+            autofocus
+            placeholder="开始写作… 按 Esc 返回主界面"
+          />
         </div>
       </div>
+
+      <button
+        class="zen-outline-fab"
+        type="button"
+        data-testid="zen-outline-toggle"
+        :aria-pressed="outlineOpen"
+        :aria-label="outlineOpen ? '收起大纲' : '展开大纲'"
+        :title="outlineOpen ? '收起大纲' : '展开大纲'"
+        @click="outlineOpen = !outlineOpen"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="16"
+          height="16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <line x1="8" y1="6" x2="20" y2="6" />
+          <line x1="8" y1="12" x2="20" y2="12" />
+          <line x1="8" y1="18" x2="20" y2="18" />
+          <circle cx="4" cy="6" r="1.4" />
+          <circle cx="4" cy="12" r="1.4" />
+          <circle cx="4" cy="18" r="1.4" />
+        </svg>
+      </button>
+
+      <aside
+        v-if="outlineOpen"
+        class="zen-outline-panel"
+        data-testid="zen-outline-panel"
+      >
+        <header class="zen-outline-panel__header">大纲</header>
+        <DocumentOutlineTree
+          :nodes="outlineNodes"
+          @select="onSelectOutline"
+        />
+      </aside>
     </div>
+
+    <footer class="zen-footer">
+      <div class="zen-footer-tags" aria-label="标签">
+        <span
+          v-if="tags.length === 0"
+          class="zen-tag-empty"
+          data-testid="zen-tag-empty"
+        >无标签</span>
+        <template v-else>
+          <span
+            v-for="tag in tags"
+            :key="tag"
+            class="zen-tag"
+            :title="`#${tag}`"
+          >#{{ tag }}</span>
+        </template>
+      </div>
+      <div class="zen-footer-meta">
+        <NText depth="3" class="zen-meta-item">{{ wordCount }} 字</NText>
+        <NText
+          depth="3"
+          class="zen-meta-item"
+          :class="{ 'zen-meta-error': status === 'error' }"
+        >
+          {{ statusText }}
+        </NText>
+      </div>
+    </footer>
   </div>
 </template>
 
@@ -250,25 +365,76 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 32px;
-  padding: 0 16px;
-  /* 沉浸：用极弱的分割线，避免分散注意力 */
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-}
-.zen-meta {
-  display: flex;
-  align-items: center;
   gap: 16px;
-  color: #6f6f78;
-  font-size: 11px;
-}
-.zen-meta-item {
-  font-size: 11px;
-}
-.zen-meta-error {
-  color: #ff6b6b;
+  height: 36px;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
+.zen-title-area {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.zen-title-text {
+  display: inline-block;
+  max-width: 480px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  color: #f0f0f2;
+}
+
+.zen-title-input {
+  width: 320px;
+  font-size: 14px;
+  color: #f0f0f2;
+}
+.zen-title-input :deep(input) {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f0f0f2 !important;
+  -webkit-text-fill-color: #f0f0f2;
+  background: transparent;
+  padding: 0;
+  caret-color: #f0f0f2;
+}
+.zen-title-input :deep(.n-input__placeholder),
+.zen-title-input :deep(input::placeholder) {
+  color: #6f6f78 !important;
+}
+
+.zen-title-edit {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: #8a8a92;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+.zen-title-edit:hover {
+  color: #f0f0f2;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.zen-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.zen-export,
 .zen-exit {
   width: 24px;
   height: 24px;
@@ -280,67 +446,27 @@ onUnmounted(() => {
   font-size: 14px;
   transition: color 0.12s, background 0.12s;
 }
+.zen-export:hover,
 .zen-exit:hover {
-  color: #e8e8ea;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.zen-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.zen-export {
-  width: 24px;
-  height: 24px;
-  background: transparent;
-  color: #6f6f78;
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: color 0.12s, background 0.12s;
-}
-.zen-export:hover {
   color: #e8e8ea;
   background: rgba(255, 255, 255, 0.06);
 }
 
 .zen-stage {
   flex: 1;
+  position: relative;
   display: flex;
   justify-content: center;
-  padding: 32px 24px 48px;
+  padding: 24px 24px 24px;
   overflow: auto;
 }
+
 .zen-paper {
   display: flex;
   flex-direction: column;
   width: 100%;
   max-width: 1080px;
   min-height: 0;
-  gap: 16px;
-}
-
-.zen-layout {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 240px;
-  gap: 24px;
-  align-items: stretch;
-}
-
-.zen-title :deep(input) {
-  font-size: 28px;
-  font-weight: 600;
-  color: #f0f0f2;
-  background: transparent;
-  padding: 0;
-}
-.zen-title :deep(.n-input__placeholder) {
-  font-size: 28px;
-  font-weight: 600;
 }
 
 .zen-body {
@@ -348,36 +474,170 @@ onUnmounted(() => {
   min-height: 60vh;
   display: flex;
   flex-direction: column;
-}
-.zen-body :deep(.md-editor) {
-  background: transparent;
-}
-.zen-body :deep(.md-editor__textarea) {
-  font-size: 16px;
-  line-height: 1.8;
-  padding: 8px 0;
-}
-.zen-body :deep(.md-editor__toolbar) {
-  background: transparent;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: #f0f0f2;
 }
 
-.zen-outline-shell {
-  min-height: 0;
+/* 沉浸式编辑器：背景透明、字号略大、暗色光标 */
+.zen-body :deep(.cm-editor) {
+  background: transparent;
+  font-size: 16px;
+  line-height: 1.8;
+  color: #f0f0f2;
+}
+.zen-body :deep(.cm-scroller) {
+  padding: 8px 0;
+}
+.zen-body :deep(.cm-cursor),
+.zen-body :deep(.cm-dropCursor) {
+  border-left-color: #f0f0f2 !important;
+  border-left-width: 2px;
+}
+.zen-body :deep(.cm-content) {
+  caret-color: #f0f0f2;
+}
+.zen-body :deep(.cm-placeholder) {
+  color: rgba(180, 180, 184, 0.55);
+}
+.zen-body :deep(.cm-md-inline-code) {
+  background: rgba(255, 255, 255, 0.1);
+}
+.zen-body :deep(.cm-md-quote) {
+  border-left-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(220, 220, 224, 0.88);
+}
+.zen-body :deep(.cm-md-link) {
+  color: #60a5fa;
+}
+
+.zen-outline-fab {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  z-index: 4;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(36, 36, 44, 0.92);
+  color: #c8c8d2;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.zen-outline-fab:hover,
+.zen-outline-fab:focus-visible {
+  color: #f5f5f8;
+  background: rgba(50, 50, 60, 0.96);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+.zen-outline-fab[aria-pressed="true"] {
+  color: #f5f5f8;
+  background: rgba(60, 60, 72, 0.98);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+.zen-outline-fab svg {
+  pointer-events: none;
+}
+
+.zen-outline-panel {
+  position: absolute;
+  right: 24px;
+  bottom: 72px;
+  z-index: 3;
+  width: 240px;
+  max-height: calc(100% - 96px);
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 14px 14px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(28, 28, 36, 0.96);
   overflow: auto;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
 }
 
-.zen-outline-shell__header {
+.zen-outline-panel__header {
   color: #b8b8c1;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
+}
+
+.zen-outline-panel :deep(.outline-tree__button) {
+  color: #d4d4dc;
+}
+.zen-outline-panel :deep(.outline-tree__button:hover) {
+  color: #f5f5f8;
+}
+.zen-outline-panel :deep(.outline-tree__badge) {
+  background: rgba(255, 255, 255, 0.08);
+  color: #b8b8c1;
+}
+
+.zen-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 32px;
+  padding: 0 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.zen-footer-tags {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: #b8b8c1;
+  font-size: 11px;
+  overflow: hidden;
+}
+
+.zen-tag,
+.zen-tag-empty {
+  flex-shrink: 0;
+  line-height: 20px;
+}
+
+.zen-tag {
+  max-width: 140px;
+  overflow: hidden;
+  padding: 0 7px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.zen-tag-empty {
+  color: #6f6f78;
+  font-style: italic;
+}
+
+.zen-footer-meta {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 16px;
+  color: #6f6f78;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.zen-meta-item {
+  font-size: 11px;
+}
+
+.zen-meta-error {
+  color: #ff6b6b;
 }
 </style>

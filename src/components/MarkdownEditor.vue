@@ -145,6 +145,16 @@ defineExpose({ focus, scrollToLine });
   padding: 0;
 }
 
+.md-editor :deep(.cm-cursor),
+.md-editor :deep(.cm-dropCursor) {
+  border-left-width: 1.5px;
+  border-left-color: currentColor;
+}
+
+.md-editor :deep(.cm-cursor-primary) {
+  border-left-color: currentColor;
+}
+
 .md-editor :deep(.cm-line) {
   padding: 0;
 }
