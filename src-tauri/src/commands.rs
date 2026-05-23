@@ -183,9 +183,11 @@ pub fn open_settings_window(app: AppHandle) -> Result<(), String> {
     window_manager::open_settings(&app).map_err(to_msg)
 }
 
+/// `fresh=true`：笔记列表页"新建速记"按钮调用，强制空白；
+/// `fresh=false`（默认）：全局快捷键调用，由前端继续上一份未保存草稿。
 #[tauri::command]
-pub fn open_quicknote_window(app: AppHandle) -> Result<(), String> {
-    quicknote::show(&app);
+pub fn open_quicknote_window(app: AppHandle, fresh: Option<bool>) -> Result<(), String> {
+    quicknote::show(&app, fresh.unwrap_or(false));
     Ok(())
 }
 

@@ -75,6 +75,7 @@ vi.mock('@/stores/notes', () => ({
     saveDraft: (input: SaveNoteRequest) => saveDraftMock(input),
     removeNote: (...args: Parameters<typeof removeNoteMock>) => removeNoteMock(...args),
     syncExternalNote: (note: Note) => syncExternalNoteMock(note),
+    purgeLocal: vi.fn(),
   }),
 }));
 
@@ -83,6 +84,7 @@ vi.mock('@/composables/useDb', () => ({
     exportNoteMarkdown,
     exportNoteHtml,
     exportNotePdf,
+    deleteNote: () => Promise.resolve(),
   }),
 }));
 
@@ -96,6 +98,8 @@ vi.mock('@/composables/useAppEvents', () => ({
   useAppEvents: () => ({
     listenNoteSaved: (...args: Parameters<typeof listenNoteSaved>) => listenNoteSaved(...args),
     listenNoteRemoved: (...args: Parameters<typeof listenNoteRemoved>) => listenNoteRemoved(...args),
+    emitNoteSaved: vi.fn(),
+    emitNoteRemoved: vi.fn(),
   }),
 }));
 

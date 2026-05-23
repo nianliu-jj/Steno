@@ -197,7 +197,16 @@ function toggleFilterMenu() {
 
 async function onNewQuickNote() {
   try {
-    await win.openQuicknote();
+    // "新建速记"按钮语义 = 全新空白浮窗，先把上一份未保存草稿清掉，
+    // 避免浮窗 hydrate 把旧草稿带回 UI。
+    try {
+      await db.deleteNote(QUICKNOTE_DRAFT_ID);
+    } catch {
+      // 草稿不存在时 deleteNote 不抛错，这里仅兜底其它偶发情况。
+    }
+    notes.purgeLocal(QUICKNOTE_DRAFT_ID);
+    void appEvents.emitNoteRemoved({ id: QUICKNOTE_DRAFT_ID });
+    await win.openQuicknote({ fresh: true });
   } catch (e) {
     message.error(`打开失败：${String(e)}`);
   }

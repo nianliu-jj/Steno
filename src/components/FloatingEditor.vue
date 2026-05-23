@@ -14,6 +14,7 @@
 // syncExternalNote 让笔记列表卡片实时更新（包括标题/标签/内容）。
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { NButton, NIcon, NInput, NText, useMessage } from 'naive-ui';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 import MarkdownEditor from '@/components/MarkdownEditor.vue';
 import { useAppEvents } from '@/composables/useAppEvents';
@@ -270,6 +271,7 @@ async function saveAndDismiss(): Promise<void> {
 
 let blurTimer: ReturnType<typeof setTimeout> | undefined;
 let unlistenFocus: (() => void) | undefined;
+let unlistenOpen: UnlistenFn | undefined;
 
 async function hydrateDraftFromDb(): Promise<boolean> {
   try {
@@ -333,11 +335,22 @@ onMounted(async () => {
       void saveAndDismiss();
     }, settings.state.blurCloseDelayMs);
   });
+
+  if (!isSticky.value) {
+    // 后端 show() 每次触发都 emit；fresh=true 表示"新建速记"按钮入口，
+    // 此刻 MainView 侧已经 deleteNote 掉旧草稿，这里只需把 UI 重置成空白。
+    unlistenOpen = await listen<{ fresh: boolean }>('quicknote:open', ({ payload }) => {
+      if (payload.fresh) {
+        resetState();
+      }
+    });
+  }
 });
 
 onUnmounted(() => {
   if (blurTimer) clearTimeout(blurTimer);
   unlistenFocus?.();
+  unlistenOpen?.();
   void flushSave();
 });
 
