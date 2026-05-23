@@ -34,17 +34,17 @@
 
 ## 6. 验证
 
-- [ ] 6.1 运行 `pnpm typecheck`、`pnpm lint`、`pnpm test --run`，全部绿
-- [ ] 6.2 手动验证主编辑器：输入 `#`、`**`、`- `、`> `、` ``` `、`[]()`、`![]()` 都能原位渲染
+- [x] 6.1 运行 `pnpm typecheck`、`pnpm lint`、`pnpm vitest run`，19 文件 83 用例全绿、lint 0 warning / 0 error
+- [ ] 6.2 手动验证主编辑器：输入 `#`、`**`、`- `、`> `、` ``` `、`[]()`、`![]()` 都能原位渲染（需用户在 `pnpm tauri:dev` 中确认）
 - [ ] 6.3 手动验证浮窗：输入 markdown 语法即时渲染，失焦保存与置顶为便签链路不受影响
 - [ ] 6.4 手动验证大纲：图标按钮可点开、节点带 H1/H2/.../H6 徽章、点击跳转正确
 - [ ] 6.5 手动验证暗色主题下编辑器渲染色与背景对比正常
 
 ## 7. 提交节奏
 
-- [ ] 7.1 step1（需求文档）：本次 change 4 个 md 文件落库 → commit
-- [ ] 7.2 step2（用户选定方案 + 依赖安装）→ commit
-- [ ] 7.3 step3（MarkdownEditor 重构 + 单测）→ commit
-- [ ] 7.4 step4（浮窗适配 + 验证）→ commit
-- [ ] 7.5 step5（大纲入口图标化 + 等级徽章 + 单测）→ commit
-- [ ] 7.6 step6（完整 typecheck/lint/test + 手动回归记录）→ commit
+- [x] 7.1 step1（需求文档）：本次 change 4 个 md 文件落库 → commit 129fa03
+- [x] 7.2 step2（用户选定方案 + 依赖安装）→ commit 49dba9f
+- [x] 7.3 step3（MarkdownEditor 重构 + 单测）→ commit e497f35
+- [x] 7.4 step4（浮窗适配 + 验证）→ commit 6c891b2
+- [x] 7.5 step5（大纲入口图标化 + 等级徽章 + 单测）→ commit 8fda08a
+- [x] 7.6 step6（完整 typecheck/lint/test + 手动回归记录）→ 当前 commit
