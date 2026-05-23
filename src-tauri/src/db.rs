@@ -137,12 +137,7 @@ impl Db {
             // 速记浮窗未点保存就关闭时，内容仍持久化为 is_draft=1 的笔记，
             // 笔记列表会把它排在最前面并附"未保存"灰标签。
             let tx = conn.transaction()?;
-            let already_has_column: bool = {
-                let mut stmt = tx.prepare("PRAGMA table_info(notes)")?;
-                let names: rusqlite::Result<Vec<String>> =
-                    stmt.query_map([], |row| row.get::<_, String>(1))?.collect();
-                names?.iter().any(|n| n == "is_draft")
-            };
+            let already_has_column = Self::notes_has_is_draft_column(&tx)?;
             if !already_has_column {
                 tx.execute(
                     "ALTER TABLE notes ADD COLUMN is_draft INTEGER NOT NULL DEFAULT 0",
@@ -156,6 +151,33 @@ impl Db {
             tx.pragma_update(None, "user_version", 2_i64)?;
             tx.commit()?;
         }
+        // 幂等自检：dev 库偶尔会出现 user_version 已升到 2 但实际 ALTER 没成功
+        // 的不一致状态（多进程访问、上次 migration 异常等），每次启动再确认一次。
+        Self::ensure_is_draft_column(conn)?;
+        Ok(())
+    }
+
+    fn notes_has_is_draft_column(conn: &Connection) -> Result<bool, DbError> {
+        let mut stmt = conn.prepare("PRAGMA table_info(notes)")?;
+        let exists = stmt
+            .query_map([], |row| row.get::<_, String>(1))?
+            .filter_map(Result::ok)
+            .any(|name| name == "is_draft");
+        Ok(exists)
+    }
+
+    fn ensure_is_draft_column(conn: &Connection) -> Result<(), DbError> {
+        if Self::notes_has_is_draft_column(conn)? {
+            return Ok(());
+        }
+        conn.execute(
+            "ALTER TABLE notes ADD COLUMN is_draft INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_notes_is_draft ON notes(is_draft)",
+            [],
+        )?;
         Ok(())
     }
 
@@ -631,6 +653,48 @@ mod tests {
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
         assert_eq!(version, 2);
+    }
+
+    #[test]
+    fn migrate_self_heals_when_user_version_lies_about_is_draft() {
+        // 不一致状态：user_version 标记成 v2，但 notes 表里其实没有 is_draft 列。
+        // dev 环境多进程访问或上一次 migration 异常时偶有出现。
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "
+            CREATE TABLE notes (
+              id TEXT PRIMARY KEY,
+              title TEXT NOT NULL,
+              content TEXT NOT NULL,
+              html_content TEXT NOT NULL,
+              tags TEXT NOT NULL DEFAULT '[]',
+              is_pinned INTEGER NOT NULL DEFAULT 0,
+              pinned_window_config TEXT,
+              canvas_position TEXT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              word_count INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE settings (
+              key TEXT PRIMARY KEY,
+              value TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
+            ",
+        )
+        .unwrap();
+        conn.pragma_update(None, "user_version", 2_i64).unwrap();
+
+        Db::migrate(&mut conn).unwrap();
+
+        let cols: Vec<String> = {
+            let mut stmt = conn.prepare("PRAGMA table_info(notes)").unwrap();
+            stmt.query_map([], |row| row.get::<_, String>(1))
+                .unwrap()
+                .map(Result::unwrap)
+                .collect()
+        };
+        assert!(cols.iter().any(|c| c == "is_draft"));
     }
 
     #[test]
