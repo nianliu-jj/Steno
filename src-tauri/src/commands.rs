@@ -96,6 +96,18 @@ pub async fn list_pinned_notes(db: State<'_, Db>) -> Result<Vec<Note>, String> {
         .map_err(to_msg)
 }
 
+/// 把速记浮窗的"未保存草稿"（id="quicknote-draft"）原子地提升为一条正式
+/// 笔记：分配新 UUID、清掉 is_draft 标记、删掉原 draft 行；返回新笔记。
+/// 若当前没有草稿则返回 Ok(None)。前端在浮窗"保存"按钮里调用。
+#[tauri::command]
+pub async fn promote_quicknote_draft(db: State<'_, Db>) -> Result<Option<Note>, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.promote_quicknote_draft())
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
 /// Plan Task 6 Step 1：StickyNote 调整透明度/颜色/字号时单列更新，
 /// 避免每次都走 save_note 的整行 INSERT OR REPLACE。
 #[tauri::command]

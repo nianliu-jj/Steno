@@ -51,6 +51,15 @@ export function useDb() {
   }
 
   /**
+   * 把速记浮窗的"未保存草稿"（id="quicknote-draft"）原子地提升为一条正式
+   * 笔记：分配新 UUID、清掉 is_draft 标记、删掉原草稿行。返回新笔记；
+   * 若当前不存在草稿则返回 null。
+   */
+  function promoteQuicknoteDraft() {
+    return invoke<Note | null>('promote_quicknote_draft');
+  }
+
+  /**
    * 仅写 pinned_window_config 一列（plan Task 6）。比 save_note 轻很多，
    * 适合 StickyNote 拖滑块、改字号等高频调用。
    */
@@ -113,6 +122,7 @@ export function useDb() {
     deleteNote,
     setNotePinned,
     listPinnedNotes,
+    promoteQuicknoteDraft,
     updatePinnedWindowConfig,
     updateCanvasPosition,
     getSetting,

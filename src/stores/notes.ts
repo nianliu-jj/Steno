@@ -103,6 +103,15 @@ export const useNotesStore = defineStore('notes', () => {
     pinned.value = pinned.value.filter(n => n.id !== note.id);
   }
 
+  /**
+   * 跨窗口"笔记已删除"事件同步：只清本地数组，不再走 IPC。
+   * 用于速记浮窗 promote 草稿 / 关闭空草稿后，主窗口列表立即移除卡片。
+   */
+  function purgeLocal(id: string) {
+    notes.value = notes.value.filter(n => n.id !== id);
+    pinned.value = pinned.value.filter(n => n.id !== id);
+  }
+
   function upsertLocal(note: Note) {
     const i = notes.value.findIndex(n => n.id === note.id);
     if (i >= 0) {
@@ -135,5 +144,6 @@ export const useNotesStore = defineStore('notes', () => {
     updateCanvasPosition,
     removeNote,
     syncExternalNote,
+    purgeLocal,
   };
 });

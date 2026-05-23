@@ -160,6 +160,7 @@ mod tests {
             created_at: "2026-05-01T10:00:00Z".into(),
             updated_at: "2026-05-12T12:00:00Z".into(),
             word_count: 6,
+            is_draft: false,
         }
     }
 

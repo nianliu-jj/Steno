@@ -16,6 +16,7 @@ const exportNoteMarkdown = vi.fn(() => Promise.resolve('D:/exports/note.md'));
 const exportNoteHtml = vi.fn(() => Promise.resolve('D:/exports/note.html'));
 const exportNotePdf = vi.fn(() => Promise.resolve('D:/exports/note.pdf'));
 const listenNoteSaved = vi.fn();
+const listenNoteRemoved = vi.fn();
 const noteSavedCleanup = vi.fn();
 let noteSavedHandler: ((note: Note) => void) | null = null;
 
@@ -94,6 +95,7 @@ vi.mock('@/stores/ui', () => ({
 vi.mock('@/composables/useAppEvents', () => ({
   useAppEvents: () => ({
     listenNoteSaved: (...args: Parameters<typeof listenNoteSaved>) => listenNoteSaved(...args),
+    listenNoteRemoved: (...args: Parameters<typeof listenNoteRemoved>) => listenNoteRemoved(...args),
   }),
 }));
 
@@ -121,7 +123,7 @@ function makeNote(overrides: Partial<Note> = {}): Note {
     canvasPosition: null,
     createdAt: '2026-05-15T07:00:00.000Z',
     updatedAt: '2026-05-15T07:05:00.000Z',
-    wordCount: 4,
+    wordCount: 4,    isDraft: false,
     ...overrides,
   };
 }
@@ -140,6 +142,8 @@ describe('MainView', () => {
     loadNotes.mockClear();
     loadPinned.mockClear();
     listenNoteSaved.mockReset();
+    listenNoteRemoved.mockReset();
+    listenNoteRemoved.mockImplementation(() => Promise.resolve(() => undefined));
     noteSavedCleanup.mockReset();
     noteSavedCleanup.mockImplementation(() => undefined);
     noteSavedHandler = null;
@@ -166,7 +170,7 @@ describe('MainView', () => {
         canvasPosition: null,
         createdAt: '2026-05-14T10:00:00.000Z',
         updatedAt: '2026-05-14T10:03:00.000Z',
-        wordCount: 18,
+        wordCount: 18,        isDraft: false,
       },
     ]);
 
@@ -193,7 +197,7 @@ describe('MainView', () => {
         canvasPosition: null,
         createdAt: '2026-05-14T09:00:00.000Z',
         updatedAt,
-        wordCount: 24,
+        wordCount: 24,        isDraft: false,
       },
     ]);
 
@@ -264,7 +268,7 @@ describe('MainView', () => {
         canvasPosition: null,
         createdAt: '2026-05-14T09:00:00.000Z',
         updatedAt: '2026-05-14T10:30:00.000Z',
-        wordCount: 18,
+        wordCount: 18,        isDraft: false,
       },
     ]);
 

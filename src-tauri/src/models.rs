@@ -52,12 +52,17 @@ pub struct Note {
     pub created_at: String,
     pub updated_at: String,
     pub word_count: i64,
+    /// 未保存草稿（quicknote-draft 单条记录）置为 true；保存按钮转正后清零。
+    /// 列表查询会把 is_draft=true 的笔记排在最前面并附"未保存"标签。
+    #[serde(default)]
+    pub is_draft: bool,
 }
 
 /// save_note 命令的请求 DTO。
 /// - id = None：新建笔记，由 db 层生成 UUID v4。
 /// - id = Some(s)：更新（包括草稿单条记录 id="quicknote-draft"）。
 /// - 空 title + 空 content + 空 tags：db 层返回 Ok(None)，不写库。
+/// - is_draft = Some(true)：把这条记录标记为"未保存草稿"；is_pinned=true 时会强制清零。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveNoteRequest {
@@ -68,6 +73,8 @@ pub struct SaveNoteRequest {
     pub is_pinned: Option<bool>,
     pub pinned_window_config: Option<PinnedWindowConfig>,
     pub canvas_position: Option<CanvasPosition>,
+    #[serde(default)]
+    pub is_draft: Option<bool>,
 }
 
 /// search_notes 命令的请求 DTO。

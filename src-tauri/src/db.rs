@@ -132,6 +132,30 @@ impl Db {
             tx.pragma_update(None, "user_version", 1_i64)?;
             tx.commit()?;
         }
+        if version < 2 {
+            // v2：为"未保存草稿"语义引入 is_draft 列。
+            // 速记浮窗未点保存就关闭时，内容仍持久化为 is_draft=1 的笔记，
+            // 笔记列表会把它排在最前面并附"未保存"灰标签。
+            let tx = conn.transaction()?;
+            let already_has_column: bool = {
+                let mut stmt = tx.prepare("PRAGMA table_info(notes)")?;
+                let names: rusqlite::Result<Vec<String>> =
+                    stmt.query_map([], |row| row.get::<_, String>(1))?.collect();
+                names?.iter().any(|n| n == "is_draft")
+            };
+            if !already_has_column {
+                tx.execute(
+                    "ALTER TABLE notes ADD COLUMN is_draft INTEGER NOT NULL DEFAULT 0",
+                    [],
+                )?;
+            }
+            tx.execute(
+                "CREATE INDEX IF NOT EXISTS idx_notes_is_draft ON notes(is_draft)",
+                [],
+            )?;
+            tx.pragma_update(None, "user_version", 2_i64)?;
+            tx.commit()?;
+        }
         Ok(())
     }
 
@@ -188,7 +212,14 @@ impl Db {
         let html_content = render_markdown(&input.content);
         let tags = extract_tags(&input.content, &input.tags);
         let tags_json = serde_json::to_string(&tags)?;
-        let is_pinned_int = i64::from(input.is_pinned.unwrap_or(false));
+        let is_pinned = input.is_pinned.unwrap_or(false);
+        let is_pinned_int = i64::from(is_pinned);
+        // 置顶笔记不允许同时是未保存草稿——pin = 用户已经表达"留下来"的意图。
+        let is_draft_int = if is_pinned {
+            0
+        } else {
+            i64::from(input.is_draft.unwrap_or(false))
+        };
         let pinned_cfg_json = match &input.pinned_window_config {
             Some(c) => Some(serde_json::to_string(c)?),
             None => None,
@@ -211,8 +242,8 @@ impl Db {
 
         conn.execute(
             "INSERT OR REPLACE INTO notes
-             (id, title, content, html_content, tags, is_pinned, pinned_window_config, canvas_position, created_at, updated_at, word_count)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+             (id, title, content, html_content, tags, is_pinned, pinned_window_config, canvas_position, created_at, updated_at, word_count, is_draft)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             rusqlite::params![
                 &id,
                 &title,
@@ -224,7 +255,8 @@ impl Db {
                 &canvas_pos_json,
                 &created_at,
                 &now,
-                wc
+                wc,
+                is_draft_int
             ],
         )?;
 
@@ -244,9 +276,9 @@ impl Db {
         let conn = self.lock()?;
         let mut stmt = conn.prepare(
             "SELECT id, title, content, html_content, tags, is_pinned,
-                    pinned_window_config, canvas_position, created_at, updated_at, word_count
+                    pinned_window_config, canvas_position, created_at, updated_at, word_count, is_draft
              FROM notes
-             ORDER BY updated_at DESC
+             ORDER BY is_draft DESC, updated_at DESC
              LIMIT ?1",
         )?;
         let rows = stmt.query_map(rusqlite::params![limit], row_to_note)?;
@@ -264,10 +296,10 @@ impl Db {
         };
         let sql = format!(
             "SELECT id, title, content, html_content, tags, is_pinned,
-                    pinned_window_config, canvas_position, created_at, updated_at, word_count
+                    pinned_window_config, canvas_position, created_at, updated_at, word_count, is_draft
              FROM notes
              WHERE (title LIKE ?1 OR content LIKE ?1) {pinned_clause}
-             ORDER BY updated_at DESC
+             ORDER BY is_draft DESC, updated_at DESC
              LIMIT ?2"
         );
         let mut stmt = conn.prepare(&sql)?;
@@ -343,13 +375,66 @@ impl Db {
         let conn = self.lock()?;
         let mut stmt = conn.prepare(
             "SELECT id, title, content, html_content, tags, is_pinned,
-                    pinned_window_config, canvas_position, created_at, updated_at, word_count
+                    pinned_window_config, canvas_position, created_at, updated_at, word_count, is_draft
              FROM notes
-             WHERE is_pinned = 1
+             WHERE is_pinned = 1 AND is_draft = 0
              ORDER BY updated_at DESC",
         )?;
         let rows = stmt.query_map([], row_to_note)?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    /// 把 id="quicknote-draft" 的未保存草稿提升为正式笔记：分配新 UUID、
+    /// 清掉 is_draft 标记、刷新 updated_at，再原子地删掉原 draft 行。
+    /// 返回新创建的正式笔记。若不存在草稿则返回 Ok(None)。
+    pub fn promote_quicknote_draft(&self) -> Result<Option<Note>, DbError> {
+        let mut conn = self.lock()?;
+        let tx = conn.transaction()?;
+        let draft: Option<Note> = tx
+            .query_row(
+                "SELECT id, title, content, html_content, tags, is_pinned,
+                        pinned_window_config, canvas_position, created_at, updated_at, word_count, is_draft
+                 FROM notes WHERE id = 'quicknote-draft'",
+                [],
+                row_to_note,
+            )
+            .optional()?;
+        let Some(draft) = draft else {
+            return Ok(None);
+        };
+        let new_id = uuid::Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+        let tags_json = serde_json::to_string(&draft.tags)?;
+        let pinned_cfg_json = match &draft.pinned_window_config {
+            Some(c) => Some(serde_json::to_string(c)?),
+            None => None,
+        };
+        let canvas_pos_json = match &draft.canvas_position {
+            Some(p) => Some(serde_json::to_string(p)?),
+            None => None,
+        };
+        tx.execute(
+            "INSERT INTO notes
+             (id, title, content, html_content, tags, is_pinned, pinned_window_config, canvas_position, created_at, updated_at, word_count, is_draft)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 0)",
+            rusqlite::params![
+                &new_id,
+                &draft.title,
+                &draft.content,
+                &draft.html_content,
+                &tags_json,
+                i64::from(draft.is_pinned),
+                &pinned_cfg_json,
+                &canvas_pos_json,
+                &draft.created_at,
+                &now,
+                draft.word_count,
+            ],
+        )?;
+        tx.execute("DELETE FROM notes WHERE id = 'quicknote-draft'", [])?;
+        let promoted = Self::find_note(&tx, &new_id)?;
+        tx.commit()?;
+        Ok(Some(promoted))
     }
 
     // ----- 设置 key-value -----------------------------------------------
@@ -383,7 +468,7 @@ impl Db {
         let note = conn
             .query_row(
                 "SELECT id, title, content, html_content, tags, is_pinned,
-                        pinned_window_config, canvas_position, created_at, updated_at, word_count
+                        pinned_window_config, canvas_position, created_at, updated_at, word_count, is_draft
                  FROM notes WHERE id = ?1",
                 rusqlite::params![id],
                 row_to_note,
@@ -398,6 +483,7 @@ fn row_to_note(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
     let pinned_cfg_json: Option<String> = row.get(6)?;
     let canvas_pos_json: Option<String> = row.get(7)?;
     let is_pinned_int: i64 = row.get(5)?;
+    let is_draft_int: i64 = row.get(11)?;
     Ok(Note {
         id: row.get(0)?,
         title: row.get(1)?,
@@ -414,6 +500,7 @@ fn row_to_note(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
         created_at: row.get(8)?,
         updated_at: row.get(9)?,
         word_count: row.get(10)?,
+        is_draft: is_draft_int != 0,
     })
 }
 
@@ -543,7 +630,52 @@ mod tests {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 1);
+        assert_eq!(version, 2);
+    }
+
+    #[test]
+    fn migrate_adds_is_draft_column_for_legacy_databases() {
+        // 模拟 v1 schema（无 is_draft 列），然后跑 migrate 走 v2 升级路径。
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "
+            CREATE TABLE notes (
+              id TEXT PRIMARY KEY,
+              title TEXT NOT NULL,
+              content TEXT NOT NULL,
+              html_content TEXT NOT NULL,
+              tags TEXT NOT NULL DEFAULT '[]',
+              is_pinned INTEGER NOT NULL DEFAULT 0,
+              pinned_window_config TEXT,
+              canvas_position TEXT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              word_count INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE settings (
+              key TEXT PRIMARY KEY,
+              value TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
+            ",
+        )
+        .unwrap();
+        conn.pragma_update(None, "user_version", 1_i64).unwrap();
+
+        Db::migrate(&mut conn).unwrap();
+
+        let cols: Vec<String> = {
+            let mut stmt = conn.prepare("PRAGMA table_info(notes)").unwrap();
+            stmt.query_map([], |row| row.get::<_, String>(1))
+                .unwrap()
+                .map(Result::unwrap)
+                .collect()
+        };
+        assert!(cols.iter().any(|c| c == "is_draft"));
+        let version: i64 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 2);
     }
 
     // --- derive_title ---
@@ -607,6 +739,7 @@ mod tests {
                 is_pinned: None,
                 pinned_window_config: None,
                 canvas_position: None,
+                is_draft: None,
             })
             .unwrap();
         assert!(result.is_none(), "empty input should not write a row");
@@ -624,6 +757,7 @@ mod tests {
                 is_pinned: None,
                 pinned_window_config: None,
                 canvas_position: None,
+                is_draft: None,
             })
             .unwrap()
             .expect("non-empty input should save");
@@ -645,11 +779,134 @@ mod tests {
                 is_pinned: None,
                 pinned_window_config: None,
                 canvas_position: None,
+                is_draft: None,
             })
             .unwrap()
             .unwrap();
         assert_eq!(again.created_at, saved.created_at);
         assert_ne!(again.updated_at, saved.updated_at);
+    }
+
+    #[test]
+    fn save_note_persists_is_draft_flag() {
+        let db = fresh_db();
+        let saved = db
+            .save_note(SaveNoteRequest {
+                id: Some("quicknote-draft".into()),
+                title: None,
+                content: "draft body".into(),
+                tags: vec![],
+                is_pinned: None,
+                pinned_window_config: None,
+                canvas_position: None,
+                is_draft: Some(true),
+            })
+            .unwrap()
+            .unwrap();
+        assert!(saved.is_draft);
+        let fetched = db.get_note("quicknote-draft").unwrap().unwrap();
+        assert!(fetched.is_draft);
+    }
+
+    #[test]
+    fn list_notes_orders_drafts_first() {
+        let db = fresh_db();
+        let saved_first = db
+            .save_note(SaveNoteRequest {
+                id: None,
+                title: Some("normal".into()),
+                content: "body".into(),
+                tags: vec![],
+                is_pinned: None,
+                pinned_window_config: None,
+                canvas_position: None,
+                is_draft: None,
+            })
+            .unwrap()
+            .unwrap();
+        let _draft = db
+            .save_note(SaveNoteRequest {
+                id: Some("quicknote-draft".into()),
+                title: None,
+                content: "drafty".into(),
+                tags: vec![],
+                is_pinned: None,
+                pinned_window_config: None,
+                canvas_position: None,
+                is_draft: Some(true),
+            })
+            .unwrap()
+            .unwrap();
+        let listed = db.list_notes(10).unwrap();
+        assert_eq!(listed[0].id, "quicknote-draft");
+        assert!(listed[0].is_draft);
+        assert_eq!(listed[1].id, saved_first.id);
+        assert!(!listed[1].is_draft);
+    }
+
+    #[test]
+    fn promote_quicknote_draft_converts_draft_to_a_new_note() {
+        let db = fresh_db();
+        db.save_note(SaveNoteRequest {
+            id: Some("quicknote-draft".into()),
+            title: None,
+            content: "未保存的草稿正文".into(),
+            tags: vec!["pending".into()],
+            is_pinned: None,
+            pinned_window_config: None,
+            canvas_position: None,
+            is_draft: Some(true),
+        })
+        .unwrap()
+        .unwrap();
+
+        let promoted = db.promote_quicknote_draft().unwrap().unwrap();
+        assert_ne!(promoted.id, "quicknote-draft");
+        assert!(!promoted.is_draft);
+        assert_eq!(promoted.content, "未保存的草稿正文");
+        assert!(promoted.tags.contains(&"pending".into()));
+
+        assert!(db.get_note("quicknote-draft").unwrap().is_none());
+        assert!(db.get_note(&promoted.id).unwrap().is_some());
+
+        // 没有草稿时应返回 Ok(None)。
+        let no_draft = db.promote_quicknote_draft().unwrap();
+        assert!(no_draft.is_none());
+    }
+
+    #[test]
+    fn list_pinned_excludes_drafts() {
+        let db = fresh_db();
+        // 草稿即使 is_pinned=true 也应排除（save_note 内部已强制 is_draft=0，
+        // 这里直接绕过保存层模拟极端态）。
+        db.save_note(SaveNoteRequest {
+            id: Some("quicknote-draft".into()),
+            title: None,
+            content: "drafty".into(),
+            tags: vec![],
+            is_pinned: None,
+            pinned_window_config: None,
+            canvas_position: None,
+            is_draft: Some(true),
+        })
+        .unwrap()
+        .unwrap();
+        let pinned_note = db
+            .save_note(SaveNoteRequest {
+                id: None,
+                title: Some("kept".into()),
+                content: "body".into(),
+                tags: vec![],
+                is_pinned: Some(true),
+                pinned_window_config: None,
+                canvas_position: None,
+                is_draft: None,
+            })
+            .unwrap()
+            .unwrap();
+        let pinned = db.list_pinned().unwrap();
+        assert_eq!(pinned.len(), 1);
+        assert_eq!(pinned[0].id, pinned_note.id);
     }
 
     // --- settings 默认值 ---

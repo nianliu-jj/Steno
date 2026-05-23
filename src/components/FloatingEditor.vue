@@ -24,6 +24,7 @@ import { useWindow } from '@/composables/useWindow';
 import { useNotesStore } from '@/stores/notes';
 import { useSettingsStore } from '@/stores/settings';
 import type { SaveNoteRequest } from '@/types/steno';
+import { QUICKNOTE_DRAFT_ID } from '@/types/steno';
 
 const props = withDefaults(defineProps<{
   noteId?: string | null;
@@ -93,11 +94,23 @@ const { status, savedAt, error, scheduleSave, flushSave } = useAutosave(
 watch([title, content, tagsInput], () => {
   if (!loaded.value) return;
   if (isEmpty.value && !currentNoteId.value) return;
+  if (isSticky.value) {
+    scheduleSave({
+      id: currentNoteId.value ?? undefined,
+      title: title.value || undefined,
+      content: content.value,
+      tags: tagsArray.value,
+    });
+    return;
+  }
+  // quicknote 模式：固定写 quicknote-draft 单条记录并打 is_draft 标记，
+  // 这样关闭浮窗或退出应用后下次仍能从同一行 hydrate。
   scheduleSave({
-    id: currentNoteId.value ?? undefined,
+    id: QUICKNOTE_DRAFT_ID,
     title: title.value || undefined,
     content: content.value,
     tags: tagsArray.value,
+    isDraft: true,
   });
 });
 
@@ -220,7 +233,15 @@ async function dismissSticky() {
 }
 
 async function dismissQuicknote() {
-  if (isEmpty.value && !currentNoteId.value) {
+  if (isEmpty.value) {
+    // 清空内容关闭：把可能残留的 quicknote-draft 行也一并清掉，避免下次
+    // 打开浮窗又把旧内容 hydrate 回来。
+    try {
+      await db.deleteNote(QUICKNOTE_DRAFT_ID);
+      void appEvents.emitNoteRemoved({ id: QUICKNOTE_DRAFT_ID });
+    } catch {
+      // 草稿原本就不存在时 deleteNote 不会抛错，这里 catch 兜底其他偶发情况。
+    }
     await win.hideCurrent();
     resetState();
     return;
@@ -260,6 +281,20 @@ onMounted(async () => {
     loaded.value = true;
     return;
   }
+
+  // quicknote 路径：先尝试从 SQLite 拉上次未保存的草稿；存在则回填 UI。
+  try {
+    const draft = await db.getNote(QUICKNOTE_DRAFT_ID);
+    if (draft) {
+      currentNoteId.value = draft.id;
+      title.value = draft.title === '未命名' ? '' : draft.title;
+      content.value = draft.content;
+      tagsInput.value = draft.tags.map(t => `#${t}`).join(' ');
+    }
+  } catch (e) {
+    console.error('[quicknote] hydrate draft failed:', e);
+  }
+  loaded.value = true;
 
   unlistenFocus = await win.onCurrentWindowFocusChange(focused => {
     if (focused) {
@@ -310,7 +345,26 @@ async function onSaveClick() {
   if (!title.value.trim()) {
     title.value = await nextUntitledName();
   }
+  // 先把当前编辑落到 quicknote-draft 行，再原子地把它提升为正式笔记：
+  // 分配新 UUID + 清掉 is_draft 标记 + 删掉草稿。
   await flushSave();
+  if (status.value === 'error') return;
+  if (isSticky.value) return;
+  try {
+    const promoted = await db.promoteQuicknoteDraft();
+    if (promoted) {
+      currentNoteId.value = promoted.id;
+      notes.syncExternalNote(promoted);
+      void appEvents.emitNoteSaved(promoted);
+      void appEvents.emitNoteRemoved({ id: QUICKNOTE_DRAFT_ID });
+      message.success('笔记已保存');
+      await win.hideCurrent();
+      resetState();
+    }
+  } catch (e) {
+    console.error('[quicknote] promote draft failed:', e);
+    message.error(`保存失败：${String(e)}`);
+  }
 }
 
 async function onCloseClick() {

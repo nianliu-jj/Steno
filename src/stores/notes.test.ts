@@ -30,7 +30,7 @@ function makeNote(overrides: Partial<Note> = {}): Note {
     canvasPosition: null,
     createdAt: '2026-05-15T07:00:00.000Z',
     updatedAt: '2026-05-15T07:05:00.000Z',
-    wordCount: 4,
+    wordCount: 4,    isDraft: false,
     ...overrides,
   };
 }

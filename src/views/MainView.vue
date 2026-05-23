@@ -26,6 +26,7 @@ const appEvents = useAppEvents();
 
 const untaggedFilterValue = '__untagged__';
 let removeNoteSavedListener: (() => void) | null = null;
+let removeNoteRemovedListener: (() => void) | null = null;
 let noteSavedListenerDisposed = false;
 let initialNotesLoading = true;
 const pendingExternalNotes = new Map<string, Note>();
@@ -66,6 +67,19 @@ onMounted(() => {
   }).catch((error) => {
     console.error('[main] failed to listen for note save events:', error);
   });
+  void appEvents.listenNoteRemoved(({ id }) => {
+    // 速记浮窗 promote 草稿后 / 关闭空草稿后，由该事件通知主窗口同步清卡片。
+    notes.purgeLocal(id);
+    pendingExternalNotes.delete(id);
+  }).then((unlisten) => {
+    if (noteSavedListenerDisposed) {
+      unlisten();
+      return;
+    }
+    removeNoteRemovedListener = unlisten;
+  }).catch((error) => {
+    console.error('[main] failed to listen for note remove events:', error);
+  });
 });
 
 onUnmounted(() => {
@@ -73,6 +87,8 @@ onUnmounted(() => {
   pendingExternalNotes.clear();
   removeNoteSavedListener?.();
   removeNoteSavedListener = null;
+  removeNoteRemovedListener?.();
+  removeNoteRemovedListener = null;
 });
 
 const recentNotes = computed(() => notes.notes.slice(0, 30));
@@ -189,7 +205,20 @@ function onNewNote() {
   ui.navigateTo('note-editor');
 }
 
+/**
+ * 草稿笔记不允许进入编辑页 / 内联编辑标题、标签或置顶——所有改动都得通过
+ * 速记浮窗走。命中时弹一次提示并返回 true，调用方据此短路自己的逻辑。
+ */
+function blockDraftEdit(note: Note): boolean {
+  if (note.isDraft) {
+    message.warning('未保存的笔记，不允许在编辑页面打开');
+    return true;
+  }
+  return false;
+}
+
 function onOpenNoteEditor(note: Note) {
+  if (blockDraftEdit(note)) return;
   ui.navigateTo('note-editor', note.id);
 }
 
@@ -363,6 +392,7 @@ async function onConfirmRenameDialog() {
 }
 
 async function onTogglePin(note: Note) {
+  if (blockDraftEdit(note)) return;
   try {
     if (note.isPinned) {
       await notes.unpinNote(note.id);
@@ -380,6 +410,7 @@ const editingTitleId = ref<string | null>(null);
 const titleDraft = ref('');
 
 async function onStartTitleEdit(note: Note) {
+  if (blockDraftEdit(note)) return;
   editingTitleId.value = note.id;
   titleDraft.value = note.title;
   await nextTick();
@@ -430,6 +461,7 @@ async function onConfirmDelete(note: Note) {
 }
 
 function onOpenTagDialogForCard(note: Note) {
+  if (blockDraftEdit(note)) return;
   tagDialogNote.value = note;
   tagDraftRows.value = note.tags.length ? [...note.tags] : [''];
   tagDialogVisible.value = true;
@@ -556,6 +588,12 @@ function formatUpdatedAt(iso: string): string {
       >
         <header class="note-card-header" @click.stop>
           <div class="note-card-title-area">
+            <span
+              v-if="note.isDraft"
+              class="note-card-draft-tag"
+              data-testid="card-draft-tag"
+              title="未保存的草稿，仅可在速记浮窗里继续编辑"
+            >未保存</span>
             <span v-if="note.isPinned" class="note-pin"></span>
             <h3
               v-if="editingTitleId !== note.id"
@@ -1390,6 +1428,20 @@ function formatUpdatedAt(iso: string): string {
   flex-shrink: 0;
   border-radius: 999px;
   background: oklch(61% 0.13 42);
+}
+
+.note-card-draft-tag {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border: 1px solid oklch(85% 0.005 80);
+  border-radius: 4px;
+  background: oklch(94% 0.005 80);
+  color: oklch(55% 0.012 80);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  cursor: default;
 }
 
 .note-card-title {

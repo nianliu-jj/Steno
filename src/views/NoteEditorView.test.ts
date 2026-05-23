@@ -24,7 +24,7 @@ const getNote = vi.fn(() =>
     canvasPosition: null,
     createdAt: '2026-05-13T00:00:00.000Z',
     updatedAt: '2026-05-13T00:00:00.000Z',
-    wordCount: 14,
+    wordCount: 14,    isDraft: false,
   }),
 );
 

@@ -34,6 +34,11 @@ export interface Note {
   /** RFC3339 字符串 */
   updatedAt: string;
   wordCount: number;
+  /**
+   * 未保存草稿标记。速记浮窗未点保存就关闭时持久化为 true；
+   * 笔记列表会把它排在最前面并附"未保存"灰标签，禁止进入编辑页。
+   */
+  isDraft: boolean;
 }
 
 export interface SaveNoteRequest {
@@ -44,7 +49,12 @@ export interface SaveNoteRequest {
   isPinned?: boolean;
   pinnedWindowConfig?: PinnedWindowConfig | null;
   canvasPosition?: CanvasPosition | null;
+  /** 仅速记浮窗写入草稿时传 true；置顶笔记后端会强制清零。 */
+  isDraft?: boolean;
 }
+
+/** 速记浮窗的固定草稿 ID。前后端共同约定，前端写入与 hydrate 都用这个 id。 */
+export const QUICKNOTE_DRAFT_ID = 'quicknote-draft';
 
 export interface SearchNotesRequest {
   query: string;
