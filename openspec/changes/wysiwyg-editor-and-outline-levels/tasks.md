@@ -21,16 +21,16 @@
 
 ## 4. 大纲入口图标化（capability: document-outline-headings）
 
-- [ ] 4.1 把 `NoteEditorView.vue` 的 `.note-editor-outline-fab` 文字按钮替换为带 list 图标的圆形按钮，保留 `data-testid="note-outline-toggle"`、`aria-label="大纲"`、`title="大纲"`
-- [ ] 4.2 调整按钮 hover / focus 样式与现有图标按钮（如 `note-editor-icon-button`）保持一致
-- [ ] 4.3 更新 `NoteEditorView.test.ts` 中针对 outline 按钮的断言（保留 testid，不假设按钮文本）
+- [x] 4.1 把 `NoteEditorView.vue` 的 `.note-editor-outline-fab` 文字按钮替换为带 list 图标的圆形按钮，保留 `data-testid="note-outline-toggle"`、`aria-label`、`title`
+- [x] 4.2 调整按钮 hover / focus 样式：圆形 32×32，aria-pressed=true 时高亮，与现有按钮的暖色调一致
+- [x] 4.3 既有 `NoteEditorView.test.ts` 用例只断言 testid，不依赖按钮文本，无需改动测试
 
 ## 5. 大纲等级徽章
 
-- [ ] 5.1 在 `DocumentOutlineTree.vue` 节点模板中，节点文本前渲染 `<span class="outline-level-badge">H{{level}}</span>`
-- [ ] 5.2 徽章样式：固定宽度 22px、灰底、灰字、字号 10px、字母大小写一致；与节点文字间隔 6px
-- [ ] 5.3 确认 `useMarkdownOutline.buildOutline` 输出的 `OutlineNode.level` 字段已有（如缺失则补全）
-- [ ] 5.4 为徽章渲染补 Vitest 单测（H1/H2/H3 等级文本、置灰色与背景）
+- [x] 5.1 在 `DocumentOutlineTree.vue` 节点模板中，节点文本前渲染 `<span class="outline-tree__badge">H{{level}}</span>`
+- [x] 5.2 徽章样式：min-width 22px、灰底（rgba(132,82,47,0.1)）、灰字（#9a8d80）、字号 10px、字母粗细 600；与节点文字间隔 6px
+- [x] 5.3 `useMarkdownOutline.buildOutline` 输出的 `OutlineNode.level` 字段已存在，无需补全
+- [x] 5.4 在 `DocumentOutlineTree.test.ts` 中新增徽章文本与 aria-label 断言
 
 ## 6. 验证
 

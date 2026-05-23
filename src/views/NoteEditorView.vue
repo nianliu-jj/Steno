@@ -254,9 +254,19 @@ function onSelectOutline(node: { line: number; id: string }) {
         class="note-editor-outline-fab"
         data-testid="note-outline-toggle"
         type="button"
+        :aria-label="outlineOpen ? '收起大纲' : '展开大纲'"
+        :title="outlineOpen ? '收起大纲' : '展开大纲'"
+        :aria-pressed="outlineOpen"
         @click="outlineOpen = !outlineOpen"
       >
-        大纲
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="8" y1="6" x2="20" y2="6" />
+          <line x1="8" y1="12" x2="20" y2="12" />
+          <line x1="8" y1="18" x2="20" y2="18" />
+          <circle cx="4" cy="6" r="1.4" />
+          <circle cx="4" cy="12" r="1.4" />
+          <circle cx="4" cy="18" r="1.4" />
+        </svg>
       </button>
       <aside
         v-if="outlineOpen"
@@ -816,16 +826,36 @@ function onSelectOutline(node: { line: number; id: string }) {
   right: 40px;
   bottom: 32px;
   z-index: 2;
-  min-width: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
   height: 32px;
   border: 1px solid rgba(132, 82, 47, 0.18);
   border-radius: 999px;
   background: rgba(255, 250, 244, 0.96);
   color: #6f5c4c;
   font: inherit;
-  font-size: 12px;
   cursor: pointer;
   box-shadow: 0 8px 24px rgba(38, 31, 25, 0.12);
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.note-editor-outline-fab:hover,
+.note-editor-outline-fab:focus-visible {
+  color: #2f2923;
+  border-color: rgba(132, 82, 47, 0.32);
+  background: rgba(255, 250, 244, 1);
+}
+
+.note-editor-outline-fab[aria-pressed="true"] {
+  color: #2f2923;
+  background: rgba(132, 82, 47, 0.12);
+  border-color: rgba(132, 82, 47, 0.36);
+}
+
+.note-editor-outline-fab svg {
+  pointer-events: none;
 }
 
 .note-editor-outline-panel {

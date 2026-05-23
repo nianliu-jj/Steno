@@ -36,7 +36,12 @@ function onSelect(node: OutlineNode) {
           :data-testid="`outline-node-${node.id}`"
           @click="onSelect(node)"
         >
-          {{ node.text }}
+          <span
+            class="outline-tree__badge"
+            :data-testid="`outline-node-level-${node.id}`"
+            :aria-label="`H${node.level}`"
+          >H{{ node.level }}</span>
+          <span class="outline-tree__text">{{ node.text }}</span>
         </button>
         <DocumentOutlineTree
           v-if="node.children.length > 0"
@@ -72,6 +77,9 @@ function onSelect(node: OutlineNode) {
 }
 
 .outline-tree__button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: 100%;
   padding: 0;
   border: 0;
@@ -86,5 +94,30 @@ function onSelect(node: OutlineNode) {
 
 .outline-tree__button:hover {
   color: #2a2a2a;
+}
+
+.outline-tree__badge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(132, 82, 47, 0.1);
+  color: #9a8d80;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.outline-tree__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>
