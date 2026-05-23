@@ -172,7 +172,9 @@ export const useUiStore = defineStore('ui', () => {
 
   function exitZen() {
     const target = zenReturnMode.value;
-    navigateTo(target ?? 'main');
+    // 把当前 noteId 带回去：navigateTo 内部只在 zen / note-editor 模式下接受
+    // noteId，因此对 canvas / main 等目标会自动丢弃，不必在此分类处理。
+    navigateTo(target ?? 'main', noteId.value);
   }
 
   function closeSettings() {

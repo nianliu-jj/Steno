@@ -123,7 +123,7 @@ describe('ui store', () => {
     expect(ui.noteId).toBeNull();
   });
 
-  it('returns to note-editor after opening Zen from the editor page', () => {
+  it('returns to note-editor after opening Zen from the editor page and keeps the note id', () => {
     const ui = useUiStore();
 
     ui.navigateTo('note-editor', 'note-1');
@@ -131,7 +131,7 @@ describe('ui store', () => {
     ui.exitZen();
 
     expect(ui.mode).toBe('note-editor');
-    expect(ui.noteId).toBeNull();
+    expect(ui.noteId).toBe('note-1');
   });
 
   it('opens settings as a modal state without replacing the current workbench route', () => {
