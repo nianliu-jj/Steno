@@ -58,10 +58,41 @@ describe('ClipboardView', () => {
     const wrapper = mount(ClipboardView);
     await vi.dynamicImportSettled();
 
+    expect(wrapper.find('[data-testid="clipboard-card-1"]').exists()).toBe(true);
+    expect(wrapper.get('[data-testid="clipboard-card-header-1"]').text()).toContain('链接');
+    expect(wrapper.get('[data-testid="clipboard-card-footer-1"]').text()).toContain('05/25');
     expect(wrapper.text()).toContain('链接');
     expect(wrapper.text()).toContain('https://example.com');
+    expect(wrapper.get('[data-testid="clipboard-copy-1"]').attributes('aria-label')).toBe('复制');
+    expect(wrapper.get('[data-testid="clipboard-delete-1"]').attributes('aria-label')).toBe('删除');
+    expect(wrapper.find('[data-testid="clipboard-card-footer-actions-1"]').exists()).toBe(true);
     await wrapper.get('[data-testid="clipboard-copy-1"]').trigger('click');
     expect(copyClipboardEntry).toHaveBeenCalledWith('1');
+  });
+
+  it('requires confirmation before deleting an entry', async () => {
+    listClipboardEntries.mockResolvedValueOnce([
+      {
+        id: '1',
+        contentType: 'text',
+        content: 'hello',
+        htmlContent: null,
+        preview: 'hello',
+        createdAt: '2026-05-25T00:00:00Z',
+        updatedAt: '2026-05-25T00:00:00Z',
+        sizeBytes: 5,
+      },
+    ]);
+
+    const wrapper = mount(ClipboardView);
+    await vi.dynamicImportSettled();
+
+    await wrapper.get('[data-testid="clipboard-delete-1"]').trigger('click');
+    expect(deleteClipboardEntry).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain('确认删除');
+
+    await wrapper.get('[data-testid="clipboard-delete-confirm-1"]').trigger('click');
+    expect(deleteClipboardEntry).toHaveBeenCalledWith('1');
   });
 
   it('filters visible entries by type button', async () => {

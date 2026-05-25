@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { useClipboardStore } from '@/stores/clipboard';
 import type { ClipboardContentType, ClipboardEntry } from '@/types/steno';
 
 const store = useClipboardStore();
+const pendingDeleteId = ref<string | null>(null);
 
 const filters: Array<{ label: string; value: ClipboardContentType | null; testid: string }> = [
   { label: '全部', value: null, testid: 'all' },
@@ -62,6 +63,21 @@ function previewLines(entry: ClipboardEntry) {
 function setFilter(value: ClipboardContentType | null) {
   store.typeFilter = value;
 }
+
+function requestDelete(id: string) {
+  pendingDeleteId.value = id;
+}
+
+function cancelDelete() {
+  pendingDeleteId.value = null;
+}
+
+async function confirmDelete(id: string) {
+  await store.deleteEntry(id);
+  if (pendingDeleteId.value === id) {
+    pendingDeleteId.value = null;
+  }
+}
 </script>
 
 <template>
@@ -109,14 +125,62 @@ function setFilter(value: ClipboardContentType | null) {
       <article
         v-for="entry in store.filteredEntries"
         :key="entry.id"
-        class="clipboard-item"
+        class="clipboard-card"
         :data-type="entry.contentType"
+        :data-testid="`clipboard-card-${entry.id}`"
       >
-        <div class="clipboard-item__main">
-          <div class="clipboard-item__meta">
+        <header class="clipboard-card__header" :data-testid="`clipboard-card-header-${entry.id}`">
+          <div class="clipboard-card__type">
             <span class="clipboard-type">{{ typeLabel(entry.contentType) }}</span>
-            <time>{{ formatTime(entry.updatedAt) }}</time>
           </div>
+          <div class="clipboard-card__delete">
+            <template v-if="pendingDeleteId === entry.id">
+              <span class="clipboard-confirm-text">确认删除？</span>
+              <button
+                class="clipboard-icon-button clipboard-icon-button--danger"
+                type="button"
+                :data-testid="`clipboard-delete-confirm-${entry.id}`"
+                aria-label="确认删除"
+                title="确认删除"
+                @click="confirmDelete(entry.id)"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+              </button>
+              <button
+                class="clipboard-icon-button"
+                type="button"
+                :data-testid="`clipboard-delete-cancel-${entry.id}`"
+                aria-label="取消删除"
+                title="取消删除"
+                @click="cancelDelete"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </template>
+            <button
+              v-else
+              class="clipboard-icon-button clipboard-icon-button--danger"
+              type="button"
+              :data-testid="`clipboard-delete-${entry.id}`"
+              aria-label="删除"
+              title="删除"
+              @click="requestDelete(entry.id)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 6h18" />
+                <path d="M8 6V4h8v2" />
+                <path d="M6 6l1 14h10l1-14" />
+                <path d="M10 11v5M14 11v5" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="clipboard-card__content">
           <img
             v-if="entry.contentType === 'image'"
             class="clipboard-image"
@@ -125,19 +189,28 @@ function setFilter(value: ClipboardContentType | null) {
           >
           <pre v-else class="clipboard-preview">{{ previewLines(entry) }}</pre>
         </div>
-        <div class="clipboard-actions">
-          <button
-            type="button"
-            :data-testid="`clipboard-copy-${entry.id}`"
-            title="复制"
-            @click="store.copyEntry(entry.id)"
+
+        <footer class="clipboard-card__footer" :data-testid="`clipboard-card-footer-${entry.id}`">
+          <time class="clipboard-time">{{ formatTime(entry.updatedAt) }}</time>
+          <div
+            class="clipboard-card__footer-actions"
+            :data-testid="`clipboard-card-footer-actions-${entry.id}`"
           >
-            复制
-          </button>
-          <button type="button" title="删除" @click="store.deleteEntry(entry.id)">
-            删除
-          </button>
-        </div>
+            <button
+              class="clipboard-icon-button"
+              type="button"
+              :data-testid="`clipboard-copy-${entry.id}`"
+              aria-label="复制"
+              title="复制"
+              @click="store.copyEntry(entry.id)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M8 8h11v11H8z" />
+                <path d="M5 16H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
+              </svg>
+            </button>
+          </div>
+        </footer>
       </article>
     </div>
   </section>
@@ -245,37 +318,52 @@ function setFilter(value: ClipboardContentType | null) {
   overflow: auto;
 }
 
-.clipboard-item {
+.clipboard-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  padding: 12px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 12px 14px;
   border: 1px solid var(--app-border);
   border-radius: 8px;
   background: var(--app-surface);
 }
 
-.clipboard-item__main {
-  min-width: 0;
-  display: grid;
-  gap: 8px;
-}
-
-.clipboard-item__meta {
+.clipboard-card__header,
+.clipboard-card__footer {
+  min-height: 32px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--app-muted);
-  font-size: 12px;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.clipboard-card__type,
+.clipboard-card__delete,
+.clipboard-card__footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.clipboard-card__content {
+  min-width: 0;
 }
 
 .clipboard-type {
   color: var(--app-accent);
   font-weight: 650;
+  font-size: 13px;
+}
+
+.clipboard-time,
+.clipboard-confirm-text {
+  color: var(--app-muted);
+  font-size: 12px;
 }
 
 .clipboard-preview {
-  max-height: 88px;
+  min-height: 34px;
+  max-height: 118px;
   margin: 0;
   overflow: hidden;
   color: var(--app-fg);
@@ -292,25 +380,44 @@ function setFilter(value: ClipboardContentType | null) {
   background: var(--app-bg);
 }
 
-.clipboard-actions {
-  display: flex;
-  align-items: start;
-  gap: 6px;
-}
-
-.clipboard-actions button {
-  min-height: 30px;
-  padding: 0 10px;
+.clipboard-icon-button {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
   border: 1px solid var(--app-border);
   border-radius: 7px;
   background: var(--app-bg);
-  color: var(--app-fg);
+  color: var(--app-muted);
   cursor: pointer;
+}
+
+.clipboard-icon-button:hover,
+.clipboard-icon-button:focus-visible {
+  border-color: var(--app-accent);
+  color: var(--app-accent);
+  outline: 0;
+}
+
+.clipboard-icon-button--danger:hover,
+.clipboard-icon-button--danger:focus-visible {
+  border-color: #d03050;
+  color: #d03050;
+}
+
+.clipboard-icon-button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 @media (max-width: 720px) {
   .clipboard-toolbar,
-  .clipboard-item {
+  .clipboard-card {
     grid-template-columns: 1fr;
     display: grid;
   }
