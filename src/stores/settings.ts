@@ -40,6 +40,8 @@ export interface StenoSettings {
   mainWindowShortcut: string;
   /** 速记浮窗的全局快捷键。 */
   quicknoteShortcut: string;
+  /** 粘贴板浮窗 / 页面入口的全局快捷键。 */
+  clipboardShortcut: string;
   /** 全局搜索的快捷键。 */
   searchShortcut: string;
   /** 速记浮窗默认宽度（px）。 */
@@ -70,6 +72,7 @@ const DEFAULTS: StenoSettings = {
   themeMode: 'system',
   mainWindowShortcut: 'Ctrl+Shift+N',
   quicknoteShortcut: 'Ctrl+Shift+M',
+  clipboardShortcut: 'Ctrl+Shift+V',
   searchShortcut: 'Ctrl+Shift+F',
   floatingWidth: 400,
   floatingHeight: 300,

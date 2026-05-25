@@ -71,4 +71,21 @@ describe('settings store', () => {
     expect(dbSetSettingMock).toHaveBeenNthCalledWith(2, 'mainSidebarCollapsed', 'true');
     expect(dbSetSettingMock).toHaveBeenNthCalledWith(3, 'zenOutlineWidth', '296');
   });
+
+  it('loads and persists the clipboard shortcut setting', async () => {
+    dbGetSettingMock.mockImplementation(async (key: string) => {
+      const map: Record<string, string | null> = {
+        clipboardShortcut: 'Alt+C',
+      };
+      return map[key] ?? null;
+    });
+
+    const store = useSettingsStore();
+    await store.load();
+
+    expect(store.state.clipboardShortcut).toBe('Alt+C');
+
+    await store.update('clipboardShortcut', 'Ctrl+Shift+V');
+    expect(dbSetSettingMock).toHaveBeenCalledWith('clipboardShortcut', 'Ctrl+Shift+V');
+  });
 });
