@@ -604,6 +604,30 @@ impl Db {
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
+    pub fn get_clipboard_entry(&self, id: &str) -> Result<Option<ClipboardEntry>, DbError> {
+        let conn = self.lock()?;
+        match Self::find_clipboard_entry(&conn, id) {
+            Ok(entry) => Ok(Some(entry)),
+            Err(DbError::NotFound(_)) => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
+    pub fn delete_clipboard_entry(&self, id: &str) -> Result<(), DbError> {
+        let conn = self.lock()?;
+        conn.execute(
+            "DELETE FROM clipboard_history WHERE id = ?1",
+            rusqlite::params![id],
+        )?;
+        Ok(())
+    }
+
+    pub fn clear_clipboard_entries(&self) -> Result<(), DbError> {
+        let conn = self.lock()?;
+        conn.execute("DELETE FROM clipboard_history", [])?;
+        Ok(())
+    }
+
     // ----- 设置 key-value -----------------------------------------------
 
     pub fn get_setting(&self, key: &str) -> Result<Option<String>, DbError> {
@@ -1286,6 +1310,76 @@ mod tests {
             .unwrap();
         assert_eq!(search.len(), 1);
         assert_eq!(search[0].content, "meeting notes");
+    }
+
+    #[test]
+    fn get_clipboard_entry_returns_saved_entry() {
+        let db = fresh_db();
+        let saved = db
+            .upsert_clipboard_entry(NewClipboardEntry {
+                content_type: "text".into(),
+                content: "copy me".into(),
+                html_content: None,
+                preview: "copy me".into(),
+                content_hash: "text:get".into(),
+                size_bytes: 7,
+            })
+            .unwrap();
+
+        let found = db.get_clipboard_entry(&saved.id).unwrap();
+
+        assert_eq!(found.unwrap().content, "copy me");
+        assert!(db.get_clipboard_entry("missing").unwrap().is_none());
+    }
+
+    #[test]
+    fn delete_clipboard_entry_removes_one_entry() {
+        let db = fresh_db();
+        let saved = db
+            .upsert_clipboard_entry(NewClipboardEntry {
+                content_type: "text".into(),
+                content: "delete me".into(),
+                html_content: None,
+                preview: "delete me".into(),
+                content_hash: "text:delete".into(),
+                size_bytes: 9,
+            })
+            .unwrap();
+
+        db.delete_clipboard_entry(&saved.id).unwrap();
+
+        assert!(db.get_clipboard_entry(&saved.id).unwrap().is_none());
+    }
+
+    #[test]
+    fn clear_clipboard_entries_removes_all_entries() {
+        let db = fresh_db();
+        db.upsert_clipboard_entry(NewClipboardEntry {
+            content_type: "text".into(),
+            content: "first".into(),
+            html_content: None,
+            preview: "first".into(),
+            content_hash: "text:first".into(),
+            size_bytes: 5,
+        })
+        .unwrap();
+        db.upsert_clipboard_entry(NewClipboardEntry {
+            content_type: "url".into(),
+            content: "https://example.com".into(),
+            html_content: None,
+            preview: "https://example.com".into(),
+            content_hash: "url:first".into(),
+            size_bytes: 19,
+        })
+        .unwrap();
+
+        db.clear_clipboard_entries().unwrap();
+
+        assert!(
+            db.list_clipboard_entries(20, None, None)
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

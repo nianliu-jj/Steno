@@ -54,6 +54,10 @@ pub fn run() {
             commands::update_canvas_position,
             commands::get_setting,
             commands::set_setting,
+            commands::list_clipboard_entries,
+            commands::delete_clipboard_entry,
+            commands::clear_clipboard_entries,
+            commands::copy_clipboard_entry,
             commands::open_sticky_note_window,
             commands::close_sticky_note_window,
             commands::open_canvas_window,
@@ -91,6 +95,8 @@ pub fn run() {
             // 先从 settings 读快捷键并 register（需要 &Db），之后再 manage()
             // 把 db 交给 State。reload_shortcuts command 后续会从 State 拿。
             shortcut::register_from_settings(app.handle(), &database)?;
+
+            clipboard::start_monitor(app.handle().clone(), database.clone());
 
             app.manage(database);
 

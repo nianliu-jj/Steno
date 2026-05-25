@@ -10,8 +10,9 @@
 //! 把 `DbError` / `JoinError` 都格式化成 `String` 返给前端 —
 //! 前端有完整错误消息便于排查，同时避免泄露内部结构。
 
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
+use crate::clipboard::{self, ClipboardEntry};
 use crate::db::Db;
 use crate::export;
 use crate::models::{
@@ -166,6 +167,65 @@ pub async fn set_setting(db: State<'_, Db>, key: String, value: String) -> Resul
         .await
         .map_err(to_msg)?
         .map_err(to_msg)
+}
+
+// ----- 剪贴板 commands -------------------------------------------------
+
+#[tauri::command]
+pub async fn list_clipboard_entries(
+    db: State<'_, Db>,
+    limit: i64,
+    content_type: Option<String>,
+    query: Option<String>,
+) -> Result<Vec<ClipboardEntry>, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        db.list_clipboard_entries(limit, content_type, query)
+    })
+    .await
+    .map_err(to_msg)?
+    .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn delete_clipboard_entry(
+    app: AppHandle,
+    db: State<'_, Db>,
+    id: String,
+) -> Result<(), String> {
+    let db = db.inner().clone();
+    let id_for_emit = id.clone();
+    tauri::async_runtime::spawn_blocking(move || db.delete_clipboard_entry(&id))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)?;
+    let _ = app.emit(clipboard::CLIPBOARD_REMOVED_EVENT, id_for_emit);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn clear_clipboard_entries(app: AppHandle, db: State<'_, Db>) -> Result<(), String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.clear_clipboard_entries())
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)?;
+    let _ = app.emit(clipboard::CLIPBOARD_CLEARED_EVENT, ());
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn copy_clipboard_entry(db: State<'_, Db>, id: String) -> Result<(), String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        let entry = db
+            .get_clipboard_entry(&id)
+            .map_err(to_msg)?
+            .ok_or_else(|| format!("剪贴板条目不存在：{id}"))?;
+        clipboard::write_entry_to_system_clipboard(&entry)
+    })
+    .await
+    .map_err(to_msg)?
 }
 
 // ----- 窗口管理 commands（Plan Task 3 Step 2 暴露给前端） ---------------

@@ -2,10 +2,15 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::io::Cursor;
 use std::path::Path;
+use std::thread;
+use std::time::Duration;
 
 use arboard::{Clipboard, ImageData};
 use base64::Engine;
 use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter};
+
+use crate::db::Db;
 
 pub const CLIPBOARD_UPDATED_EVENT: &str = "steno:clipboard-updated";
 pub const CLIPBOARD_REMOVED_EVENT: &str = "steno:clipboard-removed";
@@ -118,6 +123,34 @@ pub fn write_entry_to_system_clipboard(entry: &ClipboardEntry) -> Result<(), Str
     clipboard
         .set_text(entry.content.clone())
         .map_err(|e| e.to_string())
+}
+
+pub fn should_process_hash(last_hash: Option<&str>, next_hash: &str) -> bool {
+    last_hash != Some(next_hash)
+}
+
+pub fn start_monitor(app: AppHandle, db: Db) {
+    thread::spawn(move || {
+        let mut last_hash = entry_from_system_clipboard().map(|entry| entry.content_hash);
+        loop {
+            thread::sleep(Duration::from_millis(600));
+            let Some(entry) = entry_from_system_clipboard() else {
+                continue;
+            };
+            if !should_process_hash(last_hash.as_deref(), &entry.content_hash) {
+                continue;
+            }
+            last_hash = Some(entry.content_hash.clone());
+            match db.upsert_clipboard_entry(entry) {
+                Ok(saved) => {
+                    let _ = app.emit(CLIPBOARD_UPDATED_EVENT, saved);
+                }
+                Err(error) => {
+                    eprintln!("[clipboard] failed to save clipboard entry: {error}");
+                }
+            }
+        }
+    });
 }
 
 fn normalize_text(raw: &str) -> String {
@@ -249,8 +282,8 @@ mod tests {
 
     #[test]
     fn classify_code_text() {
-        let entry = classify_text("const value = 1;\nfunction run() { return value; }")
-            .expect("entry");
+        let entry =
+            classify_text("const value = 1;\nfunction run() { return value; }").expect("entry");
         assert_eq!(entry.content_type, "code");
         assert!(entry.preview.contains("const value"));
     }
@@ -276,10 +309,21 @@ mod tests {
 
     #[test]
     fn image_entry_uses_data_url_hash() {
-        let entry = image_entry_from_data_url("data:image/png;base64,AAAA".to_string())
-            .expect("entry");
+        let entry =
+            image_entry_from_data_url("data:image/png;base64,AAAA".to_string()).expect("entry");
         assert_eq!(entry.content_type, "image");
         assert_eq!(entry.preview, "图片内容");
         assert!(entry.content_hash.starts_with("image:"));
+    }
+
+    #[test]
+    fn should_process_hash_skips_unchanged_clipboard_content() {
+        assert!(!should_process_hash(Some("text:abc"), "text:abc"));
+    }
+
+    #[test]
+    fn should_process_hash_accepts_first_or_changed_clipboard_content() {
+        assert!(should_process_hash(None, "text:abc"));
+        assert!(should_process_hash(Some("text:abc"), "text:def"));
     }
 }
