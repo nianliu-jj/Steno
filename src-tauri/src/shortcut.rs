@@ -16,6 +16,7 @@
 //! settings 读不到或解析失败时回退到硬编码默认值：
 //! - 主窗口：`Ctrl+Shift+N`
 //! - 速记浮窗：`Ctrl+Shift+M`
+//! - 粘贴板：`Ctrl+Shift+V`
 
 use std::sync::{LazyLock, Mutex};
 
@@ -37,12 +38,18 @@ pub fn quicknote_shortcut() -> Shortcut {
     Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyM)
 }
 
+/// 粘贴板默认快捷键。settings 读不到时回退到此。
+pub fn clipboard_shortcut() -> Shortcut {
+    Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyV)
+}
+
 // ----- 全局 registry ---------------------------------------------------
 
 #[derive(Debug, Clone, Copy)]
 enum Action {
     ToggleMain,
     ToggleQuicknote,
+    OpenClipboard,
 }
 
 static REGISTRY: LazyLock<Mutex<Vec<(Shortcut, Action)>>> =
@@ -148,16 +155,19 @@ pub fn plugin() -> TauriPlugin<Wry> {
             match lookup_action(shortcut) {
                 Some(Action::ToggleMain) => window_manager::toggle_main(app),
                 Some(Action::ToggleQuicknote) => quicknote::toggle(app),
+                Some(Action::OpenClipboard) => {
+                    let _ = window_manager::open_clipboard(app);
+                }
                 None => {}
             }
         })
         .build()
 }
 
-/// setup 阶段调用一次；设置面板改了 mainWindowShortcut / quicknoteShortcut 后
-/// 再调一次（通过 reload_shortcuts command）。
+/// setup 阶段调用一次；设置面板改了 mainWindowShortcut / quicknoteShortcut /
+/// clipboardShortcut 后再调一次（通过 reload_shortcuts command）。
 ///
-/// 流程：unregister_all → 读 settings (mainWindowShortcut / quicknoteShortcut)
+/// 流程：unregister_all → 读 settings (mainWindowShortcut / quicknoteShortcut / clipboardShortcut)
 /// → 解析失败回退默认 → 更新 registry → 重新 register OS。
 pub fn register_from_settings(app: &AppHandle, db: &Db) -> Result<(), ShortcutError> {
     let main_str = db
@@ -166,9 +176,13 @@ pub fn register_from_settings(app: &AppHandle, db: &Db) -> Result<(), ShortcutEr
     let quicknote_str = db
         .get_setting("quicknoteShortcut")?
         .unwrap_or_else(|| "Ctrl+Shift+M".to_string());
+    let clipboard_str = db
+        .get_setting("clipboardShortcut")?
+        .unwrap_or_else(|| "Ctrl+Shift+V".to_string());
 
     let main_sc = parse_shortcut(&main_str).unwrap_or_else(toggle_shortcut);
     let quicknote_sc = parse_shortcut(&quicknote_str).unwrap_or_else(quicknote_shortcut);
+    let clipboard_sc = parse_shortcut(&clipboard_str).unwrap_or_else(clipboard_shortcut);
 
     // 先把 OS 端老的注销掉；首次注册时 registry 为空，unregister_all 也安全。
     let _ = app.global_shortcut().unregister_all();
@@ -176,10 +190,12 @@ pub fn register_from_settings(app: &AppHandle, db: &Db) -> Result<(), ShortcutEr
     set_registry(vec![
         (main_sc, Action::ToggleMain),
         (quicknote_sc, Action::ToggleQuicknote),
+        (clipboard_sc, Action::OpenClipboard),
     ])?;
 
     app.global_shortcut().register(main_sc)?;
     app.global_shortcut().register(quicknote_sc)?;
+    app.global_shortcut().register(clipboard_sc)?;
     Ok(())
 }
 
@@ -197,6 +213,20 @@ mod tests {
     fn parse_ctrl_shift_m_lowercase() {
         let sc = parse_shortcut("ctrl+shift+m").expect("parse");
         assert_eq!(sc, quicknote_shortcut());
+    }
+
+    #[test]
+    fn parse_ctrl_shift_v_for_clipboard() {
+        let sc = parse_shortcut("Ctrl+Shift+V").expect("parse");
+        assert_eq!(sc, clipboard_shortcut());
+    }
+
+    #[test]
+    fn clipboard_shortcut_default_uses_ctrl_shift_v() {
+        assert_eq!(
+            clipboard_shortcut(),
+            Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyV),
+        );
     }
 
     #[test]

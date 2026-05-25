@@ -135,11 +135,11 @@ fn navigate_main(app: &AppHandle, mode: &str, note_id: Option<&str>) -> tauri::R
         MAIN_LABEL,
         WebviewUrl::App(PathBuf::from(main_route_url(mode, note_id))),
     )
-        .title("Steno")
-        .inner_size(800.0, 600.0)
-        .min_inner_size(480.0, 360.0)
-        .center()
-        .build()?;
+    .title("Steno")
+    .inner_size(800.0, 600.0)
+    .min_inner_size(480.0, 360.0)
+    .center()
+    .build()?;
     Ok(())
 }
 
@@ -149,6 +149,10 @@ pub fn open_canvas(app: &AppHandle) -> tauri::Result<()> {
 
 pub fn open_settings(app: &AppHandle) -> tauri::Result<()> {
     navigate_main(app, "settings", None)
+}
+
+pub fn open_clipboard(app: &AppHandle) -> tauri::Result<()> {
+    navigate_main(app, "clipboard", None)
 }
 
 /// note_id = Some 时把 id 作为导航事件 payload 传给主窗口内的 Zen 页面。
@@ -163,6 +167,11 @@ mod tests {
     #[test]
     fn main_route_url_for_plain_page_uses_hash_route() {
         assert_eq!(main_route_url("canvas", None), "index.html#canvas");
+    }
+
+    #[test]
+    fn main_route_url_for_clipboard_uses_hash_route() {
+        assert_eq!(main_route_url("clipboard", None), "index.html#clipboard");
     }
 
     #[test]
