@@ -1,18 +1,48 @@
 <script setup lang="ts">
+/**
+ * @component MarkdownReadSurface
+ * @description 只读 Markdown 渲染面板 — 用于 NoteEditorView 的"只读模式"。
+ *              将 Markdown 原文渲染为 HTML（marked）并注入标题锚点（id），
+ *              配合 DocumentOutlineTree 的大纲点击跳转。
+ *
+ * **与 MarkdownEditor 的关系**：
+ * - MarkdownEditor = 可编辑的 CodeMirror 6 编辑器（WYSIWYG）
+ * - MarkdownReadSurface = 纯渲染输出（只读，通过 `v-html` 渲染）
+ * - NoteEditorView 通过 `viewMode` 在两者之间切换
+ *
+ * **XSS 注意**：`v-html` 直接注入 HTML。marked 的输出未经 sanitize，
+ * 但 MVP 阶段内容均为本地用户自己编写，风险可控。
+ *
+ * @props
+ * - `title: string` — 文档标题
+ * - `content: string` — Markdown 原文
+ */
+
 import { computed } from 'vue';
 
 import { useMarkdown } from '@/composables/useMarkdown';
 import { useMarkdownOutline } from '@/composables/useMarkdownOutline';
 
 const props = defineProps<{
+  /** 文档标题（显示在顶部 `<h1>`）。 */
   title: string;
+  /** Markdown 原文。 */
   content: string;
 }>();
 
 const { renderHtml } = useMarkdown();
 const { decorateHeadingAnchors, listHeadings } = useMarkdownOutline();
 
+/** 显示用标题 — 空标题显示"无标题"。 */
 const displayTitle = computed(() => props.title.trim() || '无标题');
+
+/**
+ * 渲染后的 HTML — 两步处理：
+ * 1. `renderHtml(content)` → marked GFM 渲染
+ * 2. `decorateHeadingAnchors(html, headings)` → 注入 `id="heading-N"` 到 `<h1>`–`<h6>`
+ *
+ * 第二步保证大纲点击后 `document.getElementById(id)` 能定位到对应标题。
+ */
 const renderedHtml = computed(() =>
   decorateHeadingAnchors(renderHtml(props.content), listHeadings(props.content)),
 );

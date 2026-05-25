@@ -1,20 +1,25 @@
 <script setup lang="ts">
-// 无限画布核心（plan Task 7 Step 3-8）。
-//
-// 坐标系：
-// - 世界坐标 (world)：note.canvasPosition.x/y，稳定不变。
-// - 屏幕坐标 (screen)：world * zoom + pan。
-// - 容器内 pointer 事件直接给屏幕坐标（layerX/Y）；换算到世界用：
-//     wx = (sx - pan.x) / zoom
-//
-// 交互：
-// - 背景拖动 → 改 pan
-// - 卡片拖动 → 改卡片 world position（释放时 commit 到 db）
-// - 滚轮 → 改 zoom，锚定在鼠标位置
-// - 双击卡片 → 进入 Zen 写作视图编辑
-//
-// 视口裁剪：只渲染当前可见 + 600px buffer 内的卡片。无 canvasPosition 的卡片
-// 按网格初始排列（不写库，等用户主动拖一下才落库）。
+/**
+ * @component Canvas
+ * @description 无限画布核心 — 以空间化方式组织和浏览笔记卡片。
+ *
+ * **坐标系（三层）**：
+ * - **世界坐标 (world)**：`note.canvasPosition.x/y`，稳定不变，存库
+ * - **屏幕坐标 (screen)**：`world * zoom + pan`
+ * - **容器坐标**：pointer 事件直接给屏幕坐标；换算到世界用 `wx = (sx - pan.x) / zoom`
+ *
+ * **交互**：
+ * - 背景拖动 → 改 pan（平移视口）
+ * - 卡片拖动 → 改卡片 world position（释放时 commit 到 db）
+ * - 滚轮 → 改 zoom，锚定在鼠标位置
+ * - 双击卡片 → 进入 Zen 写作视图（`navigateToZenFromCanvas`）
+ *
+ * **视口裁剪**：只渲染当前可见 + 600px buffer 内的卡片。
+ * 无 `canvasPosition` 的卡片按网格初始排列（不写库，等用户主动拖一下才落库）。
+ *
+ * @emits — 无（所有操作通过 stores 和 ui.navigateToZenFromCanvas 完成）
+ */
+
 import { computed, onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
 import { NInput, NTag } from 'naive-ui';
 
@@ -127,10 +132,26 @@ interface VisibleCard {
   visible: boolean;
 }
 
+/**
+ * 可见卡片列表 — 视口裁剪 + 标签搜索过滤。
+ *
+ * **为什么用 `computed` 而不直接在 template 里 `v-if`**：
+ * `computed` 只在依赖变化时重新计算；template 内 `v-if` 每次渲染都执行。
+ * 卡片数量可能很大（`loadNotes(500)`），提前计算 `visible` 字段并配合
+ * `<template v-if="card.visible">` 实现虚拟化渲染。
+ *
+ * **`dragVersion` hack**：`dragOverrides` 是 `Map`（非响应式），
+ * pointermove 时改 Map + `dragVersion++` 触发此 computed 重新计算。
+ *
+ * **视口 buffer**：比实际视口扩大 `VIEWPORT_BUFFER` px（600px），
+ * 确保快速拖动时卡片不会闪现消失 — 渲染范围比可见范围大一圈。
+ */
 const cards = computed<VisibleCard[]>(() => {
-  void dragVersion.value;
+  void dragVersion.value; // 读取以建立响应式依赖（Map 改值后触发重算）
+  // 将视口像素尺寸换算为世界坐标尺寸
   const visW = viewport.value.w / zoom.value;
   const visH = viewport.value.h / zoom.value;
+  // 可见世界坐标范围（含 buffer）
   const worldLeft = -pan.value.x / zoom.value - VIEWPORT_BUFFER;
   const worldTop = -pan.value.y / zoom.value - VIEWPORT_BUFFER;
   const worldRight = worldLeft + visW + 2 * VIEWPORT_BUFFER;
@@ -138,6 +159,7 @@ const cards = computed<VisibleCard[]>(() => {
 
   return notes.notes.map((note, i) => {
     const pos = noteWorldPosition(note, i, dragOverrides.get(note.id));
+    // AABB 碰撞检测：卡片矩形是否与可见矩形相交
     const inViewport =
       pos.x + CARD_W > worldLeft &&
       pos.x < worldRight &&
@@ -180,18 +202,37 @@ function onSurfacePointerup(e: PointerEvent) {
 
 // ----- 滚轮缩放（锚定在鼠标） -----------------------------------------
 
+/**
+ * 滚轮缩放 — 以鼠标位置为锚点。
+ *
+ * **为什么锚定在鼠标位置**：用户将鼠标指向某个卡片后滚轮缩放，
+ * 期望该卡片保持在鼠标下方。如果不调整 pan，卡片会向视口角落漂移。
+ *
+ * **数学原理**：
+ * 设鼠标在屏幕上位于 `(mx, my)`，对应世界坐标 `wx = (mx - pan.x) / zoom`。
+ * 缩放后 `zoom' = zoom * factor`，要保持 `wx` 不变，需要调整 `pan'`：
+ * ```
+ * mx = wx * zoom' + pan'   →   pan' = mx - wx * zoom'
+ *                                = mx - (mx - pan.x) / zoom * zoom'
+ *                                = mx - (mx - pan.x) * ratio
+ * ```
+ *
+ * @param e - WheelEvent
+ */
 function onWheel(e: WheelEvent) {
   e.preventDefault();
   const el = root.value;
   if (!el) return;
   const rect = el.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top;
+  const mx = e.clientX - rect.left; // 鼠标在容器内的 X
+  const my = e.clientY - rect.top;  // 鼠标在容器内的 Y
 
+  // 每次滚轮缩放 10%；deltaY > 0 = 向下滚 = 缩小
   const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
   const nextZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom.value * factor));
   if (nextZoom === zoom.value) return;
   const ratio = nextZoom / zoom.value;
+  // 调整 pan 使鼠标位置的世界坐标不变
   pan.value = {
     x: mx - (mx - pan.value.x) * ratio,
     y: my - (my - pan.value.y) * ratio,
@@ -199,10 +240,17 @@ function onWheel(e: WheelEvent) {
   zoom.value = nextZoom;
 }
 
+/**
+ * 设置缩放级别（工具栏 +/- 按钮调用）。
+ *
+ * 与 `onWheel` 不同：以**视口中心**为锚点。
+ *
+ * @param target - 目标缩放值（会被 clamp 到 [ZOOM_MIN, ZOOM_MAX]）
+ */
 function setZoom(target: number) {
   const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, target));
   if (next === zoom.value) return;
-  // 以视口中心为锚
+  // 以视口中心为锚 — 工具栏按钮与鼠标位置无关
   const cx = viewport.value.w / 2;
   const cy = viewport.value.h / 2;
   const ratio = next / zoom.value;
