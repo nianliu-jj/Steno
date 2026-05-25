@@ -181,13 +181,6 @@ steno/
 11. 导出：Markdown 落到 `~/.steno/exports/<title>-<short_id>.md`；PDF 弹"PDF 适配器不可用"提示而不崩。
 12. 备份：累计 10 次保存后 `~/.steno/backup/` 出现 `data-<timestamp>.db`。
 
-## 文档
-
-- 产品需求：[`docs/docs_requirements_steno-requirements.md`](./docs/docs_requirements_steno-requirements.md)
-- OpenSpec 规范：[`docs/openspec_changes_define-steno-mvp_*.md`](./docs/)
-- 高保真原型：`docs/steno-functional-prototype.html`、`docs/quicknote-*.html`
-- 开发贡献指南：[CONTRIBUTING.md](./CONTRIBUTING.md)
-
 ## 路线图
 
 | Phase | 内容 | 状态 |
