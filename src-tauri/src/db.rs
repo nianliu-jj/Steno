@@ -406,18 +406,18 @@ impl Db {
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
-    /// 把 id="quicknote-draft" 的未保存草稿提升为正式笔记：分配新 UUID、
-    /// 清掉 is_draft 标记、刷新 updated_at，再原子地删掉原 draft 行。
-    /// 返回新创建的正式笔记。若不存在草稿则返回 Ok(None)。
-    pub fn promote_quicknote_draft(&self) -> Result<Option<Note>, DbError> {
+    /// 把指定 draft 行（is_draft=1）提升为正式笔记：分配新 UUID、清掉
+    /// is_draft 标记、删掉原 draft 行。若 id 不存在或不是草稿则返回
+    /// Ok(None)，由调用方决定是否报错。
+    pub fn promote_draft(&self, draft_id: &str) -> Result<Option<Note>, DbError> {
         let mut conn = self.lock()?;
         let tx = conn.transaction()?;
         let draft: Option<Note> = tx
             .query_row(
                 "SELECT id, title, content, html_content, tags, is_pinned,
                         pinned_window_config, canvas_position, created_at, updated_at, word_count, is_draft
-                 FROM notes WHERE id = 'quicknote-draft'",
-                [],
+                 FROM notes WHERE id = ?1 AND is_draft = 1",
+                rusqlite::params![draft_id],
                 row_to_note,
             )
             .optional()?;
@@ -453,10 +453,32 @@ impl Db {
                 draft.word_count,
             ],
         )?;
-        tx.execute("DELETE FROM notes WHERE id = 'quicknote-draft'", [])?;
+        tx.execute(
+            "DELETE FROM notes WHERE id = ?1",
+            rusqlite::params![draft_id],
+        )?;
         let promoted = Self::find_note(&tx, &new_id)?;
         tx.commit()?;
         Ok(Some(promoted))
+    }
+
+    /// 返回最近一份未保存草稿（按 updated_at 降序），无则 Ok(None)。
+    /// 全局快捷键打开速记浮窗时调用：用户期望续写"上一份"草稿。
+    pub fn latest_draft(&self) -> Result<Option<Note>, DbError> {
+        let conn = self.lock()?;
+        let note = conn
+            .query_row(
+                "SELECT id, title, content, html_content, tags, is_pinned,
+                        pinned_window_config, canvas_position, created_at, updated_at, word_count, is_draft
+                 FROM notes
+                 WHERE is_draft = 1
+                 ORDER BY updated_at DESC
+                 LIMIT 1",
+                [],
+                row_to_note,
+            )
+            .optional()?;
+        Ok(note)
     }
 
     // ----- 设置 key-value -----------------------------------------------
@@ -909,7 +931,7 @@ mod tests {
     }
 
     #[test]
-    fn promote_quicknote_draft_converts_draft_to_a_new_note() {
+    fn promote_draft_converts_draft_to_a_new_note() {
         let db = fresh_db();
         db.save_note(SaveNoteRequest {
             id: Some("quicknote-draft".into()),
@@ -924,7 +946,7 @@ mod tests {
         .unwrap()
         .unwrap();
 
-        let promoted = db.promote_quicknote_draft().unwrap().unwrap();
+        let promoted = db.promote_draft("quicknote-draft").unwrap().unwrap();
         assert_ne!(promoted.id, "quicknote-draft");
         assert!(!promoted.is_draft);
         assert_eq!(promoted.content, "未保存的草稿正文");
@@ -934,7 +956,7 @@ mod tests {
         assert!(db.get_note(&promoted.id).unwrap().is_some());
 
         // 没有草稿时应返回 Ok(None)。
-        let no_draft = db.promote_quicknote_draft().unwrap();
+        let no_draft = db.promote_draft("quicknote-draft").unwrap();
         assert!(no_draft.is_none());
     }
 
@@ -974,6 +996,60 @@ mod tests {
     }
 
     // --- settings 默认值 ---
+
+    #[test]
+    fn latest_draft_returns_most_recent_draft_only() {
+        let db = fresh_db();
+        // 普通正式笔记不应出现在 latest_draft 结果里。
+        db.save_note(SaveNoteRequest {
+            id: None,
+            title: Some("normal".into()),
+            content: "body".into(),
+            tags: vec![],
+            is_pinned: None,
+            pinned_window_config: None,
+            canvas_position: None,
+            is_draft: None,
+        })
+        .unwrap()
+        .unwrap();
+        // 第一份草稿（较旧）。
+        db.save_note(SaveNoteRequest {
+            id: Some("draft-older".into()),
+            title: None,
+            content: "older".into(),
+            tags: vec![],
+            is_pinned: None,
+            pinned_window_config: None,
+            canvas_position: None,
+            is_draft: Some(true),
+        })
+        .unwrap()
+        .unwrap();
+        // 第二份草稿（较新）。
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        db.save_note(SaveNoteRequest {
+            id: Some("draft-newer".into()),
+            title: None,
+            content: "newer".into(),
+            tags: vec![],
+            is_pinned: None,
+            pinned_window_config: None,
+            canvas_position: None,
+            is_draft: Some(true),
+        })
+        .unwrap()
+        .unwrap();
+
+        let latest = db.latest_draft().unwrap().expect("should have draft");
+        assert_eq!(latest.id, "draft-newer");
+        assert!(latest.is_draft);
+
+        // 清空两份草稿后 latest_draft 应为 None。
+        db.delete_note("draft-older").unwrap();
+        db.delete_note("draft-newer").unwrap();
+        assert!(db.latest_draft().unwrap().is_none());
+    }
 
     #[test]
     fn default_settings_seed_includes_quicknote_shortcut() {

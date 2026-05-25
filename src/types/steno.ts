@@ -53,9 +53,6 @@ export interface SaveNoteRequest {
   isDraft?: boolean;
 }
 
-/** 速记浮窗的固定草稿 ID。前后端共同约定，前端写入与 hydrate 都用这个 id。 */
-export const QUICKNOTE_DRAFT_ID = 'quicknote-draft';
-
 export interface SearchNotesRequest {
   query: string;
   tags: string[];

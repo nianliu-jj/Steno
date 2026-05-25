@@ -10,7 +10,6 @@ import { useWindow } from '@/composables/useWindow';
 import { useNotesStore } from '@/stores/notes';
 import { useUiStore } from '@/stores/ui';
 import type { Note } from '@/types/steno';
-import { QUICKNOTE_DRAFT_ID } from '@/types/steno';
 
 const cardExportOptions = [
   { key: 'markdown', label: '导出为 Markdown' },
@@ -197,15 +196,9 @@ function toggleFilterMenu() {
 
 async function onNewQuickNote() {
   try {
-    // "新建速记"按钮语义 = 全新空白浮窗，先把上一份未保存草稿清掉，
-    // 避免浮窗 hydrate 把旧草稿带回 UI。
-    try {
-      await db.deleteNote(QUICKNOTE_DRAFT_ID);
-    } catch {
-      // 草稿不存在时 deleteNote 不抛错，这里仅兜底其它偶发情况。
-    }
-    notes.purgeLocal(QUICKNOTE_DRAFT_ID);
-    void appEvents.emitNoteRemoved({ id: QUICKNOTE_DRAFT_ID });
+    // "新建速记"按钮语义 = 全新空白浮窗。多份草稿天然共存，浮窗会按
+    // fresh=true 走空白态、autosave 时由后端分配新 UUID 创建独立草稿，
+    // 已存在的"未保存"卡片保持不动。
     await win.openQuicknote({ fresh: true });
   } catch (e) {
     message.error(`打开失败：${String(e)}`);
@@ -230,9 +223,9 @@ function blockDraftEdit(note: Note): boolean {
 
 async function onOpenNoteEditor(note: Note) {
   if (note.isDraft) {
-    // 未保存草稿走速记浮窗：浮窗 onMounted / focus 时会自动 hydrate quicknote-draft。
+    // 未保存草稿走速记浮窗：按 noteId 让浮窗 hydrate 这份指定草稿。
     try {
-      await win.openQuicknote();
+      await win.openQuicknote({ noteId: note.id });
     } catch (e) {
       message.error(`打开速记浮窗失败：${String(e)}`);
     }
@@ -244,12 +237,12 @@ async function onOpenNoteEditor(note: Note) {
 async function onSaveDraftFromCard(note: Note) {
   if (!note.isDraft) return;
   try {
-    const promoted = await db.promoteQuicknoteDraft();
+    const promoted = await db.promoteDraft(note.id);
     if (promoted) {
       notes.syncExternalNote(promoted);
-      notes.purgeLocal(QUICKNOTE_DRAFT_ID);
+      notes.purgeLocal(note.id);
       void appEvents.emitNoteSaved(promoted);
-      void appEvents.emitNoteRemoved({ id: QUICKNOTE_DRAFT_ID });
+      void appEvents.emitNoteRemoved({ id: note.id });
       message.success('笔记已保存');
     } else {
       message.warning('草稿内容为空，无法保存');

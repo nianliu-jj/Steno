@@ -8,8 +8,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { LogicalPosition, LogicalSize, getCurrentWindow } from '@tauri-apps/api/window';
 
 export function useWindow() {
-  function openQuicknote(opts?: { fresh?: boolean }) {
-    return invoke<void>('open_quicknote_window', { fresh: opts?.fresh ?? false });
+  function openQuicknote(opts?: { fresh?: boolean; noteId?: string | null }) {
+    return invoke<void>('open_quicknote_window', {
+      fresh: opts?.fresh ?? false,
+      noteId: opts?.noteId ?? null,
+    });
   }
 
   function openStickyNote(id: string) {

@@ -96,13 +96,24 @@ pub async fn list_pinned_notes(db: State<'_, Db>) -> Result<Vec<Note>, String> {
         .map_err(to_msg)
 }
 
-/// 把速记浮窗的"未保存草稿"（id="quicknote-draft"）原子地提升为一条正式
-/// 笔记：分配新 UUID、清掉 is_draft 标记、删掉原 draft 行；返回新笔记。
-/// 若当前没有草稿则返回 Ok(None)。前端在浮窗"保存"按钮里调用。
+/// 把"未保存草稿"（is_draft=1）原子地提升为正式笔记：分配新 UUID、清掉
+/// is_draft 标记、删掉原 draft 行；返回新笔记。若指定 id 不存在或不是
+/// 草稿则返回 Ok(None)。前端在浮窗"保存"按钮里调用。
 #[tauri::command]
-pub async fn promote_quicknote_draft(db: State<'_, Db>) -> Result<Option<Note>, String> {
+pub async fn promote_draft(db: State<'_, Db>, id: String) -> Result<Option<Note>, String> {
     let db = db.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || db.promote_quicknote_draft())
+    tauri::async_runtime::spawn_blocking(move || db.promote_draft(&id))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+/// 返回最近一份未保存草稿，按 updated_at 降序取首条；无草稿返回 Ok(None)。
+/// 前端浮窗 "继续上一份草稿" 路径调用。
+#[tauri::command]
+pub async fn get_latest_draft(db: State<'_, Db>) -> Result<Option<Note>, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.latest_draft())
         .await
         .map_err(to_msg)?
         .map_err(to_msg)
@@ -184,10 +195,15 @@ pub fn open_settings_window(app: AppHandle) -> Result<(), String> {
 }
 
 /// `fresh=true`：笔记列表页"新建速记"按钮调用，强制空白；
-/// `fresh=false`（默认）：全局快捷键调用，由前端继续上一份未保存草稿。
+/// `fresh=false`（默认）：全局快捷键调用，由前端继续 latest_draft；
+/// `note_id`：指定 hydrate 哪份草稿（点击列表卡片的编辑入口时使用）。
 #[tauri::command]
-pub fn open_quicknote_window(app: AppHandle, fresh: Option<bool>) -> Result<(), String> {
-    quicknote::show(&app, fresh.unwrap_or(false));
+pub fn open_quicknote_window(
+    app: AppHandle,
+    fresh: Option<bool>,
+    note_id: Option<String>,
+) -> Result<(), String> {
+    quicknote::show(&app, fresh.unwrap_or(false), note_id);
     Ok(())
 }
 

@@ -17,14 +17,20 @@ pub const QUICKNOTE_OPEN_EVENT: &str = "quicknote:open";
 #[serde(rename_all = "camelCase")]
 pub struct QuicknoteOpenPayload {
     pub fresh: bool,
+    /// 指定 hydrate 哪份草稿。`None` 时由前端调 `get_latest_draft`
+    /// 取最新一份草稿（快捷键续写场景）；`fresh=true` 时忽略。
+    pub note_id: Option<String>,
 }
 
-pub fn show(app: &AppHandle, fresh: bool) {
+pub fn show(app: &AppHandle, fresh: bool, note_id: Option<String>) {
     if let Some(w) = app.get_webview_window(QUICKNOTE_LABEL) {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
-        let _ = w.emit(QUICKNOTE_OPEN_EVENT, QuicknoteOpenPayload { fresh });
+        let _ = w.emit(
+            QUICKNOTE_OPEN_EVENT,
+            QuicknoteOpenPayload { fresh, note_id },
+        );
     }
 }
 
@@ -44,6 +50,6 @@ pub fn toggle(app: &AppHandle) {
             let _ = w.hide();
         }
         // 全局快捷键唤起：默认按"继续上一份草稿"打开。
-        _ => show(app, false),
+        _ => show(app, false, None),
     }
 }

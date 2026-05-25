@@ -24,8 +24,7 @@ import { useMarkdown } from '@/composables/useMarkdown';
 import { useWindow } from '@/composables/useWindow';
 import { useNotesStore } from '@/stores/notes';
 import { useSettingsStore } from '@/stores/settings';
-import type { SaveNoteRequest } from '@/types/steno';
-import { QUICKNOTE_DRAFT_ID } from '@/types/steno';
+import type { Note, SaveNoteRequest } from '@/types/steno';
 
 const props = withDefaults(defineProps<{
   noteId?: string | null;
@@ -104,10 +103,11 @@ watch([title, content, tagsInput], () => {
     });
     return;
   }
-  // quicknote 模式：固定写 quicknote-draft 单条记录并打 is_draft 标记，
-  // 这样关闭浮窗或退出应用后下次仍能从同一行 hydrate。
+  // quicknote 模式：写入一份带 is_draft 标记的笔记；首次 autosave 时由
+  // 后端分配 UUID，autosave 回写 currentNoteId，后续编辑都更新同一行。
+  // 多份草稿天然共存：每次"新建速记"会进入空白态，autosave 会创建新 UUID。
   scheduleSave({
-    id: QUICKNOTE_DRAFT_ID,
+    id: currentNoteId.value ?? undefined,
     title: title.value || undefined,
     content: content.value,
     tags: tagsArray.value,
@@ -236,18 +236,19 @@ async function dismissSticky() {
 async function dismissQuicknote() {
   // 草稿持久化策略：
   // - 内存白板（currentNoteId 为 null 且 isEmpty）：什么都没有，直接 hide，不动 db；
-  // - 用户主动清空了 quicknote-draft（currentNoteId 命中草稿且 isEmpty）：顺手把 db 行清掉，
-  //   下次打开浮窗就是干净状态；
-  // - 其它（有内容）：flushSave 保留到 db，下次打开浮窗 / 重启应用都能恢复。
+  // - 用户主动清空当前正在编辑的草稿（currentNoteId 已落地且 isEmpty）：顺手把
+  //   该 id 的行清掉，列表卡片立即消失；
+  // - 其它（有内容）：flushSave 保留到 db，下次重启或重新打开都能恢复。
   if (currentNoteId.value === null && isEmpty.value) {
     await win.hideCurrent();
     resetState();
     return;
   }
-  if (currentNoteId.value === QUICKNOTE_DRAFT_ID && isEmpty.value) {
+  if (!isSticky.value && currentNoteId.value && isEmpty.value) {
+    const draftId = currentNoteId.value;
     try {
-      await db.deleteNote(QUICKNOTE_DRAFT_ID);
-      void appEvents.emitNoteRemoved({ id: QUICKNOTE_DRAFT_ID });
+      await db.deleteNote(draftId);
+      void appEvents.emitNoteRemoved({ id: draftId });
     } catch {
       // 草稿原本就不存在时 deleteNote 不抛错，这里 catch 兜底其他偶发情况。
     }
@@ -273,17 +274,33 @@ let blurTimer: ReturnType<typeof setTimeout> | undefined;
 let unlistenFocus: (() => void) | undefined;
 let unlistenOpen: UnlistenFn | undefined;
 
-async function hydrateDraftFromDb(): Promise<boolean> {
+function applyNoteToUI(note: Note) {
+  currentNoteId.value = note.id;
+  title.value = note.title === '未命名' ? '' : note.title;
+  content.value = note.content;
+  tagsInput.value = note.tags.map(t => `#${t}`).join(' ');
+}
+
+async function hydrateLatestDraft(): Promise<boolean> {
   try {
-    const draft = await db.getNote(QUICKNOTE_DRAFT_ID);
+    const draft = await db.getLatestDraft();
     if (!draft) return false;
-    currentNoteId.value = draft.id;
-    title.value = draft.title === '未命名' ? '' : draft.title;
-    content.value = draft.content;
-    tagsInput.value = draft.tags.map(t => `#${t}`).join(' ');
+    applyNoteToUI(draft);
     return true;
   } catch (e) {
-    console.error('[quicknote] hydrate draft failed:', e);
+    console.error('[quicknote] hydrate latest draft failed:', e);
+    return false;
+  }
+}
+
+async function hydrateDraftById(id: string): Promise<boolean> {
+  try {
+    const draft = await db.getNote(id);
+    if (!draft || !draft.isDraft) return false;
+    applyNoteToUI(draft);
+    return true;
+  } catch (e) {
+    console.error('[quicknote] hydrate draft by id failed:', e);
     return false;
   }
 }
@@ -307,20 +324,16 @@ onMounted(async () => {
     return;
   }
 
-  // quicknote 路径：先尝试从 SQLite 拉上次未保存的草稿；存在则回填 UI。
-  await hydrateDraftFromDb();
+  // quicknote 路径：先尝试从 SQLite 拉最新一份草稿；存在则回填 UI。
+  // 之后每次窗口 show 都靠 `quicknote:open` 事件按入口语义重新 hydrate。
+  await hydrateLatestDraft();
   loaded.value = true;
 
   unlistenFocus = await win.onCurrentWindowFocusChange(focused => {
     if (focused) {
-      // 浮窗单例 hide / show 复用同一组件实例，onMounted 不会再触发；
-      // 这里在窗口被激活时按需重新 hydrate，让用户在 close → open 之间
-      // 仍能看到上一次未保存的草稿。
-      // 只有"内存白板"（dismissQuicknote 后 resetState 留下的空态）才补 hydrate，
-      // 否则可能覆盖用户正在编辑的内容。
-      if (currentNoteId.value === null && isEmpty.value) {
-        void hydrateDraftFromDb();
-      }
+      // 浮窗单例 hide / show 复用同一组件实例，hydrate 完全交给 `quicknote:open`
+      // 事件按入口（快捷键 / 卡片 / 新建按钮）分别决定；focus 只负责清掉
+      // 失焦计时器，避免被定时器关闭。
       if (blurTimer) {
         clearTimeout(blurTimer);
         blurTimer = undefined;
@@ -337,13 +350,29 @@ onMounted(async () => {
   });
 
   if (!isSticky.value) {
-    // 后端 show() 每次触发都 emit；fresh=true 表示"新建速记"按钮入口，
-    // 此刻 MainView 侧已经 deleteNote 掉旧草稿，这里只需把 UI 重置成空白。
-    unlistenOpen = await listen<{ fresh: boolean }>('quicknote:open', ({ payload }) => {
-      if (payload.fresh) {
-        resetState();
-      }
-    });
+    // 浮窗单例：每次 show 都从后端收到 `quicknote:open` 事件，按 fresh/noteId
+    // 决定空白 / 续写最近草稿 / 按指定 id hydrate。
+    unlistenOpen = await listen<{ fresh: boolean; noteId: string | null }>(
+      'quicknote:open',
+      async ({ payload }) => {
+        if (payload.fresh) {
+          // "新建速记"按钮入口：清空 UI 进入空白态；
+          // 后续 autosave 触发时由后端分配新 UUID，写入一份新的独立草稿。
+          resetState();
+          return;
+        }
+        if (payload.noteId) {
+          // 列表卡片入口：按指定 id hydrate 该份草稿。
+          resetState();
+          await hydrateDraftById(payload.noteId);
+          return;
+        }
+        // 快捷键入口：仅在浮窗为空态时续写最近一份草稿，避免覆盖用户在编辑的内容。
+        if (currentNoteId.value === null && isEmpty.value) {
+          await hydrateLatestDraft();
+        }
+      },
+    );
   }
 });
 
@@ -379,18 +408,23 @@ async function onSaveClick() {
   if (!title.value.trim()) {
     title.value = await nextUntitledName();
   }
-  // 先把当前编辑落到 quicknote-draft 行，再原子地把它提升为正式笔记：
-  // 分配新 UUID + 清掉 is_draft 标记 + 删掉草稿。
+  // 先把当前编辑落到 db（autosave 首次会让后端分配 UUID 并回写 currentNoteId），
+  // 再按 currentNoteId 原子地提升为正式笔记：分配新 UUID + 清 is_draft + 删旧行。
   await flushSave();
   if (status.value === 'error') return;
   if (isSticky.value) return;
+  const draftId = currentNoteId.value;
+  if (!draftId) {
+    message.error('保存失败：当前没有可提交的草稿');
+    return;
+  }
   try {
-    const promoted = await db.promoteQuicknoteDraft();
+    const promoted = await db.promoteDraft(draftId);
     if (promoted) {
       currentNoteId.value = promoted.id;
       notes.syncExternalNote(promoted);
       void appEvents.emitNoteSaved(promoted);
-      void appEvents.emitNoteRemoved({ id: QUICKNOTE_DRAFT_ID });
+      void appEvents.emitNoteRemoved({ id: draftId });
       message.success('笔记已保存');
       await win.hideCurrent();
       resetState();

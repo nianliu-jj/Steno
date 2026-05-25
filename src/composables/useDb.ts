@@ -51,12 +51,20 @@ export function useDb() {
   }
 
   /**
-   * 把速记浮窗的"未保存草稿"（id="quicknote-draft"）原子地提升为一条正式
-   * 笔记：分配新 UUID、清掉 is_draft 标记、删掉原草稿行。返回新笔记；
-   * 若当前不存在草稿则返回 null。
+   * 把指定的"未保存草稿"原子地提升为一条正式笔记：分配新 UUID、清掉
+   * is_draft 标记、删掉原草稿行。返回新笔记；若 id 不存在或不是草稿
+   * 则返回 null。
    */
-  function promoteQuicknoteDraft() {
-    return invoke<Note | null>('promote_quicknote_draft');
+  function promoteDraft(id: string) {
+    return invoke<Note | null>('promote_draft', { id });
+  }
+
+  /**
+   * 取最新一份未保存草稿（按 updated_at 降序）。无草稿返回 null。
+   * 浮窗"继续上一份草稿"路径调用。
+   */
+  function getLatestDraft() {
+    return invoke<Note | null>('get_latest_draft');
   }
 
   /**
@@ -122,7 +130,8 @@ export function useDb() {
     deleteNote,
     setNotePinned,
     listPinnedNotes,
-    promoteQuicknoteDraft,
+    promoteDraft,
+    getLatestDraft,
     updatePinnedWindowConfig,
     updateCanvasPosition,
     getSetting,
