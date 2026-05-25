@@ -15,8 +15,11 @@ import type {
   ClipboardEntry,
   Note,
   PinnedWindowConfig,
+  SaveDocumentEntryRequest,
   SaveNoteRequest,
+  SaveTextEntryRequest,
   SearchNotesRequest,
+  Workspace,
 } from '@/types/steno';
 
 /**
@@ -257,9 +260,17 @@ export function useDb() {
 
   return {
     saveNote,
+    saveTextEntry,
     getNote,
+    getEditorEntry,
     listNotes,
     searchNotes,
+    listLibraryEntries,
+    listWorkspaceTree,
+    listWorkspaces,
+    createWorkspace,
+    saveDocumentEntry,
+    convertTextToDocument,
     deleteNote,
     setNotePinned,
     listPinnedNotes,

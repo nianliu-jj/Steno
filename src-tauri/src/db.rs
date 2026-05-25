@@ -14,9 +14,11 @@
 //! ## 备份与同步
 //! 预留独立模块 [`backup`] / [`sync`]。
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OptionalExtension};
 
 use crate::clipboard::{ClipboardEntry, NewClipboardEntry};
@@ -36,6 +38,8 @@ pub enum DbError {
     Serde(#[from] serde_json::Error),
     #[error("note not found: {0}")]
     NotFound(String),
+    #[error("{0}")]
+    Validation(String),
 }
 
 pub struct Db {
@@ -71,6 +75,7 @@ impl Db {
         conn.execute_batch("PRAGMA foreign_keys = ON;")?;
         Self::migrate(&mut conn)?;
         Self::ensure_default_settings(&conn)?;
+        Self::ensure_default_group(&conn)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             db_path,
@@ -242,6 +247,17 @@ impl Db {
                 rusqlite::params![k, v, &now],
             )?;
         }
+        Ok(())
+    }
+
+    fn ensure_default_group(conn: &Connection) -> Result<(), DbError> {
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT OR IGNORE INTO library_entries
+             (id, kind, title, preview_text, body_markdown, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size)
+             VALUES (?1, 'group', '收件箱', '', NULL, '[]', NULL, NULL, NULL, NULL, ?2, ?2, 0, 0)",
+            rusqlite::params![INBOX_GROUP_ID, &now],
+        )?;
         Ok(())
     }
 
@@ -722,6 +738,41 @@ fn row_to_clipboard_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<Clipboard
 
 // ----- 内容派生 ---------------------------------------------------------
 
+fn entry_kind_from_db(value: &str) -> EntryKind {
+    match value {
+        "workspace" => EntryKind::Workspace,
+        "folder" => EntryKind::Folder,
+        "group" => EntryKind::Group,
+        "document" => EntryKind::Document,
+        _ => EntryKind::Text,
+    }
+}
+
+fn preview_text(content: &str) -> String {
+    content
+        .trim()
+        .replace('\n', " ")
+        .chars()
+        .take(120)
+        .collect()
+}
+
+fn markdown_byte_size(content: &str) -> i64 {
+    content.as_bytes().len() as i64
+}
+
+fn ensure_text_size_limit(content: &str) -> Result<i64, DbError> {
+    let size = markdown_byte_size(content);
+    if size > 10 * 1024 {
+        let kb = (size as f64 / 1024.0).ceil() as i64;
+        return Err(DbError::Validation(format!(
+            "当前文件大小 {}KB，文本文件最大不能超过 10KB",
+            kb
+        )));
+    }
+    Ok(size)
+}
+
 /// 第一行非空内容作为标题，最多 48 个字符。去掉开头的 Markdown `#` 标记。
 pub fn derive_title(content: &str) -> String {
     let first = content
@@ -777,14 +828,80 @@ pub fn word_count(content: &str) -> i64 {
     content.split_whitespace().count() as i64
 }
 
+fn normalize_workspace_root(path: &Path) -> Result<PathBuf, DbError> {
+    match path.canonicalize() {
+        Ok(canonical) => Ok(canonical),
+        Err(_) => Ok(path.to_path_buf()),
+    }
+}
+
 /// 把 Markdown 渲染成 HTML，存到 notes.html_content 列。
 /// pulldown-cmark 默认开启所有标准语法。
 pub fn render_markdown(content: &str) -> String {
-    use pulldown_cmark::{Parser, html};
+    use pulldown_cmark::{html, Parser};
     let parser = Parser::new(content);
     let mut output = String::new();
     html::push_html(&mut output, parser);
     output
+}
+
+struct ExistingWorkspaceEntry {
+    id: String,
+    created_at: String,
+}
+
+fn workspace_entries_by_path(
+    conn: &Connection,
+    workspace_id: &str,
+) -> Result<HashMap<String, ExistingWorkspaceEntry>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT id, file_path, created_at
+         FROM library_entries
+         WHERE workspace_id = ?1
+           AND kind IN ('folder', 'document')
+           AND file_path IS NOT NULL",
+    )?;
+    let rows = stmt.query_map(rusqlite::params![workspace_id], |row| {
+        let file_path: String = row.get(1)?;
+        let normalized_path = PathBuf::from(&file_path)
+            .canonicalize()
+            .unwrap_or_else(|_| PathBuf::from(&file_path));
+        Ok((
+            path_key(&normalized_path),
+            ExistingWorkspaceEntry {
+                id: row.get(0)?,
+                created_at: row.get(2)?,
+            },
+        ))
+    })?;
+    let pairs = rows.collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(pairs.into_iter().collect())
+}
+
+fn path_key(path: &Path) -> String {
+    path.to_string_lossy().into_owned()
+}
+
+fn stable_workspace_entry_id(workspace_id: &str, path: &Path) -> String {
+    let mut hash = 0xcbf29ce484222325_u64;
+    let key = path_key(path);
+    for byte in workspace_id.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash ^= u64::from(b':');
+    hash = hash.wrapping_mul(0x100000001b3);
+    for byte in key.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    format!("fs-{hash:016x}")
+}
+
+fn fs_modified_or_now(modified_at: Option<std::time::SystemTime>, fallback: &str) -> String {
+    modified_at
+        .map(|time| DateTime::<Utc>::from(time).to_rfc3339())
+        .unwrap_or_else(|| fallback.to_string())
 }
 
 // ----- tests ------------------------------------------------------------
@@ -792,7 +909,10 @@ pub fn render_markdown(content: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::SaveNoteRequest;
+    use crate::models::{
+        ConvertTextToDocumentRequest, EntryKind, MainListContext, SaveNoteRequest,
+        SaveTextEntryRequest,
+    };
 
     fn fresh_db() -> Db {
         let mut conn = Connection::open_in_memory().expect("open in-memory db");
@@ -1395,5 +1515,157 @@ mod tests {
             db.get_setting("blurCloseDelayMs").unwrap().as_deref(),
             Some("800")
         );
+    }
+
+    #[test]
+    fn default_settings_seed_includes_editor_outline_keys() {
+        let db = fresh_db();
+        assert_eq!(
+            db.get_setting("noteEditorOutlineWidth").unwrap().as_deref(),
+            Some("280")
+        );
+        assert_eq!(
+            db.get_setting("noteEditorOutlineOpen").unwrap().as_deref(),
+            Some("false")
+        );
+        assert_eq!(
+            db.get_setting("zenOutlineWidth").unwrap().as_deref(),
+            Some("300")
+        );
+        assert_eq!(
+            db.get_setting("zenOutlineOpen").unwrap().as_deref(),
+            Some("true")
+        );
+    }
+
+    #[test]
+    fn save_text_rejects_markdown_body_over_10kb() {
+        let db = fresh_db();
+        let content = "a".repeat(10 * 1024 + 1);
+
+        let err = db
+            .save_text_entry(SaveTextEntryRequest {
+                id: None,
+                title: Some("超限文本".into()),
+                content,
+                tags: vec![],
+                group_id: None,
+            })
+            .unwrap_err()
+            .to_string();
+
+        assert!(err.contains("文本文件最大不能超过 10KB"), "{err}");
+    }
+
+    #[test]
+    fn save_text_without_group_uses_system_inbox_group() {
+        let db = fresh_db();
+        let saved = db
+            .save_text_entry(SaveTextEntryRequest {
+                id: None,
+                title: Some("默认分组文本".into()),
+                content: "hello".into(),
+                tags: vec![],
+                group_id: None,
+            })
+            .unwrap();
+
+        assert_eq!(saved.kind, EntryKind::Text);
+        assert_eq!(saved.group_id.as_deref(), Some("group-inbox"));
+    }
+
+    #[test]
+    fn create_workspace_reuses_existing_root_path() {
+        let db = fresh_db();
+        let root = std::env::temp_dir().join("steno-existing-workspace");
+
+        let first = db.create_workspace("默认工作区", root.clone()).unwrap();
+        let second = db.create_workspace("另一个名字", root).unwrap();
+
+        assert_eq!(first.id, second.id);
+        assert_eq!(first.root_path, second.root_path);
+    }
+
+    #[test]
+    fn list_workspaces_returns_created_workspace() {
+        let db = fresh_db();
+        let root = std::env::temp_dir().join("steno-list-workspace");
+
+        let created = db.create_workspace("默认工作区", root).unwrap();
+        let workspaces = db.list_workspaces().unwrap();
+
+        assert!(workspaces
+            .iter()
+            .any(|workspace| workspace.id == created.id));
+    }
+
+    #[test]
+    fn listing_workspace_imports_existing_folders_and_markdown_files() {
+        let db = fresh_db();
+        let root =
+            std::env::temp_dir().join(format!("steno-workspace-sync-{}", uuid::Uuid::new_v4()));
+        let nested = root.join("research");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(root.join("overview.md"), "# Overview\nRoot document #plan").unwrap();
+        std::fs::write(nested.join("deep-note.md"), "Nested document").unwrap();
+        std::fs::write(root.join("asset.bin"), [0, 1, 2, 3]).unwrap();
+
+        let workspace = db.create_workspace("导入测试", root.clone()).unwrap();
+        let workspace_documents = db
+            .list_library_entries(MainListContext {
+                workspace_id: Some(workspace.id.clone()),
+                folder_entry_id: None,
+                group_entry_id: None,
+                selected_entry_id: None,
+            })
+            .unwrap();
+
+        assert!(!workspace_documents
+            .iter()
+            .any(|entry| entry.kind == EntryKind::Folder));
+        assert!(workspace_documents
+            .iter()
+            .any(|entry| { entry.kind == EntryKind::Document && entry.title == "overview" }));
+        assert!(workspace_documents
+            .iter()
+            .any(|entry| { entry.kind == EntryKind::Document && entry.title == "deep-note" }));
+        assert!(!workspace_documents.iter().any(|entry| entry.title == "asset"));
+
+        let tree = db.list_workspace_tree(&workspace.id).unwrap();
+        assert!(tree.iter().any(|entry| entry.title == "research"));
+        assert!(tree.iter().any(|entry| entry.title == "overview"));
+        assert!(tree.iter().any(|entry| entry.title == "deep-note"));
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn convert_text_to_document_writes_markdown_file_and_changes_kind() {
+        let db = fresh_db();
+        let workspace = db
+            .create_workspace("默认工作区", std::env::temp_dir().join("steno-plan-test"))
+            .unwrap();
+        let text = db
+            .save_text_entry(SaveTextEntryRequest {
+                id: None,
+                title: Some("待转换".into()),
+                content: "# 标题\n正文".into(),
+                tags: vec!["draft".into()],
+                group_id: Some("group-inbox".into()),
+            })
+            .unwrap();
+
+        let converted = db
+            .convert_text_to_document(ConvertTextToDocumentRequest {
+                id: text.id.clone(),
+                workspace_id: workspace.id.clone(),
+                folder_entry_id: None,
+            })
+            .unwrap();
+
+        assert_eq!(converted.kind, EntryKind::Document);
+        assert!(converted.file_path.as_ref().is_some());
+        assert!(std::fs::exists(converted.file_path.as_ref().unwrap()).unwrap());
     }
 }

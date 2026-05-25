@@ -12,6 +12,7 @@ let autosaveStatus = 'saved';
 const navigateToMain = vi.fn();
 const navigateTo = vi.fn();
 
+const getEditorEntry = vi.fn(() => Promise.resolve(null));
 const getNote = vi.fn(() =>
   Promise.resolve({
     id: 'note-1',
@@ -29,10 +30,13 @@ const getNote = vi.fn(() =>
 );
 
 const saveDraft = vi.fn(() => Promise.resolve({ id: 'note-1' }));
+const saveDocumentEntry = vi.fn(() => Promise.resolve({ id: 'doc-1' }));
 
 vi.mock('@/composables/useDb', () => ({
   useDb: () => ({
+    getEditorEntry,
     getNote,
+    saveDocumentEntry,
   }),
 }));
 
@@ -113,6 +117,15 @@ vi.mock('@/components/DocumentOutlineTree.vue', () => ({
   },
 }));
 
+vi.mock('@/composables/useOutlineSidebarState', () => ({
+  useOutlineSidebarState: () => ({
+    open: { value: false },
+    width: { value: 280 },
+    toggle: vi.fn(),
+    setWidth: vi.fn(),
+  }),
+}));
+
 const WrappedNoteEditorView = defineComponent({
   setup() {
     return () =>
@@ -128,7 +141,11 @@ const WrappedNoteEditorView = defineComponent({
 describe('NoteEditorView', () => {
   beforeEach(() => {
     autosaveStatus = 'saved';
+    uiNoteId = 'note-1';
+    libraryContext.workspaceId = 'workspace-1';
+    libraryContext.folderEntryId = null;
     getNote.mockClear();
+    getEditorEntry.mockClear();
     saveDraft.mockClear();
     navigateToMain.mockClear();
     navigateTo.mockClear();
@@ -152,6 +169,15 @@ describe('NoteEditorView', () => {
     await wrapper.find('textarea').setValue('新内容');
 
     expect(saveDraft).toHaveBeenCalled();
+  });
+
+  it('routes the editor footer Zen action through the ui store', async () => {
+    const wrapper = mount(WrappedNoteEditorView);
+    await flushPromises();
+
+    await wrapper.get('[data-testid="surface-open-zen"]').trigger('click');
+
+    expect(navigateToZenFromEditor).toHaveBeenCalledWith('note-1');
   });
 
   it('moves note tags and save metadata into the editor footer', async () => {
@@ -274,5 +300,30 @@ describe('NoteEditorView', () => {
     expect(NoteEditorViewSource).toMatch(/color: #6f5c4c(?: !important)?;/);
     expect(NoteEditorViewSource).toContain('caret-color: #2a2a2a;');
     expect(NoteEditorViewSource).toMatch(/color: #7e7469(?: !important)?;/);
+  });
+
+  it('renders the lifted rounded editor card shell for the main editor', async () => {
+    const wrapper = mount(WrappedNoteEditorView);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="note-editor-shell"]').exists()).toBe(true);
+    expect(NoteEditorViewSource).toContain('data-testid="note-editor-shell"');
+    expect(NoteEditorViewSource).toContain('border-radius: 18px 18px 14px 14px;');
+  });
+
+  it('saves a new workspace-backed entry as a document when no note id is present', async () => {
+    uiNoteId = null;
+
+    const wrapper = mount(WrappedNoteEditorView);
+    await flushPromises();
+
+    await wrapper.find('textarea').setValue('新的文档正文');
+
+    expect(saveDocumentEntry).toHaveBeenCalledWith(expect.objectContaining({
+      workspaceId: 'workspace-1',
+      folderEntryId: null,
+      content: '新的文档正文',
+    }));
+    expect(saveDraft).not.toHaveBeenCalled();
   });
 });

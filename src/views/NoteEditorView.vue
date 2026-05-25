@@ -30,10 +30,7 @@ import { useMarkdown } from '@/composables/useMarkdown';
 import { useMarkdownOutline } from '@/composables/useMarkdownOutline';
 import { useNotesStore } from '@/stores/notes';
 import { useUiStore } from '@/stores/ui';
-import type { Note, SaveNoteRequest } from '@/types/steno';
 
-const db = useDb();
-const notes = useNotesStore();
 const ui = useUiStore();
 const message = useMessage();
 const { countWords } = useMarkdown();
@@ -53,7 +50,7 @@ const outlineOpen = ref(false);
 const modeDropdownOpen = ref(false);
 const modeDropdownRef = ref<HTMLElement | null>(null);
 
-const wordCount = computed(() => countWords(content.value));
+const wordCount = session.wordCount;
 const displayTitle = computed(() => title.value.trim() || '无标题');
 const { buildOutline } = useMarkdownOutline();
 const outlineNodes = computed(() => buildOutline(content.value));
@@ -67,42 +64,6 @@ onClickOutside(modeDropdownRef, () => {
   modeDropdownOpen.value = false;
 });
 
-function hydrateFromNote(note: Note) {
-  currentNoteId.value = note.id;
-  title.value = note.title;
-  content.value = note.content;
-  tags.value = [...note.tags];
-}
-
-onMounted(async () => {
-  if (currentNoteId.value) {
-    const note = await db.getNote(currentNoteId.value);
-    if (note) {
-      hydrateFromNote(note);
-    }
-  }
-  loaded.value = true;
-});
-
-const { status, savedAt, error, scheduleSave, flushSave } = useAutosave(
-  async (payload: SaveNoteRequest) => {
-    const saved = await notes.saveDraft(payload);
-    if (saved && !currentNoteId.value) {
-      currentNoteId.value = saved.id;
-    }
-  },
-);
-
-watch([title, content, tags], () => {
-  if (!loaded.value) return;
-  scheduleSave({
-    id: currentNoteId.value ?? undefined,
-    title: title.value || undefined,
-    content: content.value,
-    tags: tags.value,
-  });
-});
-
 function parseTagRows(rows: string[]): string[] {
   return Array.from(
     new Set(
@@ -114,7 +75,7 @@ function parseTagRows(rows: string[]): string[] {
 }
 
 const statusText = computed(() => {
-  switch (status.value) {
+  switch (session.status.value) {
     case 'idle':
       return '';
     case 'scheduled':
@@ -122,18 +83,18 @@ const statusText = computed(() => {
     case 'saving':
       return '保存中…';
     case 'saved':
-      return savedAt.value
-        ? `已保存 ${savedAt.value.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
+      return session.savedAt.value
+        ? `已保存 ${session.savedAt.value.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
         : '已保存';
     case 'error':
-      return `保存失败：${String(error.value).slice(0, 40)}`;
+      return `保存失败：${String(session.error.value).slice(0, 40)}`;
     default:
       return '';
   }
 });
 
 async function onBack() {
-  await flushSave();
+  await session.flushSave();
   ui.navigateToMain();
 }
 

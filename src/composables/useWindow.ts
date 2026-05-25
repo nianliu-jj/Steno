@@ -70,6 +70,10 @@ export function useWindow() {
     return invoke<void>('open_zen_window', { id: id ?? null });
   }
 
+  function openPathInFileManager(path: string) {
+    return invoke<void>('open_path_in_file_manager', { path });
+  }
+
   // ----- 当前窗口控制（FloatingEditor / StickyNote 用） -----------------
 
   /** 隐藏当前窗口（浮窗失焦关闭的首选方式，不是 destroy）。 */
@@ -176,6 +180,7 @@ export function useWindow() {
     openCanvas,
     openSettings,
     openZen,
+    openPathInFileManager,
     hideCurrent,
     showCurrent,
     minimizeCurrent,

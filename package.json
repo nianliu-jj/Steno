@@ -37,12 +37,23 @@
     "@sa/hooks": "workspace:*",
     "@sa/utils": "workspace:*",
     "@tauri-apps/api": "^2.1.1",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
     "@vueuse/core": "14.2.1",
     "dayjs": "1.11.19",
     "defu": "6.1.4",
+    "markdown-it": "^14.1.1",
     "marked": "^16.0.0",
     "naive-ui": "2.44.1",
     "pinia": "3.0.4",
+    "prosemirror-commands": "^1.7.1",
+    "prosemirror-history": "^1.5.0",
+    "prosemirror-inputrules": "^1.5.1",
+    "prosemirror-keymap": "^1.2.3",
+    "prosemirror-markdown": "^1.13.4",
+    "prosemirror-model": "^1.25.6",
+    "prosemirror-schema-list": "^1.5.1",
+    "prosemirror-state": "^1.4.4",
+    "prosemirror-view": "^1.41.8",
     "vue": "3.5.29"
   },
   "devDependencies": {
@@ -78,5 +89,6 @@
   "engines": {
     "node": ">=20.19.0",
     "pnpm": ">=10.5.0"
-  }
+  },
+  "packageManager": "pnpm@11.1.2+sha512.415a1cc25974731e75455c1468371be74c5aa5fb7621b50d4056d222451609f11412f23fd602e6169f1e060466641f798597e1be961a10688836a67b16569499"
 }

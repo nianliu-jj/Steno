@@ -222,7 +222,7 @@ export const useUiStore = defineStore('ui', () => {
   function navigateTo(
     nextMode: MainRouteMode,
     nextNoteId: string | null = null,
-    returnMode: MainRouteMode | null = null,
+    returnRoute: { mode: MainRouteMode; noteId: string | null } | null = null,
   ) {
     if (nextMode === 'settings') {
       if (windowLabel === 'settings') {
@@ -240,7 +240,7 @@ export const useUiStore = defineStore('ui', () => {
     mode.value = nextMode;
     // noteId 只在 zen / note-editor 模式下有意义
     noteId.value = nextMode === 'zen' || nextMode === 'note-editor' ? nextNoteId : null;
-    zenReturnMode.value = nextMode === 'zen' ? returnMode : null;
+    zenReturnRoute.value = nextMode === 'zen' ? returnRoute : null;
   }
 
   /** 快捷导航到主列表页。 */
@@ -255,7 +255,11 @@ export const useUiStore = defineStore('ui', () => {
    * @param nextNoteId - 要编辑的笔记 UUID
    */
   function navigateToZenFromCanvas(nextNoteId: string) {
-    navigateTo('zen', nextNoteId, 'canvas');
+    navigateTo('zen', nextNoteId, { mode: 'canvas', noteId: null });
+  }
+
+  function navigateToZenFromEditor(nextNoteId: string | null) {
+    navigateTo('zen', nextNoteId, { mode: 'note-editor', noteId: nextNoteId });
   }
 
   /** 退出 Zen 模式，回到进入前的页面。 */
@@ -304,6 +308,7 @@ export const useUiStore = defineStore('ui', () => {
     navigateTo,
     navigateToMain,
     navigateToZenFromCanvas,
+    navigateToZenFromEditor,
     exitZen,
     closeSettings,
   };

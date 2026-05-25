@@ -127,6 +127,12 @@ function decode<K extends keyof StenoSettings>(
         ? raw
         : DEFAULTS.editorMode) as StenoSettings[K];
     }
+    case 'noteEditorOutlineOpen':
+    case 'zenOutlineOpen': {
+      if (raw === 'true') return true as StenoSettings[K];
+      if (raw === 'false') return false as StenoSettings[K];
+      return DEFAULTS[key];
+    }
     default:
       return raw as StenoSettings[K];
   }
