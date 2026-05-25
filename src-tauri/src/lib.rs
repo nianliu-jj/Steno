@@ -1,3 +1,21 @@
+//! Steno 应用库 — Tauri 后端核心。
+//!
+//! ## 模块结构
+//! - [`db`] — SQLite 数据访问层（连接管理、迁移、CRUD）
+//! - [`models`] — IPC 序列化 DTO（与前端 TypeScript 对齐）
+//! - [`commands`] — Tauri IPC 命令（前端 invoke 入口）
+//! - [`window_manager`] — 多窗口管理（主窗口、置顶便签、页面路由）
+//! - [`quicknote`] — 速记浮窗管理
+//! - [`shortcut`] — 全局快捷键注册
+//! - [`tray`] — 系统托盘
+//! - [`export`] — 笔记导出（Markdown / HTML / PDF）
+//! - [`backup`] — 数据库备份
+//! - [`sync`] — 同步服务接口（预留）
+//!
+//! ## 入口
+//! `pub fn run()` 由 `main.rs` 调用，配置 Tauri Builder、注册 commands、
+//! 初始化数据库和快捷键、设置系统托盘。
+
 mod backup;
 mod commands;
 mod db;
@@ -11,6 +29,13 @@ mod window_manager;
 
 use tauri::Manager;
 
+/// 启动 Tauri 应用。
+///
+/// 初始化顺序：
+/// 1. 注册 shortcut plugin
+/// 2. 注册所有 IPC commands
+/// 3. 设置 CloseRequested → hide（不退出）
+/// 4. setup：初始化 SQLite → 恢复置顶便签窗口 → 注册快捷键 → 设置托盘
 pub fn run() {
     tauri::Builder::default()
         .plugin(shortcut::plugin())

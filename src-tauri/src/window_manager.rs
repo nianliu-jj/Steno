@@ -1,11 +1,14 @@
-// 多窗口管理（plan Task 3 Step 2）。从 PR1 的 src/window.rs 演进而来：
-// - 保留主窗口的 show_main / hide_main / toggle_main helper（PR1/PR2 既有）。
-// - 新增 open_sticky_note / close_sticky_note (label = sticky-{id})。
-// - open_canvas / open_settings / open_zen 不再创建页面窗口，
-//   而是显示 main 窗口并通过前端路由切换视图。
-//
-// 浮窗（quicknote）仍在 src/quicknote.rs 自管（它在 tauri.conf.json 预声明，
-// 且自带拖动握手 / 失焦隐藏逻辑），不并入此模块。
+//! 多窗口管理。
+//!
+//! 从 PR1 的 `src/window.rs` 演进而来，负责管理所有非浮窗窗口：
+//!
+//! - **主窗口**：`show_main` / `hide_main` / `toggle_main`
+//! - **置顶便签**：`open_sticky_note` / `close_sticky_note`（label = `sticky-{id}`）
+//! - **页面型入口**（canvas / settings / zen）：不再创建独立窗口，
+//!   而是聚焦 main 窗口并通过 `steno:navigate` 事件切换前端路由
+//!
+//! 浮窗（quicknote）由 [`quicknote`] 模块自管（`tauri.conf.json` 预声明 +
+//! 拖动握手 / 失焦隐藏逻辑），不并入此模块。
 
 use serde::Serialize;
 use std::path::PathBuf;

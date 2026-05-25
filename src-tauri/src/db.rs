@@ -1,12 +1,18 @@
-// SQLite 数据访问层。Plan Task 2 Step 2–6 + Task 3 接入（Arc<Mutex> 改造）。
-//
-// Commit A 落了基础设施（连接 / 路径 / v1 迁移）。
-// Commit B 在此追加：notes/settings CRUD + 内容派生 + 默认设置初始化。
-// 备份与同步预留在独立模块（backup.rs / sync.rs）。
-//
-// 为了让 commands.rs 在 `tauri::async_runtime::spawn_blocking` 里使用，
-// Db 必须实现 Clone 且 'static — Connection 被 Arc<Mutex> 包裹，
-// 整个 Db 是廉价克隆的句柄（Arc 引用计数）。
+//! SQLite 数据访问层。
+//!
+//! ## 设计
+//! `Db` 由 `Arc<Mutex<Connection>>` 包裹，实现 `Clone` + `'static`，
+//! 可安全地在 [`tauri::async_runtime::spawn_blocking`] 中使用。
+//!
+//! ## 功能
+//! - 数据库初始化与路径管理（`~/.steno/data.db`）
+//! - Schema 迁移（v1 → v2：添加 `is_draft` 列）
+//! - 笔记 CRUD（save / get / list / search / delete / pin / draft promote）
+//! - 设置 key-value 存取
+//! - 内容派生（`derive_title` / `extract_tags` / `word_count` / `render_markdown`）
+//!
+//! ## 备份与同步
+//! 预留独立模块 [`backup`] / [`sync`]。
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};

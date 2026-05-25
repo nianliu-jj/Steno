@@ -1,11 +1,11 @@
-// 浮窗速记窗口（label = "quicknote"）。
-//
-// 窗口本身由 tauri.conf.json 预声明（visible=false / alwaysOnTop / skipTaskbar）；
-// URL 指向 index.html#floating，由 App.vue 路由到 FloatingEditor.vue。
-//
-// Rust 这边只剩窗口可见性 helper：show / hide / toggle，外加一个事件 emit：
-// 每次显示浮窗时把"是否新开一份空白草稿"经 `quicknote:open` 事件传给前端，
-// 让 FloatingEditor 决定 hydrate 最新 draft 还是 reset 进 fresh 模式。
+//! 速记浮窗管理（label = `"quicknote"`）。
+//!
+//! 窗口本身由 `tauri.conf.json` 预声明（`visible=false` / `alwaysOnTop` / `skipTaskbar`），
+//! URL 指向 `index.html#floating`，由 `App.vue` 路由到 `FloatingEditor.vue`。
+//!
+//! Rust 端只提供窗口可见性 helper（`show` / `hide` / `toggle`）和一个事件
+//! emit：每次显示浮窗时通过 `quicknote:open` 事件告诉前端"是否新开空白草稿"，
+//! FloatingEditor 据此决定 hydrate 最新 draft 还是 reset 进入 fresh 模式。
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};

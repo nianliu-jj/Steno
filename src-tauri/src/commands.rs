@@ -1,12 +1,14 @@
-// Tauri commands 边界。Plan Task 3 Step 1。
-//
-// 所有 db 操作通过 `tauri::async_runtime::spawn_blocking` 包，避免在 Tokio
-// 多线程 runtime 上阻塞 reactor。Db 实现 Clone（Arc<Mutex<Connection>>），
-// 闭包持有 clone 即可。
-//
-// 错误模式：tauri::command 需要 Result<T, E: Serialize>。把 DbError /
-// JoinError 都格式化成 String 返给前端 — 前端有完整错误消息便于排查，
-// 同时避免泄露 DbError 内部结构。
+//! Tauri IPC 命令边界 — 前端 `invoke` 调用的真正入口。
+//!
+//! ## 线程模型
+//! 所有 db 操作通过 [`tauri::async_runtime::spawn_blocking`] 包裹，
+//! 避免在 Tokio 多线程 runtime 上阻塞 reactor。
+//! `Db` 实现 `Clone`（`Arc<Mutex<Connection>>`），闭包持有 clone 即可。
+//!
+//! ## 错误模式
+//! `tauri::command` 需要 `Result<T, E: Serialize>`。
+//! 把 `DbError` / `JoinError` 都格式化成 `String` 返给前端 —
+//! 前端有完整错误消息便于排查，同时避免泄露内部结构。
 
 use tauri::{AppHandle, State};
 
