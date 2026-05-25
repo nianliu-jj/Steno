@@ -1,12 +1,23 @@
 <script setup lang="ts">
-// Zen 写作窗口顶层视图（mode === 'zen'）。
-//
-// 头部栏：左侧"标题（含编辑按钮）"，右侧"导出 / 退出"。
-// 底部栏：左侧"标签（带省略号 + tooltip）"，右侧"字数 + 保存状态"。
-// 大纲：右下角 FAB 按钮，点击后从底部弹出固定面板，默认隐藏。
-//
-// mount：若 ui.noteId 或 ?id= 存在则从 SQLite hydrate；否则空白草稿。
-// 自动保存：useAutosave 1000ms 防抖；Esc / 退出按钮触发 flushSave + exitZen。
+/**
+ * @component ZenMode
+ * @description Zen 写作窗口顶层视图（`mode === 'zen'`）。
+ *
+ * **布局**：
+ * - 头部栏：左侧标题（含编辑按钮），右侧导出 / 退出按钮
+ * - 编辑区：全宽 CodeMirror 6 编辑器（`MarkdownEditor`），背景透明沉浸式
+ * - 底部栏：左侧标签列表，右侧字数 + 保存状态
+ * - 大纲：右下角 FAB 按钮，点击弹出大纲面板
+ *
+ * **数据流**：
+ * - mount：若 `ui.noteId` 或 `?id=` 存在则从 SQLite hydrate；否则空白草稿
+ * - 自动保存：`useAutosave` 1000ms 防抖
+ * - Esc / 退出按钮 → `flushSave` + `ui.exitZen()`
+ *
+ * **返回逻辑**：`exitZen()` 通过 `ui.zenReturnMode` 回到进入前的页面
+ * （如从 Canvas 双击进入 → 退出后回到 Canvas）。
+ */
+
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { NDropdown, NInput, NText, useMessage } from 'naive-ui';
 

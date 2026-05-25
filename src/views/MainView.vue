@@ -1,6 +1,24 @@
 <script setup lang="ts">
-// 主窗口落地页（mode === 'main'）。
-// 当前作为工作台内容页渲染：原型 v2 的笔记卡片网格和空状态。
+/**
+ * @component MainView
+ * @description 主窗口落地页（`mode === 'main'`）— 笔记卡片网格视图。
+ *
+ * **功能总览**：
+ * - 标签筛选（多选交集 + "无标签"筛选 + "全部笔记"快捷选项）
+ * - 笔记卡片网格（标题/预览/标签/时间/操作按钮）
+ * - 新建笔记 / 新建速记按钮
+ * - 右键上下文菜单（编辑/标签/重命名/导出/删除）
+ * - 草稿卡片特殊处理（"未保存"灰色标签，禁止编辑页入口）
+ * - 跨窗口实时同步（监听 `steno:note-saved` / `steno:note-removed` 事件）
+ *
+ * **草稿处理**：
+ * - `isDraft` 笔记排在列表最前 + 灰色"未保存"标签
+ * - 禁止进入 NoteEditorView：点击编辑 → 打开速记浮窗继续编写
+ * - 列表卡片上的"保存"按钮直接调用 `promoteDraft` 提升为正式笔记
+ *
+ * @props — 无
+ */
+
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { NButton, NDropdown, NIcon, NInput, NPopconfirm, useMessage } from 'naive-ui';
 

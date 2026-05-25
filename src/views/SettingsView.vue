@@ -1,5 +1,24 @@
 <script setup lang="ts">
-// 设置面板。主窗口内由 NModal 承载；独立 settings 模式下作为整页兜底展示。
+/**
+ * @component SettingsView
+ * @description 设置面板 — 主窗口内由 `NModal` 承载（`embedded=true`），
+ *              独立 `settings` 模式下作为整页展示。
+ *
+ * **标签页**：常规 / 外观 / 快捷键 / 隐私安全 / 存储 / 关于
+ *
+ * **数据流**：
+ * - 读取：`settings.state`（Pinia store），由 `settings.load()` 初始化
+ * - 写入：乐观更新模式（`settings.update(key, value)`，失败回滚）
+ * - 主题变更：写入后通过 `steno:theme-mode-changed` 事件广播到所有窗口
+ * - 快捷键变更：写入后调用 `db.reloadShortcuts()` 让 Rust 端重新注册
+ *
+ * @props
+ * - `embedded?: boolean` — `true` = Modal 内嵌模式（有 close emit）
+ *
+ * @emits
+ * - `close` — 关闭设置面板（仅 embedded 模式）
+ */
+
 import { computed, onMounted, ref } from 'vue';
 import {
   NButton,

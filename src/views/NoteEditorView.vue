@@ -1,4 +1,22 @@
 <script setup lang="ts">
+/**
+ * @component NoteEditorView
+ * @description 笔记编辑器页面（`mode === 'note-editor'`）— 在 main 窗口内打开。
+ *
+ * **功能**：
+ * - 标题编辑（点击标题文本切换为 NInput 编辑态）
+ * - Markdown 编辑器（CodeMirror 6 + WYSIWYG）↔ 只读预览切换
+ * - 标签编辑弹窗（最多 3 个标签）
+ * - 大纲面板（右下角 FAB 按钮触发）
+ * - 自动保存（useAutosave 1000ms 防抖）
+ * - Zen 模式入口（模式切换下拉菜单）
+ *
+ * **模式切换**：通过底部下拉菜单在"编辑模式" / "只读模式" / "Zen 模式"之间切换。
+ * 只读模式使用 `MarkdownReadSurface` 渲染预览；Zen 模式走 `ui.navigateTo('zen')`。
+ *
+ * @props — 无（所有参数通过 `ui.noteId` 获取）
+ */
+
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { NButton, NIcon, NInput, NText, useMessage } from 'naive-ui';
 import { onClickOutside } from '@vueuse/core';

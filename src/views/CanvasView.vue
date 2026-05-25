@@ -1,6 +1,13 @@
 <script setup lang="ts">
-// 画布视图（mode === 'canvas'）。由 main 窗口路由切入，负责加载 notes
-//（store），把 Canvas 组件挂上去。
+/**
+ * @component CanvasView
+ * @description 画布视图页面 — `mode === 'canvas'` 时由 App.vue 渲染。
+ *              负责预加载笔记列表（`loadNotes(500)`）并将 Canvas 组件挂载到页面。
+ *
+ * **为什么不在 Canvas 组件内部加载数据**：
+ * Canvas 组件只负责渲染和交互；数据加载由视图层完成，遵循"容器组件 vs 展示组件"分离。
+ */
+
 import { onMounted } from 'vue';
 
 import Canvas from '@/components/Canvas.vue';
