@@ -19,6 +19,7 @@ use std::sync::{Arc, Mutex};
 
 use rusqlite::{Connection, OptionalExtension};
 
+use crate::clipboard::{ClipboardEntry, NewClipboardEntry};
 use crate::models::{Note, SaveNoteRequest, SearchNotesRequest};
 
 #[derive(Debug, thiserror::Error)]
@@ -157,6 +158,32 @@ impl Db {
             tx.pragma_update(None, "user_version", 2_i64)?;
             tx.commit()?;
         }
+        if version < 3 {
+            let tx = conn.transaction()?;
+            tx.execute_batch(
+                "
+                CREATE TABLE IF NOT EXISTS clipboard_history (
+                  id TEXT PRIMARY KEY,
+                  content_type TEXT NOT NULL,
+                  content TEXT NOT NULL,
+                  html_content TEXT,
+                  preview TEXT NOT NULL,
+                  content_hash TEXT NOT NULL,
+                  created_at TEXT NOT NULL,
+                  updated_at TEXT NOT NULL,
+                  size_bytes INTEGER NOT NULL DEFAULT 0
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_clipboard_history_hash
+                  ON clipboard_history(content_type, content_hash);
+                CREATE INDEX IF NOT EXISTS idx_clipboard_history_updated_at
+                  ON clipboard_history(updated_at);
+                CREATE INDEX IF NOT EXISTS idx_clipboard_history_type
+                  ON clipboard_history(content_type);
+                ",
+            )?;
+            tx.pragma_update(None, "user_version", 3_i64)?;
+            tx.commit()?;
+        }
         // 幂等自检：dev 库偶尔会出现 user_version 已升到 2 但实际 ALTER 没成功
         // 的不一致状态（多进程访问、上次 migration 异常等），每次启动再确认一次。
         Self::ensure_is_draft_column(conn)?;
@@ -196,6 +223,7 @@ impl Db {
         let defaults: &[(&str, &str)] = &[
             ("mainWindowShortcut", "Ctrl+Shift+N"),
             ("quicknoteShortcut", "Ctrl+Shift+M"),
+            ("clipboardShortcut", "Ctrl+Shift+V"),
             ("searchShortcut", "Ctrl+Shift+F"),
             ("floatingWidth", "400"),
             ("floatingHeight", "300"),
@@ -487,6 +515,95 @@ impl Db {
         Ok(note)
     }
 
+    // ----- 剪贴板历史 --------------------------------------------------
+
+    pub fn upsert_clipboard_entry(
+        &self,
+        input: NewClipboardEntry,
+    ) -> Result<ClipboardEntry, DbError> {
+        let conn = self.lock()?;
+        let now = chrono::Utc::now().to_rfc3339();
+        let existing: Option<(String, String)> = conn
+            .query_row(
+                "SELECT id, created_at FROM clipboard_history
+                 WHERE content_type = ?1 AND content_hash = ?2",
+                rusqlite::params![&input.content_type, &input.content_hash],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
+
+        let (id, created_at) = existing.unwrap_or_else(|| {
+            let id = uuid::Uuid::new_v4().to_string();
+            (id, now.clone())
+        });
+
+        conn.execute(
+            "INSERT INTO clipboard_history
+             (id, content_type, content, html_content, preview, content_hash, created_at, updated_at, size_bytes)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             ON CONFLICT(content_type, content_hash) DO UPDATE SET
+               content = excluded.content,
+               html_content = excluded.html_content,
+               preview = excluded.preview,
+               updated_at = excluded.updated_at,
+               size_bytes = excluded.size_bytes",
+            rusqlite::params![
+                &id,
+                &input.content_type,
+                &input.content,
+                &input.html_content,
+                &input.preview,
+                &input.content_hash,
+                &created_at,
+                &now,
+                input.size_bytes,
+            ],
+        )?;
+
+        Self::find_clipboard_entry(&conn, &id)
+    }
+
+    pub fn list_clipboard_entries(
+        &self,
+        limit: i64,
+        content_type: Option<String>,
+        query: Option<String>,
+    ) -> Result<Vec<ClipboardEntry>, DbError> {
+        let conn = self.lock()?;
+        let mut sql = String::from(
+            "SELECT id, content_type, content, html_content, preview, created_at, updated_at, size_bytes
+             FROM clipboard_history
+             WHERE 1 = 1",
+        );
+        let mut values: Vec<String> = Vec::new();
+
+        if let Some(content_type) = content_type.map(|value| value.trim().to_string()) {
+            if !content_type.is_empty() {
+                sql.push_str(" AND content_type = ?");
+                values.push(content_type);
+            }
+        }
+
+        if let Some(query) = query.map(|value| value.trim().to_string()) {
+            if !query.is_empty() {
+                sql.push_str(" AND (content LIKE ? OR preview LIKE ?)");
+                let like = format!("%{query}%");
+                values.push(like.clone());
+                values.push(like);
+            }
+        }
+
+        sql.push_str(" ORDER BY updated_at DESC LIMIT ?");
+        values.push(limit.max(1).to_string());
+
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(
+            rusqlite::params_from_iter(values.iter()),
+            row_to_clipboard_entry,
+        )?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
     // ----- 设置 key-value -----------------------------------------------
 
     pub fn get_setting(&self, key: &str) -> Result<Option<String>, DbError> {
@@ -526,6 +643,18 @@ impl Db {
             .optional()?;
         note.ok_or_else(|| DbError::NotFound(id.to_string()))
     }
+
+    fn find_clipboard_entry(conn: &Connection, id: &str) -> Result<ClipboardEntry, DbError> {
+        let entry = conn
+            .query_row(
+                "SELECT id, content_type, content, html_content, preview, created_at, updated_at, size_bytes
+                 FROM clipboard_history WHERE id = ?1",
+                rusqlite::params![id],
+                row_to_clipboard_entry,
+            )
+            .optional()?;
+        entry.ok_or_else(|| DbError::NotFound(id.to_string()))
+    }
 }
 
 fn row_to_note(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
@@ -551,6 +680,19 @@ fn row_to_note(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
         updated_at: row.get(9)?,
         word_count: row.get(10)?,
         is_draft: is_draft_int != 0,
+    })
+}
+
+fn row_to_clipboard_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<ClipboardEntry> {
+    Ok(ClipboardEntry {
+        id: row.get(0)?,
+        content_type: row.get(1)?,
+        content: row.get(2)?,
+        html_content: row.get(3)?,
+        preview: row.get(4)?,
+        created_at: row.get(5)?,
+        updated_at: row.get(6)?,
+        size_bytes: row.get(7)?,
     })
 }
 
@@ -673,6 +815,20 @@ mod tests {
     }
 
     #[test]
+    fn migrate_creates_clipboard_history_table() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        Db::migrate(&mut conn).unwrap();
+        let exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='clipboard_history'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(exists, 1);
+    }
+
+    #[test]
     fn migrate_is_idempotent() {
         let mut conn = Connection::open_in_memory().unwrap();
         Db::migrate(&mut conn).unwrap();
@@ -680,7 +836,7 @@ mod tests {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 2);
+        assert_eq!(version, 3);
     }
 
     #[test]
@@ -767,7 +923,7 @@ mod tests {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 2);
+        assert_eq!(version, 3);
     }
 
     // --- derive_title ---
@@ -1064,6 +1220,72 @@ mod tests {
         assert_eq!(v.as_deref(), Some("Ctrl+Shift+M"));
         let v2 = db.get_setting("mainWindowShortcut").unwrap();
         assert_eq!(v2.as_deref(), Some("Ctrl+Shift+N"));
+    }
+
+    #[test]
+    fn default_settings_seed_includes_clipboard_shortcut() {
+        let db = fresh_db();
+        let v = db.get_setting("clipboardShortcut").unwrap();
+        assert_eq!(v.as_deref(), Some("Ctrl+Shift+V"));
+    }
+
+    #[test]
+    fn upsert_clipboard_entry_inserts_and_deduplicates_by_hash() {
+        let db = fresh_db();
+        let input = NewClipboardEntry {
+            content_type: "text".into(),
+            content: "hello".into(),
+            html_content: None,
+            preview: "hello".into(),
+            content_hash: "text:abc".into(),
+            size_bytes: 5,
+        };
+
+        let first = db.upsert_clipboard_entry(input.clone()).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        let second = db.upsert_clipboard_entry(input).unwrap();
+
+        assert_eq!(first.id, second.id);
+        assert_ne!(first.updated_at, second.updated_at);
+
+        let listed = db.list_clipboard_entries(20, None, None).unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].content, "hello");
+    }
+
+    #[test]
+    fn list_clipboard_entries_filters_by_type_and_query() {
+        let db = fresh_db();
+        db.upsert_clipboard_entry(NewClipboardEntry {
+            content_type: "url".into(),
+            content: "https://example.com".into(),
+            html_content: None,
+            preview: "https://example.com".into(),
+            content_hash: "url:a".into(),
+            size_bytes: 19,
+        })
+        .unwrap();
+        db.upsert_clipboard_entry(NewClipboardEntry {
+            content_type: "text".into(),
+            content: "meeting notes".into(),
+            html_content: None,
+            preview: "meeting notes".into(),
+            content_hash: "text:b".into(),
+            size_bytes: 13,
+        })
+        .unwrap();
+
+        let urls = db
+            .list_clipboard_entries(20, Some("url".to_string()), None)
+            .unwrap();
+        assert_eq!(urls.len(), 1);
+        assert_eq!(urls[0].content_type, "url");
+
+        let search = db
+            .list_clipboard_entries(20, None, Some("meeting".to_string()))
+            .unwrap();
+        assert_eq!(search.len(), 1);
+        assert_eq!(search[0].content, "meeting notes");
     }
 
     #[test]
