@@ -426,6 +426,7 @@ defineExpose({ resetView, setZoom });
             @dblclick.stop="onCardDblclick(card)"
           >
             <header class="canvas-card-header">
+              <span v-if="card.note.isDraft" class="canvas-card-draft-tag" title="尚未保存">未保存</span>
               <span class="canvas-card-title">
                 {{ card.note.title || '无标题' }}
               </span>
@@ -571,6 +572,17 @@ defineExpose({ resetView, setZoom });
   flex: 1;
 }
 .canvas-card-pin { color: #ffd166; font-size: 12px; }
+.canvas-card-draft-tag {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 500;
+  color: #ebcfa9;
+  background: rgba(168, 95, 50, 0.18);
+  border: 1px solid rgba(168, 95, 50, 0.42);
+  letter-spacing: 0.5px;
+}
 .canvas-card-body {
   flex: 1;
   font-size: 12px;

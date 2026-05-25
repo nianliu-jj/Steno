@@ -145,9 +145,9 @@ watch(
           <NModal
             :show="ui.settingsOpen"
             to=".app-theme-root"
-            preset="card"
             :mask-closable="true"
             :auto-focus="false"
+            :mask-style="{ background: 'transparent' }"
             @update:show="value => !value && ui.closeSettings()"
           >
             <SettingsView embedded @close="ui.closeSettings()" />

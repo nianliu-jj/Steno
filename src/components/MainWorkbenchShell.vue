@@ -48,6 +48,14 @@ const effectiveRailState = computed(() =>
     : 'expanded',
 );
 const railWidth = computed(() => `${railPane.width.value}px`);
+// 折叠态把 inline width 让出来，由 `[data-rail="collapsed"]` 的 CSS 变量
+// `--rail-w-collapsed` 接管，配合 `transition: width 0.22s ease` 出现丝滑收缩。
+// 展开态保留 inline width，让侧边栏拖拽 resize 能实时反映宽度。
+const railStyle = computed(() =>
+  effectiveRailState.value === 'collapsed'
+    ? {}
+    : { width: railWidth.value, minWidth: railWidth.value },
+);
 
 const featureQuery = ref('');
 const featureMenuOpen = ref(false);
@@ -451,7 +459,7 @@ function iconPathFor(key: WindowMode) {
       <aside
         v-if="props.navItems?.length"
         class="workbench-sidebar rail"
-        :style="{ width: railWidth, minWidth: railWidth }"
+        :style="railStyle"
       >
         <slot name="sidebar">
           <nav class="rail-menu" aria-label="主菜单">
