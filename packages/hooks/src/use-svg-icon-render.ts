@@ -1,10 +1,18 @@
+/**
+ * @file SVG 图标渲染 Hook
+ *
+ * 将 Iconify 图标名或本地图标名渲染为 Vue VNode，
+ * 支持自定义颜色和字号。
+ */
+
 import { h } from 'vue';
 import type { Component } from 'vue';
 
 /**
- * Svg icon render hook
+ * 创建 SVG 图标渲染器。
  *
- * @param SvgIcon Svg icon component
+ * @param SvgIcon - SVG 图标组件（接收 `icon` / `localIcon` / `style` props）
+ * @returns `{ SvgIconVNode }` — 生成图标 VNode 的工厂函数
  */
 export default function useSvgIconRender(SvgIcon: Component) {
   interface IconConfig {

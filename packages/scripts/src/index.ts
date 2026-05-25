@@ -1,3 +1,15 @@
+/**
+ * @file @sa/scripts — CLI 工具脚本
+ *
+ * 基于 cac 的命令行工具，提供：
+ * - `cleanup` — 清理 node_modules / dist 等构建产物
+ * - `update-pkg` — 更新 package.json 依赖版本
+ * - `git-commit` — 生成符合 Conventional Commits 规范的提交信息
+ * - `git-commit-verify` — 校验提交信息格式
+ * - `changelog` — 生成 CHANGELOG
+ * - `release` — 自动化发版（更新版本号 → 生成 changelog → 提交代码）
+ */
+
 import { cac } from 'cac';
 import { blue, lightGreen } from 'kolorist';
 import { version } from '../package.json';

@@ -1,8 +1,24 @@
+/**
+ * @file @sa/uno-preset — UnoCSS 预设
+ *
+ * 提供一组常用的 UnoCSS shortcuts，包括：
+ * - **Flex 布局**：`flex-center`、`flex-x-center`、`flex-col-center` 等
+ * - **绝对/固定定位**：`absolute-center`、`fixed-lt`、`absolute-rt` 等
+ * - **文本溢出**：`ellipsis-text`（`overflow-hidden + whitespace-nowrap + text-ellipsis`）
+ *
+ * `// @unocss-include` 注释确保 UnoCSS 在构建时扫描此文件中的 class。
+ */
+
 // @unocss-include
 
 import type { Preset } from '@unocss/core';
 import type { Theme } from '@unocss/preset-mini';
 
+/**
+ * 创建 SoybeanAdmin UnoCSS 预设。
+ *
+ * @returns UnoCSS `Preset<Theme>` 对象，可直接用于 `unocss.config.ts` 的 `presets` 数组
+ */
 export function presetSoybeanAdmin(): Preset<Theme> {
   const preset: Preset<Theme> = {
     name: 'preset-soybean-admin',
