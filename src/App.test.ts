@@ -204,6 +204,15 @@ vi.mock('@/views/CanvasView.vue', async () => {
   };
 });
 
+vi.mock('@/views/ClipboardView.vue', async () => {
+  const { defineComponent, h } = await import('vue');
+  return {
+    default: defineComponent({
+      setup: () => () => h('div', { 'data-testid': 'clipboard-view' }, 'clipboard-view'),
+    }),
+  };
+});
+
 vi.mock('@/views/PlaceholderView.vue', async () => {
   const { defineComponent, h } = await import('vue');
   return {
@@ -299,6 +308,16 @@ describe('App', () => {
     expect(wrapper.find('[data-testid="shell"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="settings-modal"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="settings-view"]').exists()).toBe(true);
+  });
+
+  it('renders the clipboard view for clipboard mode instead of the placeholder', () => {
+    uiState.mode = 'clipboard';
+
+    const wrapper = mount(App);
+
+    expect(wrapper.find('[data-testid="shell"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="clipboard-view"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="placeholder-view"]').exists()).toBe(false);
   });
 
   it('teleports the embedded settings modal into the themed app root instead of body', async () => {
