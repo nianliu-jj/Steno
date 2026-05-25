@@ -1,7 +1,18 @@
+/**
+ * @file 类型安全的 provide/inject 上下文封装
+ *
+ * 用 Symbol 作为 injection key，避免字符串 key 冲突。
+ * 返回 `[useProvide, useInject]` 对，与 React 的 `createContext` 模式类似。
+ */
+
 import { inject, provide } from 'vue';
 
 /**
- * Use context
+ * 创建类型安全的上下文。
+ *
+ * @param contextName - 上下文名称（用于错误提示和 Symbol description）
+ * @param composable - 创建上下文值的工厂函数
+ * @returns `[useProvide, useInject]` — 提供者和消费者
  *
  * @example
  *   ```ts

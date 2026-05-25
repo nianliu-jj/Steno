@@ -1,14 +1,21 @@
-// 全局快捷键。Plan Task 3 Step 3。
-//
-// 演进：
-// - PR1/PR2 时硬编码 Ctrl+Shift+N / Ctrl+Shift+M。
-// - 现在改成"从 settings 表读取，解析失败/缺失就回退到默认"。
-// - 暴露 reload_shortcuts command 给设置面板：写完 setting 后通知 Rust 端
-//   重新注册（unregister_all + register new）。
-//
-// plugin handler 不能拿 db state（'static 闭包），所以用一个全局 registry
-// (Vec<(Shortcut, Action)>) 做"按键 → 动作"映射。每次 register 时刷新
-// registry。Vec 线性查找在 N<10 时比 HashMap 更快。
+//! 全局快捷键注册与管理。
+//!
+//! ## 架构
+//! 使用 `tauri-plugin-global-shortcut` 注册 OS 级快捷键。
+//! plugin handler 不能拿 db state（`'static` 闭包），所以用全局
+//! `REGISTRY`（`Vec<(Shortcut, Action)>`）做"按键 → 动作"映射。
+//! Vec 线性查找在 N < 10 时比 HashMap 更快。
+//!
+//! ## 数据流
+//! 1. `setup` → `register_from_settings` 从 settings 表读取快捷键字符串
+//! 2. `parse_shortcut("Ctrl+Shift+N")` → 解析为 `Shortcut` 结构体
+//! 3. 更新全局 REGISTRY → `app.global_shortcut().register(sc)`
+//! 4. 设置面板改快捷键 → `reload_shortcuts` command → 重新执行步骤 1-3
+//!
+//! ## 默认回退
+//! settings 读不到或解析失败时回退到硬编码默认值：
+//! - 主窗口：`Ctrl+Shift+N`
+//! - 速记浮窗：`Ctrl+Shift+M`
 
 use std::sync::{LazyLock, Mutex};
 

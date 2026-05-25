@@ -1,16 +1,18 @@
-// 导出服务。Plan Task 8.4 / spec search-export-settings。
-//
-// Markdown 导出：把 note 的 title/正文/标签/创建时间/更新时间渲染成
-// `.md` 文件并写盘。失败时不动原数据，向调用方返回 io::Error。
-//
-// PDF 导出：MVP 没有跨平台 PDF 排版器；这里返回 ExportError::PdfUnavailable，
-// 让前端展示"请使用浏览器打印/外部工具"提示。未来可在此切到 wkhtmltopdf /
-// chromiumoxide / 系统 print API 适配器。
-//
-// 输出路径策略（避免引入 tauri-plugin-dialog 依赖）：
-// commands.rs 在调用本模块时把 `<data_dir>/exports/` 作为 base dir，
-// 文件名由 sanitize_title(note) + 短 id 拼成。
-// 前端只需要拿到返回的完整路径展示给用户。
+//! 笔记导出服务。
+//!
+//! ## 导出格式
+//! - **Markdown**：含 YAML frontmatter（标题/标签/时间）+ 正文，写 `.md` 文件
+//! - **HTML**：独立 HTML 文档（内联样式 + `pulldown-cmark` 渲染的 body）
+//! - **PDF**：MVP 不支持 — 返回 `ExportError::PdfUnavailable`，
+//!   前端展示"请使用浏览器打印/外部工具"提示
+//!
+//! ## 输出路径策略
+//! `commands.rs` 把 `<data_dir>/exports/` 作为 base dir，
+//! 文件名由 `sanitize_title(note) + 短 id` 拼成。
+//! 前端只需拿到返回的完整路径展示给用户。
+//!
+//! ## 错误处理
+//! 导出失败时不动原数据，仅向调用方返回 `io::Error` / `ExportError`。
 
 use std::path::{Path, PathBuf};
 
@@ -160,6 +162,7 @@ mod tests {
             created_at: "2026-05-01T10:00:00Z".into(),
             updated_at: "2026-05-12T12:00:00Z".into(),
             word_count: 6,
+            is_draft: false,
         }
     }
 

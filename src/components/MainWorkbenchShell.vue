@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
+import { useResizablePane } from '@/composables/useResizablePane';
+import { useSettingsStore } from '@/stores/settings';
 import { useWindow } from '@/composables/useWindow';
 import { useUiStore } from '@/stores/ui';
 import type { WindowMode } from '@/types/steno';
@@ -27,15 +29,32 @@ const props = defineProps<{
 
 const win = useWindow();
 const ui = useUiStore();
+const settings = useSettingsStore();
 const compactBreakpoint = 720;
-const railState = ref<'expanded' | 'collapsed'>('expanded');
 const languageIndex = ref(0);
 const languages = ['ZH', 'EN', 'JA'];
 const compactViewport = ref(
   typeof window !== 'undefined' ? window.innerWidth < compactBreakpoint : false,
 );
+const railPane = useResizablePane({
+  initialWidth: settings.state.mainSidebarWidth,
+  minWidth: 58,
+  maxWidth: 320,
+  collapseThreshold: 72,
+});
 const effectiveRailState = computed(() =>
-  compactViewport.value ? 'collapsed' : railState.value,
+  compactViewport.value || railPane.collapsed.value || settings.state.mainSidebarCollapsed
+    ? 'collapsed'
+    : 'expanded',
+);
+const railWidth = computed(() => `${railPane.width.value}px`);
+// 折叠态把 inline width 让出来，由 `[data-rail="collapsed"]` 的 CSS 变量
+// `--rail-w-collapsed` 接管，配合 `transition: width 0.22s ease` 出现丝滑收缩。
+// 展开态保留 inline width，让侧边栏拖拽 resize 能实时反映宽度。
+const railStyle = computed(() =>
+  effectiveRailState.value === 'collapsed'
+    ? {}
+    : { width: railWidth.value, minWidth: railWidth.value },
 );
 
 const featureQuery = ref('');
@@ -183,12 +202,39 @@ function onCycleLanguage() {
 
 function onToggleRail() {
   if (compactViewport.value) return;
-  railState.value = railState.value === 'collapsed' ? 'expanded' : 'collapsed';
+
+  if (effectiveRailState.value === 'collapsed') {
+    railPane.expand();
+    settings.state.mainSidebarCollapsed = false;
+    return;
+  }
+
+  settings.state.mainSidebarCollapsed = true;
 }
 
 function syncCompactViewport() {
   if (typeof window === 'undefined') return;
   compactViewport.value = window.innerWidth < compactBreakpoint;
+}
+
+function onRailResizePointerDown(event: PointerEvent) {
+  const originX = event.clientX;
+  const originWidth = railPane.width.value;
+
+  const onPointerMove = (moveEvent: PointerEvent) => {
+    railPane.setWidth(originWidth + (moveEvent.clientX - originX));
+    settings.state.mainSidebarCollapsed = railPane.collapsed.value;
+  };
+
+  const onPointerUp = () => {
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointerup', onPointerUp);
+    settings.state.mainSidebarWidth = railPane.width.value;
+    settings.state.mainSidebarCollapsed = railPane.collapsed.value;
+  };
+
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp, { once: true });
 }
 
 function openFeatureMenu() {
@@ -410,7 +456,11 @@ function iconPathFor(key: WindowMode) {
     </header>
 
     <div class="workbench-body">
-      <aside v-if="props.navItems?.length" class="workbench-sidebar rail">
+      <aside
+        v-if="props.navItems?.length"
+        class="workbench-sidebar rail"
+        :style="railStyle"
+      >
         <slot name="sidebar">
           <nav class="rail-menu" aria-label="主菜单">
             <button
@@ -479,6 +529,14 @@ function iconPathFor(key: WindowMode) {
           </div>
         </slot>
       </aside>
+      <button
+        v-if="effectiveRailState === 'expanded'"
+        class="workbench-rail-resize"
+        data-testid="workbench-rail-resize"
+        type="button"
+        aria-label="调整侧边栏宽度"
+        @pointerdown="onRailResizePointerDown"
+      />
 
       <main class="workbench-main">
         <section class="workbench-content">
@@ -924,6 +982,15 @@ function iconPathFor(key: WindowMode) {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+.workbench-rail-resize {
+  width: 10px;
+  flex: 0 0 10px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: col-resize;
 }
 
 .workbench-content {

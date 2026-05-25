@@ -1,7 +1,12 @@
-// 系统托盘：紫色 "S" 图标 + 右键菜单 + 左键单击呼出主窗口。
-// PR1 提供基础 (托盘 + 主窗口/退出菜单)；PR2 让 "新建速记" 打开浮窗。
-// Plan Task 3 Step 4 扩展菜单：show_stickies / open_canvas /
-// open_settings。页面型入口现在统一回到 main 窗口，并由前端路由切换视图。
+//! 系统托盘。
+//!
+//! 功能：
+//! - **托盘图标**：紫色 "S" 图标
+//! - **左键单击**：呼出主窗口
+//! - **右键菜单**：新建速记 / 显示主窗口 / 显示置顶便签 / 打开画布 / 设置 / 退出
+//!
+//! 页面型入口（画布/设置）统一回到 main 窗口，由前端路由切换视图。
+//! 退出菜单调用 `app.exit(0)`，真正退出进程（区别于窗口关闭按钮只 hide）。
 
 use tauri::{
     App, Manager,
@@ -41,7 +46,7 @@ pub fn setup(app: &App) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
-            "new_note" => quicknote::show(app),
+            "new_note" => quicknote::show(app, true, None),
             "show" => window_manager::show_main(app),
             "show_stickies" => {
                 // 查 db 拿所有置顶笔记，逐一打开 sticky 窗口；DB 查询很快，

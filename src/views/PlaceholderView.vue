@@ -1,6 +1,18 @@
 <script setup lang="ts">
+/**
+ * @component PlaceholderView
+ * @description 未实现功能的占位页面 — 展示"即将推出"提示。
+ *              用于 clipboard / todo / screenshot / ocr / translate 等规划中模块。
+ *
+ * @props
+ * - `title: string` — 功能名称
+ * - `description: string` — 功能描述
+ */
+
 defineProps<{
+  /** 功能名称（如"粘贴板"、"待办"）。 */
   title: string;
+  /** 功能描述（如"功能规划中"）。 */
   description: string;
 }>();
 </script>

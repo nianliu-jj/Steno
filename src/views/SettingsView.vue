@@ -1,5 +1,24 @@
 <script setup lang="ts">
-// 设置面板。主窗口内由 NModal 承载；独立 settings 模式下作为整页兜底展示。
+/**
+ * @component SettingsView
+ * @description 设置面板 — 主窗口内由 `NModal` 承载（`embedded=true`），
+ *              独立 `settings` 模式下作为整页展示。
+ *
+ * **标签页**：常规 / 外观 / 快捷键 / 隐私安全 / 存储 / 关于
+ *
+ * **数据流**：
+ * - 读取：`settings.state`（Pinia store），由 `settings.load()` 初始化
+ * - 写入：乐观更新模式（`settings.update(key, value)`，失败回滚）
+ * - 主题变更：写入后通过 `steno:theme-mode-changed` 事件广播到所有窗口
+ * - 快捷键变更：写入后调用 `db.reloadShortcuts()` 让 Rust 端重新注册
+ *
+ * @props
+ * - `embedded?: boolean` — `true` = Modal 内嵌模式（有 close emit）
+ *
+ * @emits
+ * - `close` — 关闭设置面板（仅 embedded 模式）
+ */
+
 import { computed, onMounted, ref } from 'vue';
 import {
   NButton,
@@ -493,10 +512,28 @@ const headerSub = computed(() =>
 }
 
 .settings-shell--embedded {
-  width: auto;
-  height: auto;
+  /* 主窗口内通过 NModal 承载，mask 已置透明。让 shell 自身 fixed 铺满整个
+     app 视口、背景跟随主题，看起来就像设置直接替换了 main view，不再有外层
+     黑色 mask + card 边框包裹。 */
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
   padding: 0;
-  background: transparent;
+  background: var(--bg, #15151a);
+  display: grid;
+  place-items: stretch;
+}
+
+.settings-shell--embedded .settings-panel {
+  /* 全屏铺满，去掉 card 视觉（圆角 / 边框 / 阴影），让设置内容直接呈现。 */
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
 }
 
 .settings-panel {
@@ -517,6 +554,15 @@ const headerSub = computed(() =>
   background: #202025;
   color: #eee9e2;
   border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* NRadio 默认会跟随 Naive UI 主题色（dark 主题下变浅），但 .settings-panel 自身
+   背景与 panel.color 已经做了双主题；让 radio label / 数字输入 / 路径 code 直接
+   继承 panel 当前 color，避免在浅色背景上残留浅文字看不清。 */
+.settings-panel :deep(.n-radio__label),
+.settings-panel :deep(.n-input-number .n-input__input-el),
+.settings-panel :deep(.n-input .n-input__input-el) {
+  color: inherit;
 }
 
 .settings-panel__header,

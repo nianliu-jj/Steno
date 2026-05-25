@@ -1,20 +1,15 @@
-// 数据库备份服务。Plan Task 2 Step 7。
-//
-// 触发策略（plan/spec）：
-//   - 当天首次"会修改 db 的保存"后备份一次；
-//   - 累计每 10 次修改备份一次。
-//
-// 当前 Commit B 只实现"每 N 次修改备份"的部分；"当天首次"需要持久化"上次
-// 备份日期"，留给后续小步（可放到 settings 表的 lastBackupDate 键，由调用
-// 方在 maybe_backup 之外协调）。这与 plan 9 的"`.steno/backup` 出现符合
-// 策略的备份"验收点对齐。
-//
-// 备份目录：`~/.steno/backup/`
-// 备份文件名：`data-YYYY-MM-DD-HHMMSS.db`（UTC 时间，避免本地时区切换）
-//
-// 模块 dead_code allow 是过渡状态：maybe_backup 的调用方是 Task 3 的
-// commands.rs（在 save_note / delete_note / set_pinned 后调用）。
-// 下一个 commit 落地 commands 后移除此 allow。
+//! 数据库备份服务。
+//!
+//! ## 触发策略
+//! - 累计每 10 次"修改 db 的操作"（save/delete/pin 等）触发一次备份
+//! - "当天首次保存"备份策略留给后续迭代（需持久化 `lastBackupDate`）
+//!
+//! ## 备份文件
+//! - 目录：`~/.steno/backup/`
+//! - 文件名：`data-YYYY-MM-DD-HHMMSS.db`（UTC 时间，避免本地时区切换）
+//!
+//! ## 错误处理
+//! 备份失败不中断业务 — 调用方只记录日志，用户保存操作正常进行。
 
 #![allow(dead_code)]
 

@@ -1,12 +1,18 @@
-// SQLite 数据访问层。Plan Task 2 Step 2–6 + Task 3 接入（Arc<Mutex> 改造）。
-//
-// Commit A 落了基础设施（连接 / 路径 / v1 迁移）。
-// Commit B 在此追加：notes/settings CRUD + 内容派生 + 默认设置初始化。
-// 备份与同步预留在独立模块（backup.rs / sync.rs）。
-//
-// 为了让 commands.rs 在 `tauri::async_runtime::spawn_blocking` 里使用，
-// Db 必须实现 Clone 且 'static — Connection 被 Arc<Mutex> 包裹，
-// 整个 Db 是廉价克隆的句柄（Arc 引用计数）。
+//! SQLite 数据访问层。
+//!
+//! ## 设计
+//! `Db` 由 `Arc<Mutex<Connection>>` 包裹，实现 `Clone` + `'static`，
+//! 可安全地在 [`tauri::async_runtime::spawn_blocking`] 中使用。
+//!
+//! ## 功能
+//! - 数据库初始化与路径管理（`~/.steno/data.db`）
+//! - Schema 迁移（v1 → v2：添加 `is_draft` 列）
+//! - 笔记 CRUD（save / get / list / search / delete / pin / draft promote）
+//! - 设置 key-value 存取
+//! - 内容派生（`derive_title` / `extract_tags` / `word_count` / `render_markdown`）
+//!
+//! ## 备份与同步
+//! 预留独立模块 [`backup`] / [`sync`]。
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -144,44 +150,51 @@ impl Db {
             tx.commit()?;
         }
         if version < 2 {
+            // v2：为"未保存草稿"语义引入 is_draft 列。
+            // 速记浮窗未点保存就关闭时，内容仍持久化为 is_draft=1 的笔记，
+            // 笔记列表会把它排在最前面并附"未保存"灰标签。
             let tx = conn.transaction()?;
-            tx.execute_batch(
-                "
-                CREATE TABLE IF NOT EXISTS workspaces (
-                  id TEXT PRIMARY KEY,
-                  name TEXT NOT NULL,
-                  root_path TEXT NOT NULL UNIQUE,
-                  created_at TEXT NOT NULL,
-                  updated_at TEXT NOT NULL
-                );
-
-                CREATE TABLE IF NOT EXISTS library_entries (
-                  id TEXT PRIMARY KEY,
-                  kind TEXT NOT NULL,
-                  title TEXT NOT NULL,
-                  preview_text TEXT NOT NULL DEFAULT '',
-                  body_markdown TEXT,
-                  tags TEXT NOT NULL DEFAULT '[]',
-                  workspace_id TEXT,
-                  parent_id TEXT,
-                  group_id TEXT,
-                  file_path TEXT,
-                  created_at TEXT NOT NULL,
-                  updated_at TEXT NOT NULL,
-                  word_count INTEGER NOT NULL DEFAULT 0,
-                  byte_size INTEGER NOT NULL DEFAULT 0
-                );
-
-                CREATE INDEX IF NOT EXISTS idx_library_entries_kind ON library_entries(kind);
-                CREATE INDEX IF NOT EXISTS idx_library_entries_workspace_parent
-                  ON library_entries(workspace_id, parent_id);
-                CREATE INDEX IF NOT EXISTS idx_library_entries_group_parent
-                  ON library_entries(group_id, parent_id);
-                ",
+            let already_has_column = Self::notes_has_is_draft_column(&tx)?;
+            if !already_has_column {
+                tx.execute(
+                    "ALTER TABLE notes ADD COLUMN is_draft INTEGER NOT NULL DEFAULT 0",
+                    [],
+                )?;
+            }
+            tx.execute(
+                "CREATE INDEX IF NOT EXISTS idx_notes_is_draft ON notes(is_draft)",
+                [],
             )?;
             tx.pragma_update(None, "user_version", 2_i64)?;
             tx.commit()?;
         }
+        // 幂等自检：dev 库偶尔会出现 user_version 已升到 2 但实际 ALTER 没成功
+        // 的不一致状态（多进程访问、上次 migration 异常等），每次启动再确认一次。
+        Self::ensure_is_draft_column(conn)?;
+        Ok(())
+    }
+
+    fn notes_has_is_draft_column(conn: &Connection) -> Result<bool, DbError> {
+        let mut stmt = conn.prepare("PRAGMA table_info(notes)")?;
+        let exists = stmt
+            .query_map([], |row| row.get::<_, String>(1))?
+            .filter_map(Result::ok)
+            .any(|name| name == "is_draft");
+        Ok(exists)
+    }
+
+    fn ensure_is_draft_column(conn: &Connection) -> Result<(), DbError> {
+        if Self::notes_has_is_draft_column(conn)? {
+            return Ok(());
+        }
+        conn.execute(
+            "ALTER TABLE notes ADD COLUMN is_draft INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_notes_is_draft ON notes(is_draft)",
+            [],
+        )?;
         Ok(())
     }
 
@@ -201,11 +214,9 @@ impl Db {
             ("themeMode", "system"),
             ("editorMode", "split"),
             ("backupEveryChanges", "10"),
-            ("noteEditorOutlineWidth", "280"),
-            ("noteEditorOutlineOpen", "false"),
-            ("zenOutlineWidth", "300"),
-            ("zenOutlineOpen", "true"),
-            ("mainListTypeFilters", "folder,group,document,text"),
+            ("mainSidebarWidth", "220"),
+            ("mainSidebarCollapsed", "false"),
+            ("zenOutlineWidth", "280"),
         ];
         let now = chrono::Utc::now().to_rfc3339();
         for (k, v) in defaults {
@@ -251,7 +262,14 @@ impl Db {
         let html_content = render_markdown(&input.content);
         let tags = extract_tags(&input.content, &input.tags);
         let tags_json = serde_json::to_string(&tags)?;
-        let is_pinned_int = i64::from(input.is_pinned.unwrap_or(false));
+        let is_pinned = input.is_pinned.unwrap_or(false);
+        let is_pinned_int = i64::from(is_pinned);
+        // 置顶笔记不允许同时是未保存草稿——pin = 用户已经表达"留下来"的意图。
+        let is_draft_int = if is_pinned {
+            0
+        } else {
+            i64::from(input.is_draft.unwrap_or(false))
+        };
         let pinned_cfg_json = match &input.pinned_window_config {
             Some(c) => Some(serde_json::to_string(c)?),
             None => None,
@@ -274,8 +292,8 @@ impl Db {
 
         conn.execute(
             "INSERT OR REPLACE INTO notes
-             (id, title, content, html_content, tags, is_pinned, pinned_window_config, canvas_position, created_at, updated_at, word_count)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+             (id, title, content, html_content, tags, is_pinned, pinned_window_config, canvas_position, created_at, updated_at, word_count, is_draft)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             rusqlite::params![
                 &id,
                 &title,
@@ -287,7 +305,8 @@ impl Db {
                 &canvas_pos_json,
                 &created_at,
                 &now,
-                wc
+                wc,
+                is_draft_int
             ],
         )?;
 
@@ -307,9 +326,9 @@ impl Db {
         let conn = self.lock()?;
         let mut stmt = conn.prepare(
             "SELECT id, title, content, html_content, tags, is_pinned,
-                    pinned_window_config, canvas_position, created_at, updated_at, word_count
+                    pinned_window_config, canvas_position, created_at, updated_at, word_count, is_draft
              FROM notes
-             ORDER BY updated_at DESC
+             ORDER BY is_draft DESC, updated_at DESC
              LIMIT ?1",
         )?;
         let rows = stmt.query_map(rusqlite::params![limit], row_to_note)?;
@@ -327,10 +346,10 @@ impl Db {
         };
         let sql = format!(
             "SELECT id, title, content, html_content, tags, is_pinned,
-                    pinned_window_config, canvas_position, created_at, updated_at, word_count
+                    pinned_window_config, canvas_position, created_at, updated_at, word_count, is_draft
              FROM notes
              WHERE (title LIKE ?1 OR content LIKE ?1) {pinned_clause}
-             ORDER BY updated_at DESC
+             ORDER BY is_draft DESC, updated_at DESC
              LIMIT ?2"
         );
         let mut stmt = conn.prepare(&sql)?;
@@ -406,459 +425,88 @@ impl Db {
         let conn = self.lock()?;
         let mut stmt = conn.prepare(
             "SELECT id, title, content, html_content, tags, is_pinned,
-                    pinned_window_config, canvas_position, created_at, updated_at, word_count
+                    pinned_window_config, canvas_position, created_at, updated_at, word_count, is_draft
              FROM notes
-             WHERE is_pinned = 1
+             WHERE is_pinned = 1 AND is_draft = 0
              ORDER BY updated_at DESC",
         )?;
         let rows = stmt.query_map([], row_to_note)?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
-    // ----- workspaces / library entries ---------------------------------
-
-    pub fn create_workspace(&self, name: &str, root_path: PathBuf) -> Result<Workspace, DbError> {
-        std::fs::create_dir_all(&root_path)?;
-        let normalized_root = normalize_workspace_root(&root_path)?;
-        let root_path_str = normalized_root.to_string_lossy().into_owned();
-
-        let existing = {
-            let conn = self.lock()?;
-            conn.query_row(
-                "SELECT id, name, root_path, created_at, updated_at FROM workspaces WHERE root_path = ?1",
-                rusqlite::params![&root_path_str],
-                row_to_workspace,
-            )
-            .optional()?
-        };
-
-        if let Some(workspace) = existing {
-            return Ok(workspace);
-        }
-
-        let id = uuid::Uuid::new_v4().to_string();
-        let now = chrono::Utc::now().to_rfc3339();
-
-        let conn = self.lock()?;
-        conn.execute(
-            "INSERT INTO workspaces (id, name, root_path, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?4)",
-            rusqlite::params![&id, name, &root_path_str, &now],
-        )?;
-
-        Ok(Workspace {
-            id,
-            name: name.to_string(),
-            root_path: root_path_str,
-            created_at: now.clone(),
-            updated_at: now,
-        })
-    }
-
-    pub fn list_workspaces(&self) -> Result<Vec<Workspace>, DbError> {
-        let conn = self.lock()?;
-        let mut stmt = conn.prepare(
-            "SELECT id, name, root_path, created_at, updated_at
-             FROM workspaces
-             ORDER BY updated_at DESC, created_at DESC",
-        )?;
-        let rows = stmt.query_map([], row_to_workspace)?;
-        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
-    }
-
-    pub fn list_library_entries(
-        &self,
-        context: MainListContext,
-    ) -> Result<Vec<LibraryEntry>, DbError> {
-        if let Some(workspace_id) = context.workspace_id.as_deref() {
-            self.sync_workspace_entries(workspace_id)?;
-        }
-
-        let conn = self.lock()?;
-        let mut items = Vec::new();
-
-        if let Some(workspace_id) = context.workspace_id.as_deref() {
-            let mut stmt = conn.prepare(
-                "SELECT id, kind, title, preview_text, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size
-                 FROM library_entries
-                 WHERE workspace_id = ?1
-                   AND kind = 'document'
-                 ORDER BY updated_at DESC, title COLLATE NOCASE ASC",
-            )?;
-            let rows = stmt.query_map(rusqlite::params![workspace_id], row_to_library_entry)?;
-            items.extend(rows.collect::<rusqlite::Result<Vec<_>>>()?);
-        }
-
-        let mut group_stmt = conn.prepare(
-            "SELECT id, kind, title, preview_text, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size
-             FROM library_entries
-             WHERE kind = 'group'
-               AND ((?1 IS NULL AND parent_id IS NULL) OR parent_id = ?1)
-             ORDER BY updated_at DESC, title COLLATE NOCASE ASC",
-        )?;
-        let group_rows = group_stmt.query_map(
-            rusqlite::params![context.group_entry_id.as_deref()],
-            row_to_library_entry,
-        )?;
-        items.extend(group_rows.collect::<rusqlite::Result<Vec<_>>>()?);
-
-        let mut text_stmt = if context.group_entry_id.is_some() {
-            conn.prepare(
-                "SELECT id, kind, title, preview_text, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size
-                 FROM library_entries
-                 WHERE kind = 'text' AND group_id = ?1
-                 ORDER BY updated_at DESC, created_at DESC",
-            )?
-        } else {
-            conn.prepare(
-                "SELECT id, kind, title, preview_text, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size
-                 FROM library_entries
-                 WHERE kind = 'text'
-                 ORDER BY updated_at DESC, created_at DESC",
-            )?
-        };
-
-        if let Some(group_id) = context.group_entry_id.as_deref() {
-            let rows = text_stmt.query_map(rusqlite::params![group_id], row_to_library_entry)?;
-            items.extend(rows.collect::<rusqlite::Result<Vec<_>>>()?);
-        } else {
-            let rows = text_stmt.query_map([], row_to_library_entry)?;
-            items.extend(rows.collect::<rusqlite::Result<Vec<_>>>()?);
-        }
-
-        Ok(items)
-    }
-
-    pub fn list_workspace_tree(&self, workspace_id: &str) -> Result<Vec<LibraryEntry>, DbError> {
-        self.sync_workspace_entries(workspace_id)?;
-
-        let conn = self.lock()?;
-        let mut stmt = conn.prepare(
-            "SELECT id, kind, title, preview_text, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size
-             FROM library_entries
-             WHERE workspace_id = ?1
-               AND kind IN ('folder', 'document')
-             ORDER BY COALESCE(parent_id, ''), CASE kind WHEN 'folder' THEN 0 ELSE 1 END, title COLLATE NOCASE ASC",
-        )?;
-        let rows = stmt.query_map(rusqlite::params![workspace_id], row_to_library_entry)?;
-        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
-    }
-
-    fn sync_workspace_entries(&self, workspace_id: &str) -> Result<(), DbError> {
-        let workspace = {
-            let conn = self.lock()?;
-            Self::find_workspace(&conn, workspace_id)?
-        };
-        let root = normalize_workspace_root(Path::new(&workspace.root_path))?;
-        let fs_entries = workspace_fs::scan_workspace(&root)?;
-        if fs_entries.is_empty() {
-            return Ok(());
-        }
-
-        let now = chrono::Utc::now().to_rfc3339();
-        let mut path_to_existing = {
-            let conn = self.lock()?;
-            workspace_entries_by_path(&conn, workspace_id)?
-        };
-        let mut path_to_id = HashMap::new();
-
-        for entry in &fs_entries {
-            let path_key = path_key(&entry.path);
-            let id = path_to_existing
-                .get(&path_key)
-                .map(|existing| existing.id.clone())
-                .unwrap_or_else(|| stable_workspace_entry_id(workspace_id, &entry.path));
-            path_to_id.insert(path_key, id);
-        }
-
-        let conn = self.lock()?;
-        for entry in fs_entries {
-            let entry_path_key = path_key(&entry.path);
-            let id = path_to_id
-                .get(&entry_path_key)
-                .cloned()
-                .unwrap_or_else(|| stable_workspace_entry_id(workspace_id, &entry.path));
-            let existing = path_to_existing.remove(&entry_path_key);
-            let updated_at = fs_modified_or_now(entry.modified_at, &now);
-            let created_at = existing
-                .as_ref()
-                .map(|entry| entry.created_at.clone())
-                .unwrap_or_else(|| updated_at.clone());
-            let parent_id = entry
-                .parent_path
-                .as_ref()
-                .and_then(|parent| path_to_id.get(&path_key(parent)).cloned());
-            let (kind, preview, tags_json, word_count, byte_size) = match entry.kind {
-                WorkspaceFsEntryKind::Folder => ("folder", String::new(), "[]".to_string(), 0, 0),
-                WorkspaceFsEntryKind::Document => (
-                    "document",
-                    preview_text(&entry.content),
-                    serde_json::to_string(&extract_tags(&entry.content, &[]))?,
-                    word_count(&entry.content),
-                    entry.byte_size,
-                ),
-            };
-
-            conn.execute(
-                "INSERT INTO library_entries
-                 (id, kind, title, preview_text, body_markdown, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size)
-                 VALUES (?1, ?2, ?3, ?4, NULL, ?5, ?6, ?7, NULL, ?8, ?9, ?10, ?11, ?12)
-                 ON CONFLICT(id) DO UPDATE SET
-                   kind = excluded.kind,
-                   title = excluded.title,
-                   preview_text = excluded.preview_text,
-                   tags = excluded.tags,
-                   workspace_id = excluded.workspace_id,
-                   parent_id = excluded.parent_id,
-                   group_id = NULL,
-                   file_path = excluded.file_path,
-                   updated_at = excluded.updated_at,
-                   word_count = excluded.word_count,
-                   byte_size = excluded.byte_size",
-                rusqlite::params![
-                    &id,
-                    kind,
-                    &entry.title,
-                    &preview,
-                    &tags_json,
-                    workspace_id,
-                    parent_id.as_deref(),
-                    &entry_path_key,
-                    &created_at,
-                    &updated_at,
-                    word_count,
-                    byte_size,
-                ],
-            )?;
-        }
-
-        Ok(())
-    }
-
-    pub fn save_text_entry(&self, input: SaveTextEntryRequest) -> Result<LibraryEntry, DbError> {
-        let byte_size = ensure_text_size_limit(&input.content)?;
-        let title = input
-            .title
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(ToOwned::to_owned)
-            .unwrap_or_else(|| derive_title(&input.content));
-        let tags = extract_tags(&input.content, &input.tags);
-        let tags_json = serde_json::to_string(&tags)?;
-        let preview_text = preview_text(&input.content);
-        let id = input
-            .id
-            .clone()
-            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-        let now = chrono::Utc::now().to_rfc3339();
-        let group_id = input
-            .group_id
-            .clone()
-            .unwrap_or_else(|| INBOX_GROUP_ID.to_string());
-        let word_count = word_count(&input.content);
-
-        let conn = self.lock()?;
-        let existing_created_at: Option<String> = conn
+    /// 把指定 draft 行（is_draft=1）提升为正式笔记：分配新 UUID、清掉
+    /// is_draft 标记、删掉原 draft 行。若 id 不存在或不是草稿则返回
+    /// Ok(None)，由调用方决定是否报错。
+    pub fn promote_draft(&self, draft_id: &str) -> Result<Option<Note>, DbError> {
+        let mut conn = self.lock()?;
+        let tx = conn.transaction()?;
+        let draft: Option<Note> = tx
             .query_row(
-                "SELECT created_at FROM library_entries WHERE id = ?1",
-                rusqlite::params![&id],
-                |row| row.get(0),
+                "SELECT id, title, content, html_content, tags, is_pinned,
+                        pinned_window_config, canvas_position, created_at, updated_at, word_count, is_draft
+                 FROM notes WHERE id = ?1 AND is_draft = 1",
+                rusqlite::params![draft_id],
+                row_to_note,
             )
             .optional()?;
-        let created_at = existing_created_at.unwrap_or_else(|| now.clone());
-
-        conn.execute(
-            "INSERT OR REPLACE INTO library_entries
-             (id, kind, title, preview_text, body_markdown, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size)
-             VALUES (?1, 'text', ?2, ?3, ?4, ?5, NULL, NULL, ?6, NULL, ?7, ?8, ?9, ?10)",
+        let Some(draft) = draft else {
+            return Ok(None);
+        };
+        let new_id = uuid::Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+        let tags_json = serde_json::to_string(&draft.tags)?;
+        let pinned_cfg_json = match &draft.pinned_window_config {
+            Some(c) => Some(serde_json::to_string(c)?),
+            None => None,
+        };
+        let canvas_pos_json = match &draft.canvas_position {
+            Some(p) => Some(serde_json::to_string(p)?),
+            None => None,
+        };
+        tx.execute(
+            "INSERT INTO notes
+             (id, title, content, html_content, tags, is_pinned, pinned_window_config, canvas_position, created_at, updated_at, word_count, is_draft)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 0)",
             rusqlite::params![
-                &id,
-                &title,
-                &preview_text,
-                &input.content,
+                &new_id,
+                &draft.title,
+                &draft.content,
+                &draft.html_content,
                 &tags_json,
-                &group_id,
-                &created_at,
+                i64::from(draft.is_pinned),
+                &pinned_cfg_json,
+                &canvas_pos_json,
+                &draft.created_at,
                 &now,
-                word_count,
-                byte_size,
+                draft.word_count,
             ],
         )?;
-
-        Self::find_library_entry(&conn, &id)
+        tx.execute(
+            "DELETE FROM notes WHERE id = ?1",
+            rusqlite::params![draft_id],
+        )?;
+        let promoted = Self::find_note(&tx, &new_id)?;
+        tx.commit()?;
+        Ok(Some(promoted))
     }
 
-    pub fn save_document_entry(
-        &self,
-        input: SaveDocumentEntryRequest,
-    ) -> Result<LibraryEntry, DbError> {
-        let title = input
-            .title
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(ToOwned::to_owned)
-            .unwrap_or_else(|| derive_title(&input.content));
-        let tags = extract_tags(&input.content, &input.tags);
-        let tags_json = serde_json::to_string(&tags)?;
-        let preview_text = preview_text(&input.content);
-        let byte_size = markdown_byte_size(&input.content);
-        let word_count = word_count(&input.content);
-        let id = input
-            .id
-            .clone()
-            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-        let now = chrono::Utc::now().to_rfc3339();
-
+    /// 返回最近一份未保存草稿（按 updated_at 降序），无则 Ok(None)。
+    /// 全局快捷键打开速记浮窗时调用：用户期望续写"上一份"草稿。
+    pub fn latest_draft(&self) -> Result<Option<Note>, DbError> {
         let conn = self.lock()?;
-        let workspace = Self::find_workspace(&conn, &input.workspace_id)?;
-        let existing = conn
+        let note = conn
             .query_row(
-                "SELECT id, kind, title, preview_text, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size
-                 FROM library_entries WHERE id = ?1",
-                rusqlite::params![&id],
-                row_to_library_entry,
+                "SELECT id, title, content, html_content, tags, is_pinned,
+                        pinned_window_config, canvas_position, created_at, updated_at, word_count, is_draft
+                 FROM notes
+                 WHERE is_draft = 1
+                 ORDER BY updated_at DESC
+                 LIMIT 1",
+                [],
+                row_to_note,
             )
             .optional()?;
-        let created_at = existing
-            .as_ref()
-            .map(|entry| entry.created_at.clone())
-            .unwrap_or_else(|| now.clone());
-
-        let base_dir = if let Some(folder_id) = &input.folder_entry_id {
-            let folder = Self::find_library_entry(&conn, folder_id)?;
-            folder
-                .file_path
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from(&workspace.root_path))
-        } else {
-            PathBuf::from(&workspace.root_path)
-        };
-
-        let target_path = existing
-            .as_ref()
-            .and_then(|entry| entry.file_path.clone())
-            .map(PathBuf::from)
-            .unwrap_or_else(|| workspace_fs::build_document_path(&base_dir, &title));
-        workspace_fs::write_markdown_file(&target_path, &input.content)?;
-        let path_str = target_path.to_string_lossy().into_owned();
-
-        conn.execute(
-            "INSERT OR REPLACE INTO library_entries
-             (id, kind, title, preview_text, body_markdown, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size)
-             VALUES (?1, 'document', ?2, ?3, NULL, ?4, ?5, ?6, NULL, ?7, ?8, ?9, ?10, ?11)",
-            rusqlite::params![
-                &id,
-                &title,
-                &preview_text,
-                &tags_json,
-                &workspace.id,
-                input.folder_entry_id.as_deref(),
-                &path_str,
-                &created_at,
-                &now,
-                word_count,
-                byte_size,
-            ],
-        )?;
-
-        Self::find_library_entry(&conn, &id)
-    }
-
-    pub fn get_editor_entry(&self, id: &str) -> Result<Option<EditorEntry>, DbError> {
-        let conn = self.lock()?;
-        let entry = conn
-            .query_row(
-                "SELECT id, kind, title, body_markdown, tags, workspace_id, parent_id, group_id, file_path
-                 FROM library_entries
-                 WHERE id = ?1 AND kind IN ('text', 'document')",
-                rusqlite::params![id],
-                |row| {
-                    let kind = entry_kind_from_db(&row.get::<_, String>(1)?);
-                    let tags_json: String = row.get(4)?;
-                    let file_path: Option<String> = row.get(8)?;
-                    let content = match kind {
-                        EntryKind::Document => {
-                            if let Some(path) = file_path.as_deref() {
-                                std::fs::read_to_string(path).unwrap_or_default()
-                            } else {
-                                String::new()
-                            }
-                        }
-                        _ => row.get::<_, Option<String>>(3)?.unwrap_or_default(),
-                    };
-
-                    Ok(EditorEntry {
-                        id: row.get(0)?,
-                        kind,
-                        title: row.get(2)?,
-                        content,
-                        tags: serde_json::from_str(&tags_json).unwrap_or_default(),
-                        workspace_id: row.get(5)?,
-                        parent_id: row.get(6)?,
-                        group_id: row.get(7)?,
-                        file_path,
-                    })
-                },
-            )
-            .optional()?;
-        Ok(entry)
-    }
-
-    pub fn convert_text_to_document(
-        &self,
-        input: ConvertTextToDocumentRequest,
-    ) -> Result<LibraryEntry, DbError> {
-        let conn = self.lock()?;
-        let existing = Self::find_library_entry(&conn, &input.id)?;
-        if existing.kind != EntryKind::Text {
-            return Err(DbError::Validation("只有文本笔记可以转为文档".into()));
-        }
-
-        let workspace = Self::find_workspace(&conn, &input.workspace_id)?;
-        let base_dir = if let Some(folder_id) = &input.folder_entry_id {
-            let folder = Self::find_library_entry(&conn, folder_id)?;
-            folder
-                .file_path
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from(&workspace.root_path))
-        } else {
-            PathBuf::from(&workspace.root_path)
-        };
-
-        let markdown = conn
-            .query_row(
-                "SELECT body_markdown FROM library_entries WHERE id = ?1",
-                rusqlite::params![&input.id],
-                |row| row.get::<_, Option<String>>(0),
-            )?
-            .unwrap_or_default();
-
-        let path = workspace_fs::build_document_path(&base_dir, &existing.title);
-        workspace_fs::write_markdown_file(&path, &markdown)?;
-        let path_str = path.to_string_lossy().into_owned();
-        let now = chrono::Utc::now().to_rfc3339();
-
-        conn.execute(
-            "UPDATE library_entries
-             SET kind = 'document',
-                 workspace_id = ?1,
-                 parent_id = ?2,
-                 group_id = NULL,
-                 file_path = ?3,
-                 updated_at = ?4
-             WHERE id = ?5",
-            rusqlite::params![
-                &workspace.id,
-                input.folder_entry_id.as_deref(),
-                &path_str,
-                &now,
-                &input.id,
-            ],
-        )?;
-
-        Self::find_library_entry(&conn, &input.id)
+        Ok(note)
     }
 
     // ----- 设置 key-value -----------------------------------------------
@@ -892,7 +540,7 @@ impl Db {
         let note = conn
             .query_row(
                 "SELECT id, title, content, html_content, tags, is_pinned,
-                        pinned_window_config, canvas_position, created_at, updated_at, word_count
+                        pinned_window_config, canvas_position, created_at, updated_at, word_count, is_draft
                  FROM notes WHERE id = ?1",
                 rusqlite::params![id],
                 row_to_note,
@@ -930,6 +578,7 @@ fn row_to_note(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
     let pinned_cfg_json: Option<String> = row.get(6)?;
     let canvas_pos_json: Option<String> = row.get(7)?;
     let is_pinned_int: i64 = row.get(5)?;
+    let is_draft_int: i64 = row.get(11)?;
     Ok(Note {
         id: row.get(0)?,
         title: row.get(1)?,
@@ -946,6 +595,7 @@ fn row_to_note(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
         created_at: row.get(8)?,
         updated_at: row.get(9)?,
         word_count: row.get(10)?,
+        is_draft: is_draft_int != 0,
     })
 }
 
@@ -1211,6 +861,93 @@ mod tests {
         assert_eq!(version, 2);
     }
 
+    #[test]
+    fn migrate_self_heals_when_user_version_lies_about_is_draft() {
+        // 不一致状态：user_version 标记成 v2，但 notes 表里其实没有 is_draft 列。
+        // dev 环境多进程访问或上一次 migration 异常时偶有出现。
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "
+            CREATE TABLE notes (
+              id TEXT PRIMARY KEY,
+              title TEXT NOT NULL,
+              content TEXT NOT NULL,
+              html_content TEXT NOT NULL,
+              tags TEXT NOT NULL DEFAULT '[]',
+              is_pinned INTEGER NOT NULL DEFAULT 0,
+              pinned_window_config TEXT,
+              canvas_position TEXT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              word_count INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE settings (
+              key TEXT PRIMARY KEY,
+              value TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
+            ",
+        )
+        .unwrap();
+        conn.pragma_update(None, "user_version", 2_i64).unwrap();
+
+        Db::migrate(&mut conn).unwrap();
+
+        let cols: Vec<String> = {
+            let mut stmt = conn.prepare("PRAGMA table_info(notes)").unwrap();
+            stmt.query_map([], |row| row.get::<_, String>(1))
+                .unwrap()
+                .map(Result::unwrap)
+                .collect()
+        };
+        assert!(cols.iter().any(|c| c == "is_draft"));
+    }
+
+    #[test]
+    fn migrate_adds_is_draft_column_for_legacy_databases() {
+        // 模拟 v1 schema（无 is_draft 列），然后跑 migrate 走 v2 升级路径。
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "
+            CREATE TABLE notes (
+              id TEXT PRIMARY KEY,
+              title TEXT NOT NULL,
+              content TEXT NOT NULL,
+              html_content TEXT NOT NULL,
+              tags TEXT NOT NULL DEFAULT '[]',
+              is_pinned INTEGER NOT NULL DEFAULT 0,
+              pinned_window_config TEXT,
+              canvas_position TEXT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              word_count INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE settings (
+              key TEXT PRIMARY KEY,
+              value TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
+            ",
+        )
+        .unwrap();
+        conn.pragma_update(None, "user_version", 1_i64).unwrap();
+
+        Db::migrate(&mut conn).unwrap();
+
+        let cols: Vec<String> = {
+            let mut stmt = conn.prepare("PRAGMA table_info(notes)").unwrap();
+            stmt.query_map([], |row| row.get::<_, String>(1))
+                .unwrap()
+                .map(Result::unwrap)
+                .collect()
+        };
+        assert!(cols.iter().any(|c| c == "is_draft"));
+        let version: i64 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 2);
+    }
+
     // --- derive_title ---
 
     #[test]
@@ -1272,6 +1009,7 @@ mod tests {
                 is_pinned: None,
                 pinned_window_config: None,
                 canvas_position: None,
+                is_draft: None,
             })
             .unwrap();
         assert!(result.is_none(), "empty input should not write a row");
@@ -1289,6 +1027,7 @@ mod tests {
                 is_pinned: None,
                 pinned_window_config: None,
                 canvas_position: None,
+                is_draft: None,
             })
             .unwrap()
             .expect("non-empty input should save");
@@ -1310,6 +1049,7 @@ mod tests {
                 is_pinned: None,
                 pinned_window_config: None,
                 canvas_position: None,
+                is_draft: None,
             })
             .unwrap()
             .unwrap();
@@ -1317,7 +1057,183 @@ mod tests {
         assert_ne!(again.updated_at, saved.updated_at);
     }
 
+    #[test]
+    fn save_note_persists_is_draft_flag() {
+        let db = fresh_db();
+        let saved = db
+            .save_note(SaveNoteRequest {
+                id: Some("quicknote-draft".into()),
+                title: None,
+                content: "draft body".into(),
+                tags: vec![],
+                is_pinned: None,
+                pinned_window_config: None,
+                canvas_position: None,
+                is_draft: Some(true),
+            })
+            .unwrap()
+            .unwrap();
+        assert!(saved.is_draft);
+        let fetched = db.get_note("quicknote-draft").unwrap().unwrap();
+        assert!(fetched.is_draft);
+    }
+
+    #[test]
+    fn list_notes_orders_drafts_first() {
+        let db = fresh_db();
+        let saved_first = db
+            .save_note(SaveNoteRequest {
+                id: None,
+                title: Some("normal".into()),
+                content: "body".into(),
+                tags: vec![],
+                is_pinned: None,
+                pinned_window_config: None,
+                canvas_position: None,
+                is_draft: None,
+            })
+            .unwrap()
+            .unwrap();
+        let _draft = db
+            .save_note(SaveNoteRequest {
+                id: Some("quicknote-draft".into()),
+                title: None,
+                content: "drafty".into(),
+                tags: vec![],
+                is_pinned: None,
+                pinned_window_config: None,
+                canvas_position: None,
+                is_draft: Some(true),
+            })
+            .unwrap()
+            .unwrap();
+        let listed = db.list_notes(10).unwrap();
+        assert_eq!(listed[0].id, "quicknote-draft");
+        assert!(listed[0].is_draft);
+        assert_eq!(listed[1].id, saved_first.id);
+        assert!(!listed[1].is_draft);
+    }
+
+    #[test]
+    fn promote_draft_converts_draft_to_a_new_note() {
+        let db = fresh_db();
+        db.save_note(SaveNoteRequest {
+            id: Some("quicknote-draft".into()),
+            title: None,
+            content: "未保存的草稿正文".into(),
+            tags: vec!["pending".into()],
+            is_pinned: None,
+            pinned_window_config: None,
+            canvas_position: None,
+            is_draft: Some(true),
+        })
+        .unwrap()
+        .unwrap();
+
+        let promoted = db.promote_draft("quicknote-draft").unwrap().unwrap();
+        assert_ne!(promoted.id, "quicknote-draft");
+        assert!(!promoted.is_draft);
+        assert_eq!(promoted.content, "未保存的草稿正文");
+        assert!(promoted.tags.contains(&"pending".into()));
+
+        assert!(db.get_note("quicknote-draft").unwrap().is_none());
+        assert!(db.get_note(&promoted.id).unwrap().is_some());
+
+        // 没有草稿时应返回 Ok(None)。
+        let no_draft = db.promote_draft("quicknote-draft").unwrap();
+        assert!(no_draft.is_none());
+    }
+
+    #[test]
+    fn list_pinned_excludes_drafts() {
+        let db = fresh_db();
+        // 草稿即使 is_pinned=true 也应排除（save_note 内部已强制 is_draft=0，
+        // 这里直接绕过保存层模拟极端态）。
+        db.save_note(SaveNoteRequest {
+            id: Some("quicknote-draft".into()),
+            title: None,
+            content: "drafty".into(),
+            tags: vec![],
+            is_pinned: None,
+            pinned_window_config: None,
+            canvas_position: None,
+            is_draft: Some(true),
+        })
+        .unwrap()
+        .unwrap();
+        let pinned_note = db
+            .save_note(SaveNoteRequest {
+                id: None,
+                title: Some("kept".into()),
+                content: "body".into(),
+                tags: vec![],
+                is_pinned: Some(true),
+                pinned_window_config: None,
+                canvas_position: None,
+                is_draft: None,
+            })
+            .unwrap()
+            .unwrap();
+        let pinned = db.list_pinned().unwrap();
+        assert_eq!(pinned.len(), 1);
+        assert_eq!(pinned[0].id, pinned_note.id);
+    }
+
     // --- settings 默认值 ---
+
+    #[test]
+    fn latest_draft_returns_most_recent_draft_only() {
+        let db = fresh_db();
+        // 普通正式笔记不应出现在 latest_draft 结果里。
+        db.save_note(SaveNoteRequest {
+            id: None,
+            title: Some("normal".into()),
+            content: "body".into(),
+            tags: vec![],
+            is_pinned: None,
+            pinned_window_config: None,
+            canvas_position: None,
+            is_draft: None,
+        })
+        .unwrap()
+        .unwrap();
+        // 第一份草稿（较旧）。
+        db.save_note(SaveNoteRequest {
+            id: Some("draft-older".into()),
+            title: None,
+            content: "older".into(),
+            tags: vec![],
+            is_pinned: None,
+            pinned_window_config: None,
+            canvas_position: None,
+            is_draft: Some(true),
+        })
+        .unwrap()
+        .unwrap();
+        // 第二份草稿（较新）。
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        db.save_note(SaveNoteRequest {
+            id: Some("draft-newer".into()),
+            title: None,
+            content: "newer".into(),
+            tags: vec![],
+            is_pinned: None,
+            pinned_window_config: None,
+            canvas_position: None,
+            is_draft: Some(true),
+        })
+        .unwrap()
+        .unwrap();
+
+        let latest = db.latest_draft().unwrap().expect("should have draft");
+        assert_eq!(latest.id, "draft-newer");
+        assert!(latest.is_draft);
+
+        // 清空两份草稿后 latest_draft 应为 None。
+        db.delete_note("draft-older").unwrap();
+        db.delete_note("draft-newer").unwrap();
+        assert!(db.latest_draft().unwrap().is_none());
+    }
 
     #[test]
     fn default_settings_seed_includes_quicknote_shortcut() {

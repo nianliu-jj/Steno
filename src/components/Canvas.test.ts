@@ -20,7 +20,7 @@ const note: Note = {
   canvasPosition: { x: 0, y: 0, scale: 1 },
   createdAt: '2026-05-13T00:00:00.000Z',
   updatedAt: '2026-05-13T00:00:00.000Z',
-  wordCount: 2,
+  wordCount: 2,  isDraft: false,
 };
 
 vi.mock('@/stores/notes', () => ({

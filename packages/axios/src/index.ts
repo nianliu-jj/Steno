@@ -1,3 +1,13 @@
+/**
+ * @file @sa/axios — Axios 封装层
+ *
+ * 提供功能增强的 Axios 实例创建：
+ * - `createRequest` — 标准 Promise 风格请求实例（`request<T>(config)`）
+ * - `createFlatRequest` — 扁平错误处理风格（返回 `{ data, error }`）
+ * - 自动重试（axios-retry）、请求 ID（nanoid）、取消请求（AbortController）
+ * - 可配置的后端成功/失败判断和响应转换
+ */
+
 import axios, { AxiosError } from 'axios';
 import type { AxiosResponse, CreateAxiosDefaults, InternalAxiosRequestConfig } from 'axios';
 import axiosRetry from 'axios-retry';

@@ -71,6 +71,25 @@ vi.mock('@/composables/useOutlineSidebarState', () => ({
   }),
 }));
 
+vi.mock('@/components/DocumentOutlineTree.vue', () => ({
+  default: {
+    props: ['nodes'],
+    emits: ['select'],
+    template: `
+      <aside data-testid="zen-outline">
+        <button
+          v-for="node in nodes"
+          :key="node.id"
+          :data-testid="'zen-outline-node-' + node.id"
+          @click="$emit('select', node)"
+        >
+          {{ node.text }}
+        </button>
+      </aside>
+    `,
+  },
+}));
+
 const WrappedZenMode = defineComponent({
   setup() {
     return () =>
@@ -100,5 +119,17 @@ describe('ZenMode', () => {
 
     expect(exitZen).toHaveBeenCalledOnce();
     expect(navigateToMain).not.toHaveBeenCalled();
+  });
+
+  it('renders the outline sidebar after toggling the FAB', async () => {
+    const wrapper = mount(WrappedZenMode);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="zen-outline"]').exists()).toBe(false);
+
+    await wrapper.find('[data-testid="zen-outline-toggle"]').trigger('click');
+
+    expect(wrapper.find('[data-testid="zen-outline-panel"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="zen-outline"]').exists()).toBe(true);
   });
 });

@@ -9,14 +9,8 @@ import NoteEditorView from './NoteEditorView.vue';
 import NoteEditorViewSource from './NoteEditorView.vue?raw';
 
 let autosaveStatus = 'saved';
-const navigateToZenFromEditor = vi.fn();
-let uiNoteId: string | null = 'note-1';
-const libraryContext = {
-  workspaceId: 'workspace-1' as string | null,
-  folderEntryId: null as string | null,
-  groupEntryId: null as string | null,
-  selectedEntryId: null as string | null,
-};
+const navigateToMain = vi.fn();
+const navigateTo = vi.fn();
 
 const getEditorEntry = vi.fn(() => Promise.resolve(null));
 const getNote = vi.fn(() =>
@@ -31,7 +25,7 @@ const getNote = vi.fn(() =>
     canvasPosition: null,
     createdAt: '2026-05-13T00:00:00.000Z',
     updatedAt: '2026-05-13T00:00:00.000Z',
-    wordCount: 14,
+    wordCount: 14,    isDraft: false,
   }),
 );
 
@@ -54,15 +48,9 @@ vi.mock('@/stores/notes', () => ({
 
 vi.mock('@/stores/ui', () => ({
   useUiStore: () => ({
-    noteId: uiNoteId,
-    navigateToMain: vi.fn(),
-    navigateToZenFromEditor,
-  }),
-}));
-
-vi.mock('@/stores/library', () => ({
-  useLibraryStore: () => ({
-    context: libraryContext,
+    noteId: 'note-1',
+    navigateToMain,
+    navigateTo,
   }),
 }));
 
@@ -82,12 +70,50 @@ vi.mock('@/composables/useAutosave', () => ({
   }),
 }));
 
-vi.mock('@/components/writing/WritingSurface.vue', () => ({
+vi.mock('@/components/MarkdownEditor.vue', () => ({
+  default: defineComponent({
+    props: ['modelValue'],
+    emits: ['update:modelValue'],
+    setup(_props, { emit, expose }) {
+      expose({
+        focus: vi.fn(),
+        scrollToLine: vi.fn(),
+      });
+
+      return () =>
+        h('textarea', {
+          value: _props.modelValue,
+          onInput: (event: Event) =>
+            emit('update:modelValue', (event.target as HTMLTextAreaElement).value),
+        });
+    },
+  }),
+}));
+
+vi.mock('@/components/MarkdownReadSurface.vue', () => ({
   default: {
-    props: ['modelValue', 'mode', 'outlineOpen'],
-    emits: ['update:modelValue', 'toggle-readonly', 'open-source', 'close-source', 'open-zen', 'toggle-outline'],
+    props: ['title', 'content'],
     template:
-      '<div data-testid="writing-surface"><textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" /><button data-testid="surface-open-zen" @click="$emit(\'open-zen\')">zen</button><button data-testid="surface-open-source" @click="$emit(\'open-source\')">source</button><button data-testid="surface-toggle-outline" @click="$emit(\'toggle-outline\')">outline</button></div>',
+      '<section data-testid="note-read-surface"><h1>{{ title }}</h1><div>{{ content }}</div></section>',
+  },
+}));
+
+vi.mock('@/components/DocumentOutlineTree.vue', () => ({
+  default: {
+    props: ['nodes'],
+    emits: ['select'],
+    template: `
+      <div data-testid="note-outline-tree">
+        <button
+          v-for="node in nodes"
+          :key="node.id"
+          :data-testid="'note-outline-node-' + node.id"
+          @click="$emit('select', node)"
+        >
+          {{ node.text }}
+        </button>
+      </div>
+    `,
   },
 }));
 
@@ -121,8 +147,8 @@ describe('NoteEditorView', () => {
     getNote.mockClear();
     getEditorEntry.mockClear();
     saveDraft.mockClear();
-    saveDocumentEntry.mockClear();
-    navigateToZenFromEditor.mockClear();
+    navigateToMain.mockClear();
+    navigateTo.mockClear();
   });
 
   it('loads the target note into the main-window editor', async () => {
@@ -220,6 +246,41 @@ describe('NoteEditorView', () => {
     }));
     expect(wrapper.get('.note-editor-footer-tags').text()).toContain('#rust-updated');
     expect(wrapper.get('.note-editor-footer-tags').text()).toContain('#标签');
+  });
+
+  it('switches between read mode and edit mode from the footer', async () => {
+    const wrapper = mount(WrappedNoteEditorView);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="note-read-surface"]').exists()).toBe(false);
+    expect(wrapper.find('textarea').exists()).toBe(true);
+
+    await wrapper.get('[data-testid="note-mode-read"]').trigger('click');
+
+    expect(wrapper.find('[data-testid="note-read-surface"]').exists()).toBe(true);
+    expect(wrapper.find('textarea').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="note-read-surface"]').text()).toContain('Rust 生命周期笔记');
+
+    await wrapper.get('[data-testid="note-mode-edit"]').trigger('click');
+
+    expect(wrapper.find('[data-testid="note-read-surface"]').exists()).toBe(false);
+    expect(wrapper.find('textarea').exists()).toBe(true);
+  });
+
+  it('opens the floating outline and routes zen back to note-editor', async () => {
+    const wrapper = mount(WrappedNoteEditorView);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="note-outline-panel"]').exists()).toBe(false);
+
+    await wrapper.get('[data-testid="note-outline-toggle"]').trigger('click');
+
+    expect(wrapper.find('[data-testid="note-outline-panel"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="note-outline-tree"]').exists()).toBe(true);
+
+    await wrapper.get('[data-testid="note-open-zen"]').trigger('click');
+
+    expect(navigateTo).toHaveBeenCalledWith('zen', 'note-1', 'note-editor');
   });
 
   it('declares readable local colors for the tag editing dialog controls', () => {

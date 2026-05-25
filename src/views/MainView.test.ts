@@ -10,9 +10,13 @@ import MainView from './MainView.vue';
 const openQuicknote = vi.fn(() => Promise.resolve());
 const openPathInFileManager = vi.fn(() => Promise.resolve());
 const navigateTo = vi.fn();
-const convertTextToDocument = vi.fn(() => Promise.resolve());
-const createWorkspace = vi.fn();
-const pickWorkspaceDirectory = vi.fn();
+const exportNoteMarkdown = vi.fn(() => Promise.resolve('D:/exports/note.md'));
+const exportNoteHtml = vi.fn(() => Promise.resolve('D:/exports/note.html'));
+const exportNotePdf = vi.fn(() => Promise.resolve('D:/exports/note.pdf'));
+const listenNoteSaved = vi.fn();
+const listenNoteRemoved = vi.fn();
+const noteSavedCleanup = vi.fn();
+let noteSavedHandler: ((note: Note) => void) | null = null;
 
 vi.mock('@/composables/useWindow', () => ({
   useWindow: () => ({
@@ -53,45 +57,63 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
   open: (...args: unknown[]) => pickWorkspaceDirectory(...args),
 }));
 
-vi.mock('@/stores/library', () => ({
-  useLibraryStore: () => ({
-    typeFilters,
-    visibleEntries: computed(() =>
-      libraryEntries.value.filter(entry => typeFilters.value.includes(entry.kind)),
-    ),
-    workspaceTree: computed(() => workspaceTree.value),
-    workspaces: computed(() => workspaces.value),
-    context: libraryContext,
-    currentWorkspaceLabel: computed(() => {
-      const matched = workspaces.value.find(item => item.id === libraryContext.value.workspaceId);
-      return matched?.name ?? '';
-    }),
-    currentWorkspace: computed(() =>
-      workspaces.value.find(item => item.id === libraryContext.value.workspaceId) ?? null,
-    ),
-    stats: computed(() => ({
-      folders: libraryEntries.value.filter(entry => entry.kind === 'folder' && typeFilters.value.includes('folder')).length,
-      groups: libraryEntries.value.filter(entry => entry.kind === 'group' && typeFilters.value.includes('group')).length,
-      documents: libraryEntries.value.filter(entry => entry.kind === 'document' && typeFilters.value.includes('document')).length,
-      texts: libraryEntries.value.filter(entry => entry.kind === 'text' && typeFilters.value.includes('text')).length,
-    })),
-    loadMainList,
-    loadWorkspaces,
-    upsertWorkspace,
-    toggleTypeFilter,
+function setPinnedState(next: Note[]) {
+  pinnedState.value = [...next];
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+vi.mock('@/stores/notes', () => ({
+  useNotesStore: () => ({
+    get notes() {
+      return notesState.value;
+    },
+    get pinned() {
+      return pinnedState.value;
+    },
+    get loading() {
+      return loadingState.value;
+    },
+    loadNotes,
+    loadPinned,
+    pinNote: vi.fn(() => Promise.resolve()),
+    unpinNote: vi.fn(() => Promise.resolve()),
+    saveDraft: (input: SaveNoteRequest) => saveDraftMock(input),
+    removeNote: (...args: Parameters<typeof removeNoteMock>) => removeNoteMock(...args),
+    syncExternalNote: (note: Note) => syncExternalNoteMock(note),
+    purgeLocal: vi.fn(),
   }),
 }));
 
 vi.mock('@/composables/useDb', () => ({
   useDb: () => ({
-    convertTextToDocument,
-    createWorkspace,
+    exportNoteMarkdown,
+    exportNoteHtml,
+    exportNotePdf,
+    deleteNote: () => Promise.resolve(),
   }),
 }));
 
 vi.mock('@/stores/ui', () => ({
   useUiStore: () => ({
     navigateTo,
+  }),
+}));
+
+vi.mock('@/composables/useAppEvents', () => ({
+  useAppEvents: () => ({
+    listenNoteSaved: (...args: Parameters<typeof listenNoteSaved>) => listenNoteSaved(...args),
+    listenNoteRemoved: (...args: Parameters<typeof listenNoteRemoved>) => listenNoteRemoved(...args),
+    emitNoteSaved: vi.fn(),
+    emitNoteRemoved: vi.fn(),
   }),
 }));
 
@@ -114,6 +136,12 @@ function makeEntry(overrides: Record<string, unknown>) {
     title: '默认条目',
     previewText: '默认预览',
     tags: [],
+    isPinned: false,
+    pinnedWindowConfig: null,
+    canvasPosition: null,
+    createdAt: '2026-05-15T07:00:00.000Z',
+    updatedAt: '2026-05-15T07:05:00.000Z',
+    wordCount: 4,    isDraft: false,
     ...overrides,
   };
 }
@@ -135,144 +163,134 @@ describe('MainView', () => {
     upsertWorkspace.mockClear();
     toggleTypeFilter.mockClear();
     navigateTo.mockClear();
-    openQuicknote.mockClear();
-    openPathInFileManager.mockClear();
-    convertTextToDocument.mockClear();
-    createWorkspace.mockClear();
-    pickWorkspaceDirectory.mockReset();
-    pickWorkspaceDirectory.mockResolvedValue(null);
-  });
-
-  it('renders only document and text cards with footer stats', async () => {
-    libraryEntries.value = [
-      makeEntry({ id: 'folder-1', kind: 'folder', title: '项目目录' }),
-      makeEntry({ id: 'doc-1', kind: 'document', title: '设计文档' }),
-      makeEntry({ id: 'group-1', kind: 'group', title: '收件箱' }),
-      makeEntry({ id: 'text-1', kind: 'text', title: '速记文本' }),
-    ];
-
-    const wrapper = mount(WrappedMainView);
-    await flushPromises();
-
-    expect(wrapper.findAll('.entry-card')).toHaveLength(2);
-    expect(wrapper.findAll('[data-kind="folder"]')).toHaveLength(0);
-    expect(wrapper.findAll('[data-kind="group"]')).toHaveLength(0);
-    expect(wrapper.text()).not.toContain('项目目录');
-    expect(wrapper.text()).not.toContain('收件箱');
-    expect(wrapper.text()).toContain('文档');
-    expect(wrapper.text()).toContain('文本');
-    expect(wrapper.get('[data-testid="main-footer-stats"]').text()).toContain('文档 1');
-    expect(wrapper.get('[data-testid="main-footer-stats"]').text()).toContain('文本 1');
-    expect(wrapper.get('[data-testid="main-footer-stats"]').attributes('title')).toContain('文件夹 1');
-    expect(wrapper.get('[data-testid="main-footer-workspace"]').text()).toContain('未选择工作区');
-  });
-
-  it('shows document relative paths and keeps text tags in the card footer', async () => {
-    workspaces.value = [
-      { id: 'workspace-1', name: '默认工作区', rootPath: 'D:/workspace/default' },
-    ];
-    libraryContext.value = {
-      workspaceId: 'workspace-1',
-      folderEntryId: null,
-      groupEntryId: null,
-      selectedEntryId: null,
-    };
-    workspaceTree.value = [
-      makeEntry({ id: 'folder-1', kind: 'folder', title: 'research' }),
-      makeEntry({ id: 'doc-1', kind: 'document', title: '设计文档', filePath: 'D:/workspace/default/research/design.md' }),
-    ];
-    libraryEntries.value = [
-      makeEntry({
-        id: 'doc-1',
-        kind: 'document',
-        title: '设计文档',
-        filePath: 'D:/workspace/default/research/design.md',
-        tags: ['doc-tag'],
-      }),
-      makeEntry({ id: 'text-1', kind: 'text', title: '速记文本', tags: ['todo'] }),
-    ];
-
-    const wrapper = mount(WrappedMainView);
-    await flushPromises();
-
-    expect(wrapper.text()).toContain('research/design.md');
-    expect(wrapper.text()).not.toContain('#doc-tag');
-    expect(wrapper.text()).toContain('#todo');
-    expect(wrapper.get('[data-testid="main-footer-stats"]').text()).toContain('文件夹 1');
-  });
-
-  it('keeps only the top action bar and uses a dedicated middle scroll region', async () => {
-    const wrapper = mount(WrappedMainView);
-    await flushPromises();
-
-    expect(wrapper.text()).not.toContain('文档与文本');
-    expect(wrapper.text()).not.toContain('当前页面同时展示工作区内容与全局文本分组。');
-    expect(wrapper.find('[data-testid="main-toolbar-shell"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="main-scroll-region"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="main-footer-shell"]').exists()).toBe(true);
-  });
-
-  it('shows type filter options and re-renders cards with persisted filter choices', async () => {
-    libraryEntries.value = [
-      makeEntry({ id: 'folder-1', kind: 'folder', title: '项目目录' }),
-      makeEntry({ id: 'doc-1', kind: 'document', title: '设计文档' }),
-      makeEntry({ id: 'group-1', kind: 'group', title: '收件箱' }),
-      makeEntry({ id: 'text-1', kind: 'text', title: '速记文本' }),
-    ];
-
-    const wrapper = mount(WrappedMainView);
-    await flushPromises();
-
-    await wrapper.get('[data-testid="main-filter-toggle"]').trigger('click');
-
-    expect(wrapper.get('[data-testid="main-type-filter-panel"]').text()).toContain('文档');
-    expect(wrapper.get('[data-testid="main-type-filter-panel"]').text()).toContain('文本');
-    expect(wrapper.get('[data-testid="main-type-filter-panel"]').text()).not.toContain('文件夹');
-    expect(wrapper.get('[data-testid="main-type-filter-panel"]').text()).not.toContain('分组');
-
-    await wrapper.get('[data-testid="type-filter-document"]').trigger('click');
-    await flushPromises();
-
-    expect(toggleTypeFilter).toHaveBeenCalledWith('document');
-    expect(wrapper.findAll('.entry-card')).toHaveLength(1);
-    expect(wrapper.text()).not.toContain('设计文档');
-    expect(wrapper.get('[data-testid="main-footer-stats"]').text()).toContain('文档 0');
-  });
-
-  it('enables convert-to-document only for text cards', async () => {
-    libraryEntries.value = [
-      makeEntry({ id: 'doc-1', kind: 'document', title: '设计文档' }),
-      makeEntry({ id: 'text-1', kind: 'text', title: '速记文本' }),
-    ];
-
-    const wrapper = mount(WrappedMainView);
-    await flushPromises();
-
-    await wrapper.findAll('.entry-card')[0].trigger('contextmenu', {
-      preventDefault: vi.fn(),
-      clientX: 50,
-      clientY: 60,
+    loadNotes.mockClear();
+    loadPinned.mockClear();
+    listenNoteSaved.mockReset();
+    listenNoteRemoved.mockReset();
+    listenNoteRemoved.mockImplementation(() => Promise.resolve(() => undefined));
+    noteSavedCleanup.mockReset();
+    noteSavedCleanup.mockImplementation(() => undefined);
+    noteSavedHandler = null;
+    listenNoteSaved.mockImplementation((handler: (note: Note) => void) => {
+      noteSavedHandler = handler;
+      return Promise.resolve(noteSavedCleanup);
     });
     expect(wrapper.get('[data-testid="context-convert-document"]').attributes('aria-disabled')).toBe('true');
 
-    await wrapper.findAll('.entry-card')[1].trigger('contextmenu', {
-      preventDefault: vi.fn(),
-      clientX: 50,
-      clientY: 60,
-    });
-    expect(wrapper.get('[data-testid="context-convert-document"]').attributes('aria-disabled')).toBe('false');
+  it('renders notes as layout v2 cards', async () => {
+    setNotesState([
+      {
+        id: 'note-1',
+        title: 'Rust 生命周期笔记',
+        content: '函数中的生命周期标注影响返回值的存活范围。',
+        htmlContent: '<p>函数中的生命周期标注影响返回值的存活范围。</p>',
+        tags: ['rust', '学习'],
+        isPinned: true,
+        pinnedWindowConfig: null,
+        canvasPosition: null,
+        createdAt: '2026-05-14T10:00:00.000Z',
+        updatedAt: '2026-05-14T10:03:00.000Z',
+        wordCount: 18,        isDraft: false,
+      },
+    ]);
+
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    expect(wrapper.find('.notes-grid').exists()).toBe(true);
+    expect(wrapper.findAll('.note-card')).toHaveLength(1);
+    expect(wrapper.find('.note-card').text()).toContain('Rust 生命周期笔记');
+    expect(wrapper.find('.empty-state').exists()).toBe(false);
   });
 
-  it('keeps toolbar quick actions working', async () => {
-    workspaces.value = [
-      { id: 'workspace-1', name: '默认工作区', rootPath: 'D:/workspace/default' },
-    ];
-    libraryContext.value = {
-      workspaceId: 'workspace-1',
-      folderEntryId: null,
-      groupEntryId: null,
-      selectedEntryId: null,
-    };
+  it('maps note store fields to title, preview, tags, updated time, and pin marker', async () => {
+    const updatedAt = new Date().toISOString();
+    setNotesState([
+      {
+        id: 'note-2',
+        title: '',
+        content: '# 标题\n**加粗内容** 与 [链接](https://example.com) 以及第三个标签',
+        htmlContent: '<h1>标题</h1><p><strong>加粗内容</strong> 与 <a href="https://example.com">链接</a></p>',
+        tags: ['alpha', 'beta', 'gamma'],
+        isPinned: true,
+        pinnedWindowConfig: null,
+        canvasPosition: null,
+        createdAt: '2026-05-14T09:00:00.000Z',
+        updatedAt,
+        wordCount: 24,        isDraft: false,
+      },
+    ]);
+
+    const expectedTime = new Date(updatedAt).toLocaleTimeString('zh-CN', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    const card = wrapper.get('.note-card');
+
+    expect(card.find('h3').text()).toBe('无标题');
+    expect(card.find('.note-pin').exists()).toBe(true);
+    expect(card.find('p').text()).toContain('标题');
+    expect(card.find('p').text()).toContain('加粗内容');
+    expect(card.find('p').text()).toContain('链接');
+    expect(card.find('.note-card-tags').text()).toContain('#alpha');
+    expect(card.find('.note-card-tags').text()).toContain('#beta');
+    expect(card.find('.note-card-tags').text()).not.toContain('#gamma');
+    expect(card.find('.note-card-content').text()).toContain(expectedTime);
+  });
+
+  it('renders the layout v2 empty state when there are no notes', async () => {
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    expect(wrapper.find('.empty-state').exists()).toBe(true);
+    expect(wrapper.find('.empty-illus').exists()).toBe(true);
+    expect(wrapper.text()).toContain('这里还空着');
+    expect(wrapper.text()).toContain('第一条笔记从一次复制开始');
+    expect(wrapper.text()).toContain('⌥ S');
+    expect(wrapper.text()).toContain('⌘ N');
+    expect(wrapper.text()).toContain('⌘ K');
+    expect(wrapper.find('.empty-primary').text()).toContain('新建笔记');
+    expect(wrapper.find('.notes-grid').exists()).toBe(false);
+    const mainRoot = wrapper.get('.main-root');
+    expect(mainRoot.element.firstElementChild).toBe(wrapper.get('.main-toolbar').element);
+    expect(mainRoot.element.lastElementChild).toBe(wrapper.get('.empty-state').element);
+    expect(MainViewSource).toContain('.main-root');
+    expect(MainViewSource).toContain('padding: 18px 20px 20px;');
+    expect(MainViewSource).toContain('padding: 14px 14px 16px;');
+    expect(loadNotes).toHaveBeenCalledWith(50);
+    expect(loadPinned).toHaveBeenCalled();
+  });
+
+  it('opens the note editor from the empty-state new note entry', async () => {
+    const wrapper = mount(WrappedMainView);
+    await flushPromises();
+
+    await wrapper.get('.empty-primary').trigger('click');
+
+    expect(navigateTo).toHaveBeenCalledWith('note-editor');
+    expect(openQuicknote).not.toHaveBeenCalled();
+  });
+
+  it('renders the main toolbar by default and keeps action behavior working', async () => {
+    setNotesState([
+      {
+        id: 'note-3',
+        title: '带操作区的笔记',
+        content: '用于验证页面操作区按钮密度与入口位置。',
+        htmlContent: '<p>用于验证页面操作区按钮密度与入口位置。</p>',
+        tags: ['ui'],
+        isPinned: false,
+        pinnedWindowConfig: null,
+        canvasPosition: null,
+        createdAt: '2026-05-14T09:00:00.000Z',
+        updatedAt: '2026-05-14T10:30:00.000Z',
+        wordCount: 18,        isDraft: false,
+      },
+    ]);
 
     const wrapper = mount(WrappedMainView);
     await flushPromises();
@@ -449,5 +467,17 @@ describe('MainView', () => {
       workspaceId: 'workspace-1',
       folderEntryId: null,
     });
+  });
+
+  it('declares readable local colors for the light tag and rename dialogs', () => {
+    expect(MainViewSource).toContain('class="main-dialog-cancel"');
+    expect(MainViewSource).toContain('class="main-tag-input"');
+    expect(MainViewSource).toContain('class="main-rename-dialog-input"');
+    expect(MainViewSource).toContain('--n-text-color: #2a2a2a');
+    expect(MainViewSource).toContain('--n-placeholder-color: #8a7c70');
+    expect(MainViewSource).toContain('--n-color: #fffdf9');
+    expect(MainViewSource).toContain('-webkit-text-fill-color: #2a2a2a');
+    expect(MainViewSource).toContain('--n-text-color: #6f5c4c');
+    expect(MainViewSource).toContain('--n-color-hover: rgba(55, 46, 36, 0.08)');
   });
 });

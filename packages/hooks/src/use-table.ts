@@ -1,3 +1,10 @@
+/**
+ * @file 通用表格数据管理 Hook
+ *
+ * 封装表格的加载状态、分页数据、列配置、列可见性切换等逻辑。
+ * 支持分页/非分页两种模式，通过 `pagination` 泛型参数控制。
+ */
+
 import { computed, ref } from 'vue';
 import type { Ref, VNodeChild } from 'vue';
 import useBoolean from './use-boolean';

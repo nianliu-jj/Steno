@@ -1,7 +1,9 @@
-// 同步服务预留。Plan Task 2 Step 8。
-//
-// MVP 决策：只支持本地（LocalOnlySync 是 no-op）；通过 trait 留出未来接入
-// 云同步 / 协同编辑的接口。SyncService 必须 Send + Sync 才能进 Tauri State。
+//! 同步服务预留接口。
+//!
+//! MVP 决策：只支持本地模式（`LocalOnlySync` 为 no-op）；
+//! 通过 `SyncService` trait 留出未来接入云同步 / 协同编辑的接口。
+//!
+//! `SyncService` 必须 `Send + Sync` 才能放入 Tauri State。
 
 #[allow(dead_code)]
 pub trait SyncService: Send + Sync {

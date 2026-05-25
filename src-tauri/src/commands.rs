@@ -1,12 +1,14 @@
-// Tauri commands 边界。Plan Task 3 Step 1。
-//
-// 所有 db 操作通过 `tauri::async_runtime::spawn_blocking` 包，避免在 Tokio
-// 多线程 runtime 上阻塞 reactor。Db 实现 Clone（Arc<Mutex<Connection>>），
-// 闭包持有 clone 即可。
-//
-// 错误模式：tauri::command 需要 Result<T, E: Serialize>。把 DbError /
-// JoinError 都格式化成 String 返给前端 — 前端有完整错误消息便于排查，
-// 同时避免泄露 DbError 内部结构。
+//! Tauri IPC 命令边界 — 前端 `invoke` 调用的真正入口。
+//!
+//! ## 线程模型
+//! 所有 db 操作通过 [`tauri::async_runtime::spawn_blocking`] 包裹，
+//! 避免在 Tokio 多线程 runtime 上阻塞 reactor。
+//! `Db` 实现 `Clone`（`Arc<Mutex<Connection>>`），闭包持有 clone 即可。
+//!
+//! ## 错误模式
+//! `tauri::command` 需要 `Result<T, E: Serialize>`。
+//! 把 `DbError` / `JoinError` 都格式化成 `String` 返给前端 —
+//! 前端有完整错误消息便于排查，同时避免泄露内部结构。
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -209,6 +211,29 @@ pub async fn list_pinned_notes(db: State<'_, Db>) -> Result<Vec<Note>, String> {
         .map_err(to_msg)
 }
 
+/// 把"未保存草稿"（is_draft=1）原子地提升为正式笔记：分配新 UUID、清掉
+/// is_draft 标记、删掉原 draft 行；返回新笔记。若指定 id 不存在或不是
+/// 草稿则返回 Ok(None)。前端在浮窗"保存"按钮里调用。
+#[tauri::command]
+pub async fn promote_draft(db: State<'_, Db>, id: String) -> Result<Option<Note>, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.promote_draft(&id))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+/// 返回最近一份未保存草稿，按 updated_at 降序取首条；无草稿返回 Ok(None)。
+/// 前端浮窗 "继续上一份草稿" 路径调用。
+#[tauri::command]
+pub async fn get_latest_draft(db: State<'_, Db>) -> Result<Option<Note>, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.latest_draft())
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
 /// Plan Task 6 Step 1：StickyNote 调整透明度/颜色/字号时单列更新，
 /// 避免每次都走 save_note 的整行 INSERT OR REPLACE。
 #[tauri::command]
@@ -259,13 +284,19 @@ pub async fn set_setting(db: State<'_, Db>, key: String, value: String) -> Resul
 // ----- 窗口管理 commands（Plan Task 3 Step 2 暴露给前端） ---------------
 
 #[tauri::command]
-pub fn open_sticky_note_window(app: AppHandle, id: String) -> Result<(), String> {
-    window_manager::open_sticky_note(&app, &id).map_err(to_msg)
+pub async fn open_sticky_note_window(app: AppHandle, id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || window_manager::open_sticky_note(&app, &id))
+        .await
+        .map_err(|e| format!("spawn_blocking failed: {e}"))?
+        .map_err(to_msg)
 }
 
 #[tauri::command]
-pub fn close_sticky_note_window(app: AppHandle, id: String) -> Result<(), String> {
-    window_manager::close_sticky_note(&app, &id).map_err(to_msg)
+pub async fn close_sticky_note_window(app: AppHandle, id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || window_manager::close_sticky_note(&app, &id))
+        .await
+        .map_err(|e| format!("spawn_blocking failed: {e}"))?
+        .map_err(to_msg)
 }
 
 #[tauri::command]
@@ -278,9 +309,16 @@ pub fn open_settings_window(app: AppHandle) -> Result<(), String> {
     window_manager::open_settings(&app).map_err(to_msg)
 }
 
+/// `fresh=true`：笔记列表页"新建速记"按钮调用，强制空白；
+/// `fresh=false`（默认）：全局快捷键调用，由前端继续 latest_draft；
+/// `note_id`：指定 hydrate 哪份草稿（点击列表卡片的编辑入口时使用）。
 #[tauri::command]
-pub fn open_quicknote_window(app: AppHandle) -> Result<(), String> {
-    quicknote::show(&app);
+pub fn open_quicknote_window(
+    app: AppHandle,
+    fresh: Option<bool>,
+    note_id: Option<String>,
+) -> Result<(), String> {
+    quicknote::show(&app, fresh.unwrap_or(false), note_id);
     Ok(())
 }
 
