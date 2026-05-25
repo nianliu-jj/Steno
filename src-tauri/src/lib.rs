@@ -17,6 +17,7 @@
 //! 初始化数据库和快捷键、设置系统托盘。
 
 mod backup;
+pub mod clipboard;
 mod commands;
 mod db;
 mod export;
