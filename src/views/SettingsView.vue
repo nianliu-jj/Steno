@@ -80,20 +80,23 @@ async function onThemeChange(value: ThemeMode) {
 
 const mainShortcut = ref('');
 const quicknoteShortcut = ref('');
+const clipboardShortcut = ref('');
 const searchShortcut = ref('');
 
 function syncShortcutLocals() {
   mainShortcut.value = settings.state.mainWindowShortcut;
   quicknoteShortcut.value = settings.state.quicknoteShortcut;
+  clipboardShortcut.value = settings.state.clipboardShortcut;
   searchShortcut.value = settings.state.searchShortcut;
 }
 
 async function commitShortcut(
-  key: 'mainWindowShortcut' | 'quicknoteShortcut' | 'searchShortcut',
+  key: 'mainWindowShortcut' | 'quicknoteShortcut' | 'clipboardShortcut' | 'searchShortcut',
   value: string,
 ) {
   const trimmed = value.trim();
   if (!trimmed || trimmed === settings.state[key]) return;
+  const previous = settings.state[key];
   try {
     await settings.update(key, trimmed);
     if (key !== 'searchShortcut') {
@@ -101,17 +104,29 @@ async function commitShortcut(
     }
     message.success(`已更新「${labelOf(key)}」`);
   } catch (e) {
+    try {
+      await settings.update(key, previous);
+      if (key !== 'searchShortcut') {
+        await db.reloadShortcuts();
+      }
+    } catch {
+      // 回滚失败时保留原始保存错误给用户。
+    }
     message.error(`快捷键保存失败：${String(e)}`);
     syncShortcutLocals();
   }
 }
 
-function labelOf(key: 'mainWindowShortcut' | 'quicknoteShortcut' | 'searchShortcut') {
+function labelOf(
+  key: 'mainWindowShortcut' | 'quicknoteShortcut' | 'clipboardShortcut' | 'searchShortcut',
+) {
   switch (key) {
     case 'mainWindowShortcut':
       return '主窗口快捷键';
     case 'quicknoteShortcut':
       return '速记浮窗快捷键';
+    case 'clipboardShortcut':
+      return '粘贴板快捷键';
     case 'searchShortcut':
       return '搜索快捷键';
   }
@@ -362,6 +377,21 @@ const headerSub = computed(() =>
               size="small"
               @blur="commitShortcut('quicknoteShortcut', quicknoteShortcut)"
               @keydown.enter="commitShortcut('quicknoteShortcut', quicknoteShortcut)"
+            />
+          </div>
+          <div class="settings-row">
+            <div class="settings-row__meta">
+              <strong>粘贴板</strong>
+              <p>呼出 Steno 主窗口并打开粘贴板历史。</p>
+            </div>
+            <NInput
+              v-model:value="clipboardShortcut"
+              class="settings-control"
+              data-testid="clipboard-shortcut-input"
+              placeholder="Ctrl+Shift+V"
+              size="small"
+              @blur="commitShortcut('clipboardShortcut', clipboardShortcut)"
+              @keydown.enter="commitShortcut('clipboardShortcut', clipboardShortcut)"
             />
           </div>
           <div class="settings-row">

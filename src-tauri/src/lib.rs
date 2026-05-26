@@ -17,6 +17,7 @@
 //! 初始化数据库和快捷键、设置系统托盘。
 
 mod backup;
+pub mod clipboard;
 mod commands;
 mod db;
 mod export;
@@ -26,6 +27,7 @@ mod shortcut;
 mod sync;
 mod tray;
 mod window_manager;
+mod workspace_fs;
 
 use tauri::Manager;
 
@@ -38,12 +40,21 @@ use tauri::Manager;
 /// 4. setup：初始化 SQLite → 恢复置顶便签窗口 → 注册快捷键 → 设置托盘
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(shortcut::plugin())
         .invoke_handler(tauri::generate_handler![
             commands::save_note,
+            commands::save_text_entry,
+            commands::save_document_entry,
+            commands::convert_text_to_document,
             commands::get_note,
+            commands::get_editor_entry,
             commands::list_notes,
             commands::search_notes,
+            commands::list_library_entries,
+            commands::list_workspace_tree,
+            commands::list_workspaces,
+            commands::create_workspace,
             commands::delete_note,
             commands::set_note_pinned,
             commands::list_pinned_notes,
@@ -53,12 +64,17 @@ pub fn run() {
             commands::update_canvas_position,
             commands::get_setting,
             commands::set_setting,
+            commands::list_clipboard_entries,
+            commands::delete_clipboard_entry,
+            commands::clear_clipboard_entries,
+            commands::copy_clipboard_entry,
             commands::open_sticky_note_window,
             commands::close_sticky_note_window,
             commands::open_canvas_window,
             commands::open_settings_window,
             commands::open_quicknote_window,
             commands::open_zen_window,
+            commands::open_path_in_file_manager,
             commands::reload_shortcuts,
             commands::export_note_markdown,
             commands::export_note_html,
@@ -90,6 +106,8 @@ pub fn run() {
             // 先从 settings 读快捷键并 register（需要 &Db），之后再 manage()
             // 把 db 交给 State。reload_shortcuts command 后续会从 State 拿。
             shortcut::register_from_settings(app.handle(), &database)?;
+
+            clipboard::start_monitor(app.handle().clone(), database.clone());
 
             app.manage(database);
 

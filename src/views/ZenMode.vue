@@ -29,14 +29,14 @@ import { useMarkdown } from '@/composables/useMarkdown';
 import { useMarkdownOutline } from '@/composables/useMarkdownOutline';
 import { useNotesStore } from '@/stores/notes';
 import { useUiStore } from '@/stores/ui';
-import type { Note, SaveNoteRequest } from '@/types/steno';
 
 const db = useDb();
-const notes = useNotesStore();
 const ui = useUiStore();
 const { countWords } = useMarkdown();
 const { buildOutline } = useMarkdownOutline();
 const message = useMessage();
+const session = useWritingSession(ref(ui.noteId ?? readIdFromUrl()));
+const outline = useOutlineSidebarState('zen');
 
 const currentNoteId = ref<string | null>(null);
 const title = ref('');
@@ -50,7 +50,7 @@ const outlineOpen = ref(false);
 
 const wordCount = computed(() => countWords(content.value));
 const isEmpty = computed(
-  () => !title.value.trim() && !content.value.trim() && tags.value.length === 0,
+  () => !session.title.value.trim() && !session.content.value.trim() && session.tags.value.length === 0,
 );
 const outlineNodes = computed(() => buildOutline(content.value));
 const displayTitle = computed(() => title.value.trim() || '无标题');
@@ -63,51 +63,8 @@ function readIdFromUrl(): string | null {
   return params.get('id');
 }
 
-onMounted(async () => {
-  const id = ui.noteId ?? readIdFromUrl();
-  if (id) {
-    try {
-      const note = await db.getNote(id);
-      if (note) hydrateFromNote(note);
-      else console.warn('[zen] note not found:', id);
-    } catch (e) {
-      console.error('[zen] load failed:', e);
-    }
-  }
-  loaded.value = true;
-});
-
-function hydrateFromNote(note: Note) {
-  currentNoteId.value = note.id;
-  title.value = note.title;
-  content.value = note.content;
-  tags.value = [...note.tags];
-}
-
-// ----- 自动保存 -------------------------------------------------------
-
-const { status, savedAt, error, scheduleSave, flushSave } = useAutosave(
-  async (payload: SaveNoteRequest) => {
-    const saved = await notes.saveDraft(payload);
-    if (saved && !currentNoteId.value) {
-      currentNoteId.value = saved.id;
-    }
-  },
-);
-
-watch([title, content], () => {
-  if (!loaded.value) return;
-  if (isEmpty.value && !currentNoteId.value) return;
-  scheduleSave({
-    id: currentNoteId.value ?? undefined,
-    title: title.value || undefined,
-    content: content.value,
-    tags: tags.value,
-  });
-});
-
 const statusText = computed(() => {
-  switch (status.value) {
+  switch (session.status.value) {
     case 'idle':
       return '';
     case 'scheduled':
@@ -115,11 +72,11 @@ const statusText = computed(() => {
     case 'saving':
       return '保存中…';
     case 'saved':
-      return savedAt.value
-        ? `已保存 ${savedAt.value.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
+      return session.savedAt.value
+        ? `已保存 ${session.savedAt.value.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
         : '已保存';
     case 'error':
-      return `保存失败：${String(error.value).slice(0, 40)}`;
+      return `保存失败：${String(session.error.value).slice(0, 40)}`;
     default:
       return '';
   }
@@ -140,9 +97,9 @@ function onFinishTitleEdit() {
 // ----- 退出（Esc / 关闭按钮） -----------------------------------------
 
 async function exitZen() {
-  if (!isEmpty.value || currentNoteId.value) {
-    await flushSave();
-    if (status.value === 'error') return; // 保留窗口让用户看错误
+  if (!isEmpty.value || session.currentNoteId.value) {
+    await session.flushSave();
+    if (session.status.value === 'error') return; // 保留窗口让用户看错误
   }
   ui.exitZen();
 }
@@ -171,7 +128,7 @@ const exportOptions = [
 ];
 
 async function onExport(key: string) {
-  if (!currentNoteId.value) {
+  if (!session.currentNoteId.value) {
     message.warning('请先输入内容（保存后才能导出）');
     return;
   }
@@ -182,10 +139,10 @@ async function onExport(key: string) {
   }
   try {
     if (key === 'markdown') {
-      const path = await db.exportNoteMarkdown(currentNoteId.value);
+      const path = await db.exportNoteMarkdown(session.currentNoteId.value);
       message.success(`已导出：${path}`);
     } else {
-      const path = await db.exportNotePdf(currentNoteId.value);
+      const path = await db.exportNotePdf(session.currentNoteId.value);
       message.success(`已导出：${path}`);
     }
   } catch (e) {
@@ -360,7 +317,7 @@ onUnmounted(() => {
         <NText
           depth="3"
           class="zen-meta-item"
-          :class="{ 'zen-meta-error': status === 'error' }"
+          :class="{ 'zen-meta-error': session.status.value === 'error' }"
         >
           {{ statusText }}
         </NText>
@@ -488,7 +445,7 @@ onUnmounted(() => {
   min-height: 0;
 }
 
-.zen-body {
+.zen-outline-shell {
   flex: 1;
   min-height: 60vh;
   display: flex;

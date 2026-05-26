@@ -49,3 +49,4 @@ src-tauri/gen/schemas/
 *.dmg
 *.msi
 *.AppImage
+.pnpm-store

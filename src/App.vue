@@ -17,6 +17,7 @@ import { getAppThemeVars } from '@/theme';
 import FloatingEditor from '@/components/FloatingEditor.vue';
 import MainWorkbenchShell from '@/components/MainWorkbenchShell.vue';
 import CanvasView from '@/views/CanvasView.vue';
+import ClipboardView from '@/views/ClipboardView.vue';
 import MainView from '@/views/MainView.vue';
 import NoteEditorView from '@/views/NoteEditorView.vue';
 import PlaceholderView from '@/views/PlaceholderView.vue';
@@ -52,8 +53,6 @@ const shellNavItems = computed<
 
 const placeholderMeta = computed(() => {
   switch (ui.mode) {
-    case 'clipboard':
-      return { title: '粘贴板', description: '功能规划中' };
     case 'todo':
       return { title: '待办', description: '功能规划中' };
     case 'screenshot':
@@ -136,6 +135,7 @@ watch(
             <MainView v-if="ui.mode === 'main'" />
             <NoteEditorView v-else-if="ui.mode === 'note-editor'" />
             <CanvasView v-else-if="ui.mode === 'canvas'" />
+            <ClipboardView v-else-if="ui.mode === 'clipboard'" />
             <PlaceholderView
               v-else-if="placeholderMeta"
               :title="placeholderMeta.title"

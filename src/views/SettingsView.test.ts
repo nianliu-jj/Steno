@@ -52,6 +52,7 @@ vi.mock('@/stores/settings', () => ({
       themeMode: 'system',
       mainWindowShortcut: 'Ctrl+Shift+N',
       quicknoteShortcut: 'Ctrl+Shift+M',
+      clipboardShortcut: 'Ctrl+Shift+V',
       searchShortcut: 'Ctrl+Shift+F',
       floatingWidth: 420,
       floatingHeight: 300,
@@ -152,6 +153,7 @@ describe('SettingsView', () => {
     await wrapper.get('[data-testid="settings-tab-shortcuts"]').trigger('click');
     expect(wrapper.text()).toContain('主窗口');
     expect(wrapper.text()).toContain('速记浮窗');
+    expect(wrapper.text()).toContain('粘贴板');
     expect(wrapper.text()).toContain('搜索');
 
     await wrapper.get('[data-testid="settings-tab-privacy"]').trigger('click');
@@ -236,6 +238,21 @@ describe('SettingsView', () => {
     expect(error).toHaveBeenCalled();
 
     error.mockRestore();
+  });
+
+  it('saves the clipboard shortcut and reloads global shortcuts', async () => {
+    const wrapper = mountSettingsView();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="settings-tab-shortcuts"]').trigger('click');
+    const input = wrapper.get('[data-testid="clipboard-shortcut-input"] input');
+    await input.setValue('Alt+C');
+    await input.trigger('keydown.enter');
+    await flushPromises();
+
+    expect(updateSetting).toHaveBeenCalledWith('clipboardShortcut', 'Alt+C');
+    expect(reloadShortcuts).toHaveBeenCalledOnce();
+    expect(messageSuccess).toHaveBeenCalledWith('已更新「粘贴板快捷键」');
   });
 
   it('keeps the v2 panel sizing, dark theme hook, and narrow-screen responsive rules', () => {

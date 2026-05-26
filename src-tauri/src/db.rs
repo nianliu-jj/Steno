@@ -14,11 +14,14 @@
 //! ## 备份与同步
 //! 预留独立模块 [`backup`] / [`sync`]。
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OptionalExtension};
 
+use crate::clipboard::{ClipboardEntry, NewClipboardEntry};
 use crate::models::{Note, SaveNoteRequest, SearchNotesRequest};
 
 #[derive(Debug, thiserror::Error)]
@@ -35,6 +38,8 @@ pub enum DbError {
     Serde(#[from] serde_json::Error),
     #[error("note not found: {0}")]
     NotFound(String),
+    #[error("{0}")]
+    Validation(String),
 }
 
 pub struct Db {
@@ -70,6 +75,7 @@ impl Db {
         conn.execute_batch("PRAGMA foreign_keys = ON;")?;
         Self::migrate(&mut conn)?;
         Self::ensure_default_settings(&conn)?;
+        Self::ensure_default_group(&conn)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             db_path,
@@ -157,6 +163,32 @@ impl Db {
             tx.pragma_update(None, "user_version", 2_i64)?;
             tx.commit()?;
         }
+        if version < 3 {
+            let tx = conn.transaction()?;
+            tx.execute_batch(
+                "
+                CREATE TABLE IF NOT EXISTS clipboard_history (
+                  id TEXT PRIMARY KEY,
+                  content_type TEXT NOT NULL,
+                  content TEXT NOT NULL,
+                  html_content TEXT,
+                  preview TEXT NOT NULL,
+                  content_hash TEXT NOT NULL,
+                  created_at TEXT NOT NULL,
+                  updated_at TEXT NOT NULL,
+                  size_bytes INTEGER NOT NULL DEFAULT 0
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_clipboard_history_hash
+                  ON clipboard_history(content_type, content_hash);
+                CREATE INDEX IF NOT EXISTS idx_clipboard_history_updated_at
+                  ON clipboard_history(updated_at);
+                CREATE INDEX IF NOT EXISTS idx_clipboard_history_type
+                  ON clipboard_history(content_type);
+                ",
+            )?;
+            tx.pragma_update(None, "user_version", 3_i64)?;
+            tx.commit()?;
+        }
         // 幂等自检：dev 库偶尔会出现 user_version 已升到 2 但实际 ALTER 没成功
         // 的不一致状态（多进程访问、上次 migration 异常等），每次启动再确认一次。
         Self::ensure_is_draft_column(conn)?;
@@ -196,6 +228,7 @@ impl Db {
         let defaults: &[(&str, &str)] = &[
             ("mainWindowShortcut", "Ctrl+Shift+N"),
             ("quicknoteShortcut", "Ctrl+Shift+M"),
+            ("clipboardShortcut", "Ctrl+Shift+V"),
             ("searchShortcut", "Ctrl+Shift+F"),
             ("floatingWidth", "400"),
             ("floatingHeight", "300"),
@@ -214,6 +247,17 @@ impl Db {
                 rusqlite::params![k, v, &now],
             )?;
         }
+        Ok(())
+    }
+
+    fn ensure_default_group(conn: &Connection) -> Result<(), DbError> {
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT OR IGNORE INTO library_entries
+             (id, kind, title, preview_text, body_markdown, tags, workspace_id, parent_id, group_id, file_path, created_at, updated_at, word_count, byte_size)
+             VALUES (?1, 'group', '收件箱', '', NULL, '[]', NULL, NULL, NULL, NULL, ?2, ?2, 0, 0)",
+            rusqlite::params![INBOX_GROUP_ID, &now],
+        )?;
         Ok(())
     }
 
@@ -487,6 +531,119 @@ impl Db {
         Ok(note)
     }
 
+    // ----- 剪贴板历史 --------------------------------------------------
+
+    pub fn upsert_clipboard_entry(
+        &self,
+        input: NewClipboardEntry,
+    ) -> Result<ClipboardEntry, DbError> {
+        let conn = self.lock()?;
+        let now = chrono::Utc::now().to_rfc3339();
+        let existing: Option<(String, String)> = conn
+            .query_row(
+                "SELECT id, created_at FROM clipboard_history
+                 WHERE content_type = ?1 AND content_hash = ?2",
+                rusqlite::params![&input.content_type, &input.content_hash],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
+
+        let (id, created_at) = existing.unwrap_or_else(|| {
+            let id = uuid::Uuid::new_v4().to_string();
+            (id, now.clone())
+        });
+
+        conn.execute(
+            "INSERT INTO clipboard_history
+             (id, content_type, content, html_content, preview, content_hash, created_at, updated_at, size_bytes)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             ON CONFLICT(content_type, content_hash) DO UPDATE SET
+               content = excluded.content,
+               html_content = excluded.html_content,
+               preview = excluded.preview,
+               updated_at = excluded.updated_at,
+               size_bytes = excluded.size_bytes",
+            rusqlite::params![
+                &id,
+                &input.content_type,
+                &input.content,
+                &input.html_content,
+                &input.preview,
+                &input.content_hash,
+                &created_at,
+                &now,
+                input.size_bytes,
+            ],
+        )?;
+
+        Self::find_clipboard_entry(&conn, &id)
+    }
+
+    pub fn list_clipboard_entries(
+        &self,
+        limit: i64,
+        content_type: Option<String>,
+        query: Option<String>,
+    ) -> Result<Vec<ClipboardEntry>, DbError> {
+        let conn = self.lock()?;
+        let mut sql = String::from(
+            "SELECT id, content_type, content, html_content, preview, created_at, updated_at, size_bytes
+             FROM clipboard_history
+             WHERE 1 = 1",
+        );
+        let mut values: Vec<String> = Vec::new();
+
+        if let Some(content_type) = content_type.map(|value| value.trim().to_string()) {
+            if !content_type.is_empty() {
+                sql.push_str(" AND content_type = ?");
+                values.push(content_type);
+            }
+        }
+
+        if let Some(query) = query.map(|value| value.trim().to_string()) {
+            if !query.is_empty() {
+                sql.push_str(" AND (content LIKE ? OR preview LIKE ?)");
+                let like = format!("%{query}%");
+                values.push(like.clone());
+                values.push(like);
+            }
+        }
+
+        sql.push_str(" ORDER BY updated_at DESC LIMIT ?");
+        values.push(limit.max(1).to_string());
+
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(
+            rusqlite::params_from_iter(values.iter()),
+            row_to_clipboard_entry,
+        )?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    pub fn get_clipboard_entry(&self, id: &str) -> Result<Option<ClipboardEntry>, DbError> {
+        let conn = self.lock()?;
+        match Self::find_clipboard_entry(&conn, id) {
+            Ok(entry) => Ok(Some(entry)),
+            Err(DbError::NotFound(_)) => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
+    pub fn delete_clipboard_entry(&self, id: &str) -> Result<(), DbError> {
+        let conn = self.lock()?;
+        conn.execute(
+            "DELETE FROM clipboard_history WHERE id = ?1",
+            rusqlite::params![id],
+        )?;
+        Ok(())
+    }
+
+    pub fn clear_clipboard_entries(&self) -> Result<(), DbError> {
+        let conn = self.lock()?;
+        conn.execute("DELETE FROM clipboard_history", [])?;
+        Ok(())
+    }
+
     // ----- 设置 key-value -----------------------------------------------
 
     pub fn get_setting(&self, key: &str) -> Result<Option<String>, DbError> {
@@ -526,6 +683,18 @@ impl Db {
             .optional()?;
         note.ok_or_else(|| DbError::NotFound(id.to_string()))
     }
+
+    fn find_clipboard_entry(conn: &Connection, id: &str) -> Result<ClipboardEntry, DbError> {
+        let entry = conn
+            .query_row(
+                "SELECT id, content_type, content, html_content, preview, created_at, updated_at, size_bytes
+                 FROM clipboard_history WHERE id = ?1",
+                rusqlite::params![id],
+                row_to_clipboard_entry,
+            )
+            .optional()?;
+        entry.ok_or_else(|| DbError::NotFound(id.to_string()))
+    }
 }
 
 fn row_to_note(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
@@ -554,7 +723,55 @@ fn row_to_note(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
     })
 }
 
+fn row_to_clipboard_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<ClipboardEntry> {
+    Ok(ClipboardEntry {
+        id: row.get(0)?,
+        content_type: row.get(1)?,
+        content: row.get(2)?,
+        html_content: row.get(3)?,
+        preview: row.get(4)?,
+        created_at: row.get(5)?,
+        updated_at: row.get(6)?,
+        size_bytes: row.get(7)?,
+    })
+}
+
 // ----- 内容派生 ---------------------------------------------------------
+
+fn entry_kind_from_db(value: &str) -> EntryKind {
+    match value {
+        "workspace" => EntryKind::Workspace,
+        "folder" => EntryKind::Folder,
+        "group" => EntryKind::Group,
+        "document" => EntryKind::Document,
+        _ => EntryKind::Text,
+    }
+}
+
+fn preview_text(content: &str) -> String {
+    content
+        .trim()
+        .replace('\n', " ")
+        .chars()
+        .take(120)
+        .collect()
+}
+
+fn markdown_byte_size(content: &str) -> i64 {
+    content.as_bytes().len() as i64
+}
+
+fn ensure_text_size_limit(content: &str) -> Result<i64, DbError> {
+    let size = markdown_byte_size(content);
+    if size > 10 * 1024 {
+        let kb = (size as f64 / 1024.0).ceil() as i64;
+        return Err(DbError::Validation(format!(
+            "当前文件大小 {}KB，文本文件最大不能超过 10KB",
+            kb
+        )));
+    }
+    Ok(size)
+}
 
 /// 第一行非空内容作为标题，最多 48 个字符。去掉开头的 Markdown `#` 标记。
 pub fn derive_title(content: &str) -> String {
@@ -611,14 +828,80 @@ pub fn word_count(content: &str) -> i64 {
     content.split_whitespace().count() as i64
 }
 
+fn normalize_workspace_root(path: &Path) -> Result<PathBuf, DbError> {
+    match path.canonicalize() {
+        Ok(canonical) => Ok(canonical),
+        Err(_) => Ok(path.to_path_buf()),
+    }
+}
+
 /// 把 Markdown 渲染成 HTML，存到 notes.html_content 列。
 /// pulldown-cmark 默认开启所有标准语法。
 pub fn render_markdown(content: &str) -> String {
-    use pulldown_cmark::{Parser, html};
+    use pulldown_cmark::{html, Parser};
     let parser = Parser::new(content);
     let mut output = String::new();
     html::push_html(&mut output, parser);
     output
+}
+
+struct ExistingWorkspaceEntry {
+    id: String,
+    created_at: String,
+}
+
+fn workspace_entries_by_path(
+    conn: &Connection,
+    workspace_id: &str,
+) -> Result<HashMap<String, ExistingWorkspaceEntry>, DbError> {
+    let mut stmt = conn.prepare(
+        "SELECT id, file_path, created_at
+         FROM library_entries
+         WHERE workspace_id = ?1
+           AND kind IN ('folder', 'document')
+           AND file_path IS NOT NULL",
+    )?;
+    let rows = stmt.query_map(rusqlite::params![workspace_id], |row| {
+        let file_path: String = row.get(1)?;
+        let normalized_path = PathBuf::from(&file_path)
+            .canonicalize()
+            .unwrap_or_else(|_| PathBuf::from(&file_path));
+        Ok((
+            path_key(&normalized_path),
+            ExistingWorkspaceEntry {
+                id: row.get(0)?,
+                created_at: row.get(2)?,
+            },
+        ))
+    })?;
+    let pairs = rows.collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(pairs.into_iter().collect())
+}
+
+fn path_key(path: &Path) -> String {
+    path.to_string_lossy().into_owned()
+}
+
+fn stable_workspace_entry_id(workspace_id: &str, path: &Path) -> String {
+    let mut hash = 0xcbf29ce484222325_u64;
+    let key = path_key(path);
+    for byte in workspace_id.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash ^= u64::from(b':');
+    hash = hash.wrapping_mul(0x100000001b3);
+    for byte in key.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    format!("fs-{hash:016x}")
+}
+
+fn fs_modified_or_now(modified_at: Option<std::time::SystemTime>, fallback: &str) -> String {
+    modified_at
+        .map(|time| DateTime::<Utc>::from(time).to_rfc3339())
+        .unwrap_or_else(|| fallback.to_string())
 }
 
 // ----- tests ------------------------------------------------------------
@@ -626,7 +909,10 @@ pub fn render_markdown(content: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::SaveNoteRequest;
+    use crate::models::{
+        ConvertTextToDocumentRequest, EntryKind, MainListContext, SaveNoteRequest,
+        SaveTextEntryRequest,
+    };
 
     fn fresh_db() -> Db {
         let mut conn = Connection::open_in_memory().expect("open in-memory db");
@@ -673,6 +959,20 @@ mod tests {
     }
 
     #[test]
+    fn migrate_creates_clipboard_history_table() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        Db::migrate(&mut conn).unwrap();
+        let exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='clipboard_history'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(exists, 1);
+    }
+
+    #[test]
     fn migrate_is_idempotent() {
         let mut conn = Connection::open_in_memory().unwrap();
         Db::migrate(&mut conn).unwrap();
@@ -680,7 +980,7 @@ mod tests {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 2);
+        assert_eq!(version, 3);
     }
 
     #[test]
@@ -767,7 +1067,7 @@ mod tests {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 2);
+        assert_eq!(version, 3);
     }
 
     // --- derive_title ---
@@ -1067,6 +1367,142 @@ mod tests {
     }
 
     #[test]
+    fn default_settings_seed_includes_clipboard_shortcut() {
+        let db = fresh_db();
+        let v = db.get_setting("clipboardShortcut").unwrap();
+        assert_eq!(v.as_deref(), Some("Ctrl+Shift+V"));
+    }
+
+    #[test]
+    fn upsert_clipboard_entry_inserts_and_deduplicates_by_hash() {
+        let db = fresh_db();
+        let input = NewClipboardEntry {
+            content_type: "text".into(),
+            content: "hello".into(),
+            html_content: None,
+            preview: "hello".into(),
+            content_hash: "text:abc".into(),
+            size_bytes: 5,
+        };
+
+        let first = db.upsert_clipboard_entry(input.clone()).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        let second = db.upsert_clipboard_entry(input).unwrap();
+
+        assert_eq!(first.id, second.id);
+        assert_ne!(first.updated_at, second.updated_at);
+
+        let listed = db.list_clipboard_entries(20, None, None).unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].content, "hello");
+    }
+
+    #[test]
+    fn list_clipboard_entries_filters_by_type_and_query() {
+        let db = fresh_db();
+        db.upsert_clipboard_entry(NewClipboardEntry {
+            content_type: "url".into(),
+            content: "https://example.com".into(),
+            html_content: None,
+            preview: "https://example.com".into(),
+            content_hash: "url:a".into(),
+            size_bytes: 19,
+        })
+        .unwrap();
+        db.upsert_clipboard_entry(NewClipboardEntry {
+            content_type: "text".into(),
+            content: "meeting notes".into(),
+            html_content: None,
+            preview: "meeting notes".into(),
+            content_hash: "text:b".into(),
+            size_bytes: 13,
+        })
+        .unwrap();
+
+        let urls = db
+            .list_clipboard_entries(20, Some("url".to_string()), None)
+            .unwrap();
+        assert_eq!(urls.len(), 1);
+        assert_eq!(urls[0].content_type, "url");
+
+        let search = db
+            .list_clipboard_entries(20, None, Some("meeting".to_string()))
+            .unwrap();
+        assert_eq!(search.len(), 1);
+        assert_eq!(search[0].content, "meeting notes");
+    }
+
+    #[test]
+    fn get_clipboard_entry_returns_saved_entry() {
+        let db = fresh_db();
+        let saved = db
+            .upsert_clipboard_entry(NewClipboardEntry {
+                content_type: "text".into(),
+                content: "copy me".into(),
+                html_content: None,
+                preview: "copy me".into(),
+                content_hash: "text:get".into(),
+                size_bytes: 7,
+            })
+            .unwrap();
+
+        let found = db.get_clipboard_entry(&saved.id).unwrap();
+
+        assert_eq!(found.unwrap().content, "copy me");
+        assert!(db.get_clipboard_entry("missing").unwrap().is_none());
+    }
+
+    #[test]
+    fn delete_clipboard_entry_removes_one_entry() {
+        let db = fresh_db();
+        let saved = db
+            .upsert_clipboard_entry(NewClipboardEntry {
+                content_type: "text".into(),
+                content: "delete me".into(),
+                html_content: None,
+                preview: "delete me".into(),
+                content_hash: "text:delete".into(),
+                size_bytes: 9,
+            })
+            .unwrap();
+
+        db.delete_clipboard_entry(&saved.id).unwrap();
+
+        assert!(db.get_clipboard_entry(&saved.id).unwrap().is_none());
+    }
+
+    #[test]
+    fn clear_clipboard_entries_removes_all_entries() {
+        let db = fresh_db();
+        db.upsert_clipboard_entry(NewClipboardEntry {
+            content_type: "text".into(),
+            content: "first".into(),
+            html_content: None,
+            preview: "first".into(),
+            content_hash: "text:first".into(),
+            size_bytes: 5,
+        })
+        .unwrap();
+        db.upsert_clipboard_entry(NewClipboardEntry {
+            content_type: "url".into(),
+            content: "https://example.com".into(),
+            html_content: None,
+            preview: "https://example.com".into(),
+            content_hash: "url:first".into(),
+            size_bytes: 19,
+        })
+        .unwrap();
+
+        db.clear_clipboard_entries().unwrap();
+
+        assert!(
+            db.list_clipboard_entries(20, None, None)
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
     fn set_setting_upsert_does_not_change_unrelated_keys() {
         let db = fresh_db();
         db.set_setting("themeMode", "dark").unwrap();
@@ -1079,5 +1515,157 @@ mod tests {
             db.get_setting("blurCloseDelayMs").unwrap().as_deref(),
             Some("800")
         );
+    }
+
+    #[test]
+    fn default_settings_seed_includes_editor_outline_keys() {
+        let db = fresh_db();
+        assert_eq!(
+            db.get_setting("noteEditorOutlineWidth").unwrap().as_deref(),
+            Some("280")
+        );
+        assert_eq!(
+            db.get_setting("noteEditorOutlineOpen").unwrap().as_deref(),
+            Some("false")
+        );
+        assert_eq!(
+            db.get_setting("zenOutlineWidth").unwrap().as_deref(),
+            Some("300")
+        );
+        assert_eq!(
+            db.get_setting("zenOutlineOpen").unwrap().as_deref(),
+            Some("true")
+        );
+    }
+
+    #[test]
+    fn save_text_rejects_markdown_body_over_10kb() {
+        let db = fresh_db();
+        let content = "a".repeat(10 * 1024 + 1);
+
+        let err = db
+            .save_text_entry(SaveTextEntryRequest {
+                id: None,
+                title: Some("超限文本".into()),
+                content,
+                tags: vec![],
+                group_id: None,
+            })
+            .unwrap_err()
+            .to_string();
+
+        assert!(err.contains("文本文件最大不能超过 10KB"), "{err}");
+    }
+
+    #[test]
+    fn save_text_without_group_uses_system_inbox_group() {
+        let db = fresh_db();
+        let saved = db
+            .save_text_entry(SaveTextEntryRequest {
+                id: None,
+                title: Some("默认分组文本".into()),
+                content: "hello".into(),
+                tags: vec![],
+                group_id: None,
+            })
+            .unwrap();
+
+        assert_eq!(saved.kind, EntryKind::Text);
+        assert_eq!(saved.group_id.as_deref(), Some("group-inbox"));
+    }
+
+    #[test]
+    fn create_workspace_reuses_existing_root_path() {
+        let db = fresh_db();
+        let root = std::env::temp_dir().join("steno-existing-workspace");
+
+        let first = db.create_workspace("默认工作区", root.clone()).unwrap();
+        let second = db.create_workspace("另一个名字", root).unwrap();
+
+        assert_eq!(first.id, second.id);
+        assert_eq!(first.root_path, second.root_path);
+    }
+
+    #[test]
+    fn list_workspaces_returns_created_workspace() {
+        let db = fresh_db();
+        let root = std::env::temp_dir().join("steno-list-workspace");
+
+        let created = db.create_workspace("默认工作区", root).unwrap();
+        let workspaces = db.list_workspaces().unwrap();
+
+        assert!(workspaces
+            .iter()
+            .any(|workspace| workspace.id == created.id));
+    }
+
+    #[test]
+    fn listing_workspace_imports_existing_folders_and_markdown_files() {
+        let db = fresh_db();
+        let root =
+            std::env::temp_dir().join(format!("steno-workspace-sync-{}", uuid::Uuid::new_v4()));
+        let nested = root.join("research");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(root.join("overview.md"), "# Overview\nRoot document #plan").unwrap();
+        std::fs::write(nested.join("deep-note.md"), "Nested document").unwrap();
+        std::fs::write(root.join("asset.bin"), [0, 1, 2, 3]).unwrap();
+
+        let workspace = db.create_workspace("导入测试", root.clone()).unwrap();
+        let workspace_documents = db
+            .list_library_entries(MainListContext {
+                workspace_id: Some(workspace.id.clone()),
+                folder_entry_id: None,
+                group_entry_id: None,
+                selected_entry_id: None,
+            })
+            .unwrap();
+
+        assert!(!workspace_documents
+            .iter()
+            .any(|entry| entry.kind == EntryKind::Folder));
+        assert!(workspace_documents
+            .iter()
+            .any(|entry| { entry.kind == EntryKind::Document && entry.title == "overview" }));
+        assert!(workspace_documents
+            .iter()
+            .any(|entry| { entry.kind == EntryKind::Document && entry.title == "deep-note" }));
+        assert!(!workspace_documents.iter().any(|entry| entry.title == "asset"));
+
+        let tree = db.list_workspace_tree(&workspace.id).unwrap();
+        assert!(tree.iter().any(|entry| entry.title == "research"));
+        assert!(tree.iter().any(|entry| entry.title == "overview"));
+        assert!(tree.iter().any(|entry| entry.title == "deep-note"));
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn convert_text_to_document_writes_markdown_file_and_changes_kind() {
+        let db = fresh_db();
+        let workspace = db
+            .create_workspace("默认工作区", std::env::temp_dir().join("steno-plan-test"))
+            .unwrap();
+        let text = db
+            .save_text_entry(SaveTextEntryRequest {
+                id: None,
+                title: Some("待转换".into()),
+                content: "# 标题\n正文".into(),
+                tags: vec!["draft".into()],
+                group_id: Some("group-inbox".into()),
+            })
+            .unwrap();
+
+        let converted = db
+            .convert_text_to_document(ConvertTextToDocumentRequest {
+                id: text.id.clone(),
+                workspace_id: workspace.id.clone(),
+                folder_entry_id: None,
+            })
+            .unwrap();
+
+        assert_eq!(converted.kind, EntryKind::Document);
+        assert!(converted.file_path.as_ref().is_some());
+        assert!(std::fs::exists(converted.file_path.as_ref().unwrap()).unwrap());
     }
 }

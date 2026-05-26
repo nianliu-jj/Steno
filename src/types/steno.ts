@@ -158,6 +158,19 @@ export interface SearchNotesRequest {
   limit: number;
 }
 
+export type ClipboardContentType = 'text' | 'url' | 'code' | 'image' | 'file' | 'rich_text';
+
+export interface ClipboardEntry {
+  id: string;
+  contentType: ClipboardContentType;
+  content: string;
+  htmlContent?: string | null;
+  preview: string;
+  createdAt: string;
+  updatedAt: string;
+  sizeBytes: number;
+}
+
 // ----- 前端独有：窗口模式（不进 Rust） -----------------------------------
 
 /**

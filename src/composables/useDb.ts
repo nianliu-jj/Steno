@@ -12,10 +12,14 @@ import { invoke } from '@tauri-apps/api/core';
 
 import type {
   CanvasPosition,
+  ClipboardEntry,
   Note,
   PinnedWindowConfig,
+  SaveDocumentEntryRequest,
   SaveNoteRequest,
+  SaveTextEntryRequest,
   SearchNotesRequest,
+  Workspace,
 } from '@/types/steno';
 
 /**
@@ -143,6 +147,32 @@ export function useDb() {
     return invoke<Note>('update_canvas_position', { id, position });
   }
 
+  // ----- clipboard -----------------------------------------------------
+
+  function listClipboardEntries(args?: {
+    limit?: number;
+    contentType?: string | null;
+    query?: string | null;
+  }) {
+    return invoke<ClipboardEntry[]>('list_clipboard_entries', {
+      limit: args?.limit ?? 200,
+      contentType: args?.contentType ?? null,
+      query: args?.query ?? null,
+    });
+  }
+
+  function deleteClipboardEntry(id: string) {
+    return invoke<void>('delete_clipboard_entry', { id });
+  }
+
+  function clearClipboardEntries() {
+    return invoke<void>('clear_clipboard_entries');
+  }
+
+  function copyClipboardEntry(id: string) {
+    return invoke<void>('copy_clipboard_entry', { id });
+  }
+
   // ----- settings ------------------------------------------------------
 
   /**
@@ -230,9 +260,17 @@ export function useDb() {
 
   return {
     saveNote,
+    saveTextEntry,
     getNote,
+    getEditorEntry,
     listNotes,
     searchNotes,
+    listLibraryEntries,
+    listWorkspaceTree,
+    listWorkspaces,
+    createWorkspace,
+    saveDocumentEntry,
+    convertTextToDocument,
     deleteNote,
     setNotePinned,
     listPinnedNotes,
@@ -240,6 +278,10 @@ export function useDb() {
     getLatestDraft,
     updatePinnedWindowConfig,
     updateCanvasPosition,
+    listClipboardEntries,
+    deleteClipboardEntry,
+    clearClipboardEntries,
+    copyClipboardEntry,
     getSetting,
     setSetting,
     reloadShortcuts,

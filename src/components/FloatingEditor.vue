@@ -22,7 +22,7 @@ import { useAutosave } from '@/composables/useAutosave';
 import { useDb } from '@/composables/useDb';
 import { useMarkdown } from '@/composables/useMarkdown';
 import { useWindow } from '@/composables/useWindow';
-import { useNotesStore } from '@/stores/notes';
+import { useLibraryStore } from '@/stores/library';
 import { useSettingsStore } from '@/stores/settings';
 import type { Note, SaveNoteRequest } from '@/types/steno';
 
@@ -32,7 +32,8 @@ const props = withDefaults(defineProps<{
   noteId: null,
 });
 
-const notes = useNotesStore();
+const db = useDb();
+const library = useLibraryStore();
 const settings = useSettingsStore();
 const win = useWindow();
 const db = useDb();

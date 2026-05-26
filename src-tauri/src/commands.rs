@@ -10,12 +10,15 @@
 //! 把 `DbError` / `JoinError` 都格式化成 `String` 返给前端 —
 //! 前端有完整错误消息便于排查，同时避免泄露内部结构。
 
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
+use crate::clipboard::{self, ClipboardEntry};
 use crate::db::Db;
 use crate::export;
 use crate::models::{
-    CanvasPosition, Note, PinnedWindowConfig, SaveNoteRequest, SearchNotesRequest,
+    CanvasPosition, ConvertTextToDocumentRequest, CreateWorkspaceRequest, LibraryEntry,
+    MainListContext, Note, PinnedWindowConfig, SaveDocumentEntryRequest, SaveNoteRequest,
+    SaveTextEntryRequest, SearchNotesRequest, Workspace, EditorEntry,
 };
 use crate::{quicknote, shortcut, window_manager};
 
@@ -34,9 +37,57 @@ pub async fn save_note(db: State<'_, Db>, input: SaveNoteRequest) -> Result<Opti
 }
 
 #[tauri::command]
+pub async fn save_text_entry(
+    db: State<'_, Db>,
+    input: SaveTextEntryRequest,
+) -> Result<LibraryEntry, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.save_text_entry(input))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn save_document_entry(
+    db: State<'_, Db>,
+    input: SaveDocumentEntryRequest,
+) -> Result<LibraryEntry, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.save_document_entry(input))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn convert_text_to_document(
+    db: State<'_, Db>,
+    input: ConvertTextToDocumentRequest,
+) -> Result<LibraryEntry, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.convert_text_to_document(input))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+#[tauri::command]
 pub async fn get_note(db: State<'_, Db>, id: String) -> Result<Option<Note>, String> {
     let db = db.inner().clone();
     tauri::async_runtime::spawn_blocking(move || db.get_note(&id))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn get_editor_entry(
+    db: State<'_, Db>,
+    id: String,
+) -> Result<Option<EditorEntry>, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.get_editor_entry(&id))
         .await
         .map_err(to_msg)?
         .map_err(to_msg)
@@ -61,6 +112,66 @@ pub async fn search_notes(
         .await
         .map_err(to_msg)?
         .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn list_library_entries(
+    db: State<'_, Db>,
+    context: MainListContext,
+) -> Result<Vec<LibraryEntry>, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.list_library_entries(context))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn list_workspace_tree(
+    db: State<'_, Db>,
+    workspace_id: String,
+) -> Result<Vec<LibraryEntry>, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.list_workspace_tree(&workspace_id))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn list_workspaces(db: State<'_, Db>) -> Result<Vec<Workspace>, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.list_workspaces())
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn create_workspace(
+    db: State<'_, Db>,
+    input: CreateWorkspaceRequest,
+) -> Result<Workspace, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let name = input
+            .name
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned)
+            .unwrap_or_else(|| {
+                std::path::Path::new(&input.root_path)
+                    .file_name()
+                    .and_then(|value| value.to_str())
+                    .unwrap_or("新工作区")
+                    .to_string()
+            });
+        db.create_workspace(&name, std::path::PathBuf::from(input.root_path))
+    })
+    .await
+    .map_err(to_msg)?
+    .map_err(to_msg)
 }
 
 #[tauri::command]
@@ -168,6 +279,65 @@ pub async fn set_setting(db: State<'_, Db>, key: String, value: String) -> Resul
         .map_err(to_msg)
 }
 
+// ----- 剪贴板 commands -------------------------------------------------
+
+#[tauri::command]
+pub async fn list_clipboard_entries(
+    db: State<'_, Db>,
+    limit: i64,
+    content_type: Option<String>,
+    query: Option<String>,
+) -> Result<Vec<ClipboardEntry>, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        db.list_clipboard_entries(limit, content_type, query)
+    })
+    .await
+    .map_err(to_msg)?
+    .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn delete_clipboard_entry(
+    app: AppHandle,
+    db: State<'_, Db>,
+    id: String,
+) -> Result<(), String> {
+    let db = db.inner().clone();
+    let id_for_emit = id.clone();
+    tauri::async_runtime::spawn_blocking(move || db.delete_clipboard_entry(&id))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)?;
+    let _ = app.emit(clipboard::CLIPBOARD_REMOVED_EVENT, id_for_emit);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn clear_clipboard_entries(app: AppHandle, db: State<'_, Db>) -> Result<(), String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.clear_clipboard_entries())
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)?;
+    let _ = app.emit(clipboard::CLIPBOARD_CLEARED_EVENT, ());
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn copy_clipboard_entry(db: State<'_, Db>, id: String) -> Result<(), String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        let entry = db
+            .get_clipboard_entry(&id)
+            .map_err(to_msg)?
+            .ok_or_else(|| format!("剪贴板条目不存在：{id}"))?;
+        clipboard::write_entry_to_system_clipboard(&entry)
+    })
+    .await
+    .map_err(to_msg)?
+}
+
 // ----- 窗口管理 commands（Plan Task 3 Step 2 暴露给前端） ---------------
 
 #[tauri::command]
@@ -212,6 +382,56 @@ pub fn open_quicknote_window(
 #[tauri::command]
 pub fn open_zen_window(app: AppHandle, id: Option<String>) -> Result<(), String> {
     window_manager::open_zen(&app, id.as_deref()).map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn open_path_in_file_manager(path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || open_path_in_file_manager_sync(&path))
+        .await
+        .map_err(to_msg)?
+}
+
+fn open_path_in_file_manager_sync(path: &str) -> Result<(), String> {
+    let target = PathBuf::from(path);
+    if target.as_os_str().is_empty() {
+        return Err("路径不能为空".to_string());
+    }
+    if !target.exists() {
+        return Err(format!("路径不存在：{}", target.to_string_lossy()));
+    }
+
+    let status = platform_open_command(&target).status().map_err(to_msg)?;
+    if status.success() {
+        return Ok(());
+    }
+
+    Err(format!(
+        "打开路径失败：{}",
+        target.to_string_lossy()
+    ))
+}
+
+fn platform_open_command(path: &PathBuf) -> Command {
+    #[cfg(target_os = "macos")]
+    {
+        let mut command = Command::new("open");
+        command.arg(path);
+        command
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let mut command = Command::new("explorer");
+        command.arg(path);
+        command
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let mut command = Command::new("xdg-open");
+        command.arg(path);
+        command
+    }
 }
 
 // ----- 快捷键 ----------------------------------------------------------

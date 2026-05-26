@@ -132,3 +132,32 @@ pub struct SearchNotesRequest {
     /// 返回结果数量上限。
     pub limit: i64,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveTextEntryRequest {
+    pub id: Option<String>,
+    pub title: Option<String>,
+    pub content: String,
+    pub tags: Vec<String>,
+    pub group_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveDocumentEntryRequest {
+    pub id: Option<String>,
+    pub title: Option<String>,
+    pub content: String,
+    pub tags: Vec<String>,
+    pub workspace_id: String,
+    pub folder_entry_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConvertTextToDocumentRequest {
+    pub id: String,
+    pub workspace_id: String,
+    pub folder_entry_id: Option<String>,
+}
