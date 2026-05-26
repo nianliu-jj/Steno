@@ -35,9 +35,9 @@ useMarkdown();
 
 const currentNoteId = ref<string | null>(ui.noteId ?? null);
 const session = useWritingSession(currentNoteId);
-const title = ref('');
-const content = ref('');
-const tags = ref<string[]>([]);
+const title = session.title;
+const content = session.content;
+const tags = session.tags;
 const editingTitle = ref(false);
 const tagsDialogVisible = ref(false);
 const tagsDraftRows = ref<string[]>([]);

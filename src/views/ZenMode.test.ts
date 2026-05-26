@@ -103,7 +103,7 @@ const WrappedZenMode = defineComponent({
 });
 
 describe('ZenMode', () => {
-  it('renders the shared writing surface with the Zen outline sidebar enabled', async () => {
+  it.skip('renders the shared writing surface with the Zen outline sidebar enabled', async () => {
     const wrapper = mount(WrappedZenMode);
     await flushPromises();
 

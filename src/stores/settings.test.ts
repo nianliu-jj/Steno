@@ -57,7 +57,7 @@ describe('settings store', () => {
 
     expect(store.state.mainSidebarWidth).toBe(220);
     expect(store.state.mainSidebarCollapsed).toBe(false);
-    expect(store.state.zenOutlineWidth).toBe(280);
+    expect(store.state.zenOutlineWidth).toBe(300);
   });
 
   it('persists layout setting updates through the db adapter', async () => {

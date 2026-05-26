@@ -13,7 +13,7 @@ function parseTypeFilters(raw: string): EntryKind[] {
     .map(item => item.trim())
     .filter((item): item is EntryKind => FILTERABLE_ENTRY_KINDS.includes(item as EntryKind));
 
-  return normalized;
+  return normalized.length > 0 ? normalized : [...FILTERABLE_ENTRY_KINDS];
 }
 
 function serializeTypeFilters(filters: EntryKind[]) {

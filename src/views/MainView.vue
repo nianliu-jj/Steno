@@ -22,30 +22,23 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { NButton, NDropdown, NIcon, NInput, NPopconfirm, useMessage } from 'naive-ui';
 
-import EntryTypeBadge from '@/components/EntryTypeBadge.vue';
-import WorkspacePickerDialog from '@/components/WorkspacePickerDialog.vue';
-import WorkspaceTreePanel from '@/components/WorkspaceTreePanel.vue';
+import { useAppEvents } from '@/composables/useAppEvents';
 import { useDb } from '@/composables/useDb';
 import { useWindow } from '@/composables/useWindow';
-import { useLibraryStore } from '@/stores/library';
+import { useNotesStore } from '@/stores/notes';
 import { useUiStore } from '@/stores/ui';
-import type { LibraryEntry, MainListContext, Workspace } from '@/types/steno';
+import type { Note } from '@/types/steno';
 
-const typeFilterOptions: Array<{ kind: 'document' | 'text'; label: string }> = [
-  { kind: 'document', label: '文档' },
-  { kind: 'text', label: '文本' },
+const cardExportOptions = [
+  { key: 'markdown', label: '导出为 Markdown' },
+  { key: 'html', label: '导出为 Html' },
+  { key: 'pdf', label: '导出为 PDF' },
 ];
 
-const defaultContext: MainListContext = {
-  workspaceId: null,
-  folderEntryId: null,
-  groupEntryId: null,
-  selectedEntryId: null,
-};
-
-const library = useLibraryStore();
+const notes = useNotesStore();
 const ui = useUiStore();
 const win = useWindow();
+const message = useMessage();
 const db = useDb();
 const appEvents = useAppEvents();
 
@@ -139,8 +132,8 @@ const filterOptions = computed(() => {
   return [
     { value: untaggedFilterValue, label: '无标签', count: untaggedCount, testId: 'filter-option-untagged' },
     ...Array.from(tagCounts.entries())
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-CN'))
-      .map(([tag, count]) => ({ value: tag, label: `#${tag}`, count, testId: `filter-option-${tag}` })),
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-CN'))
+        .map(([tag, count]) => ({ value: tag, label: `#${tag}`, count, testId: `filter-option-${tag}` })),
   ];
 });
 
@@ -164,176 +157,62 @@ const visibleNoteCount = computed(() => visibleNotes.value.length);
 const filterStatText = computed(() => `${visibleNoteCount.value} / ${totalNoteCount.value} 篇`);
 const activeFilterCount = computed(() => selectedFilterValues.value.length);
 
-const showWorkspaceTree = ref(false);
-const showTypeFilters = ref(false);
-const workspacePickerOpen = ref(false);
-const workspacePickerBusy = ref(false);
-const workspacePickerLoading = ref(false);
-const pendingWorkspaceAction = ref<
-  | null
-  | { type: 'new-note' }
-  | { type: 'convert-text'; entry: LibraryEntry }
->(null);
 const contextMenu = ref<{
   visible: boolean;
   x: number;
   y: number;
-  entry: LibraryEntry | null;
+  note: Note | null;
+  exportOpen: boolean;
 }>({
   visible: false,
   x: 0,
   y: 0,
-  entry: null,
+  note: null,
+  exportOpen: false,
 });
 
 const contextTargetNote = computed(() => contextMenu.value.note);
 const contextHasTarget = computed(() => contextTargetNote.value !== null);
 const contextTargetIsDraft = computed(() => contextTargetNote.value?.isDraft === true);
 
-const displayEntries = computed<LibraryEntry[]>(() =>
-  visibleEntries.value.filter(entry => entry.kind === 'document' || entry.kind === 'text'),
-);
+const tagDialogVisible = ref(false);
+const tagDialogNote = ref<Note | null>(null);
+const tagDraftRows = ref<string[]>([]);
+const renameDialogVisible = ref(false);
+const renameDialogNote = ref<Note | null>(null);
+const renameDraft = ref('');
 
-const workspaceTreeEntries = computed<LibraryEntry[]>(() => {
-  const value = unref((library as unknown as { workspaceTree?: LibraryEntry[] }).workspaceTree);
-  return Array.isArray(value) ? value : [];
-});
-
-const availableWorkspaces = computed<Workspace[]>(() => {
-  const value = unref((library as unknown as { workspaces?: Workspace[] }).workspaces);
-  return Array.isArray(value) ? value : [];
-});
-
-const currentWorkspace = computed<Workspace | null>(() => {
-  const value = unref((library as unknown as { currentWorkspace?: Workspace | null }).currentWorkspace);
-  return value && typeof value === 'object' ? value : null;
-});
-
-const currentContext = computed<MainListContext>(() => {
-  const value = unref((library as unknown as { context?: MainListContext }).context);
-  return value ? value : defaultContext;
-});
-
-const currentWorkspaceLabel = computed(() => {
-  const value = unref((library as unknown as { currentWorkspaceLabel?: string }).currentWorkspaceLabel);
-  return typeof value === 'string' ? value : '';
-});
-
-const currentWorkspaceName = computed(() => {
-  if (!currentContext.value.workspaceId) {
-    return '未选择工作区';
-  }
-
-  return currentWorkspace.value?.name || currentWorkspaceLabel.value || currentContext.value.workspaceId;
-});
-
-const currentWorkspaceTitle = computed(() => {
-  if (!currentContext.value.workspaceId) {
-    return '未选择工作区';
-  }
-
-  const rootPath = currentWorkspace.value?.rootPath;
-  return rootPath ? `${currentWorkspaceName.value}\n${rootPath}` : currentWorkspaceName.value;
-});
-
-const activeTypeFilters = computed<Array<'folder' | 'group' | 'document' | 'text'>>(() => {
-  const value = unref((library as unknown as {
-    typeFilters?: Array<'folder' | 'group' | 'document' | 'text'>;
-  }).typeFilters);
-  return Array.isArray(value) ? value : ['folder', 'group', 'document', 'text'];
-});
-
-const contextTargetEntry = computed(() => contextMenu.value.entry);
-const canConvertContextEntry = computed(() => contextTargetEntry.value?.kind === 'text');
-
-function asBadgeKind(kind: LibraryEntry['kind']) {
-  return kind as 'folder' | 'group' | 'document' | 'text';
+function normalizedTags(note: Note): string[] {
+  return note.tags.map(tag => tag.trim()).filter(Boolean);
 }
 
-function normalizeDisplayPath(path: string) {
-  return path.replace(/\\/g, '/');
-}
-
-function trimTrailingPathSeparator(path: string) {
-  const trimmed = normalizeDisplayPath(path).replace(/\/+$/, '');
-  return trimmed || normalizeDisplayPath(path);
-}
-
-function workspaceRelativePath(entry: LibraryEntry) {
-  const filePath = entry.filePath?.trim();
-  if (!filePath) {
-    return '';
-  }
-
-  const rootPath = currentWorkspace.value?.rootPath?.trim();
-  if (!rootPath) {
-    return filePath;
-  }
-
-  const normalizedFile = normalizeDisplayPath(filePath);
-  const normalizedRoot = trimTrailingPathSeparator(rootPath);
-  const fileForCompare = normalizedFile.toLowerCase();
-  const rootForCompare = normalizedRoot.toLowerCase();
-
-  if (fileForCompare === rootForCompare) {
-    return entry.title;
-  }
-
-  const rootPrefix = normalizedRoot === '/' ? '/' : `${normalizedRoot}/`;
-  const comparePrefix = normalizedRoot === '/' ? '/' : `${rootForCompare}/`;
-  if (fileForCompare.startsWith(comparePrefix)) {
-    return normalizedFile.slice(rootPrefix.length);
-  }
-
-  return filePath;
-}
-
-function entryMetaLabel(entry: LibraryEntry) {
-  if (entry.kind === 'document') {
-    return workspaceRelativePath(entry) || '工作区文档';
-  }
-
-  return entry.tags.length ? `#${entry.tags.join(' #')}` : '无标签';
-}
-
-function setListContext(next: Partial<MainListContext>) {
-  const rawContext = (library as unknown as { context?: MainListContext | { value: MainListContext } }).context;
-  if (!rawContext) return;
-
-  if (typeof rawContext === 'object' && rawContext !== null && 'value' in rawContext) {
-    Object.assign(rawContext.value, next);
-    return;
-  }
-
-  Object.assign(rawContext, next);
-}
-
-async function loadMainList() {
-  if (typeof library.loadMainList === 'function') {
-    await library.loadMainList();
+function onToggleAllFilters(checked: boolean) {
+  if (checked || selectedFilterValues.value.length > 0) {
+    selectedFilterValues.value = [];
   }
 }
 
-async function loadWorkspaceTree(workspaceId: string | null) {
-  const maybeLoader = (library as unknown as { loadWorkspaceTree?: (workspaceId: string) => Promise<void> }).loadWorkspaceTree;
-  if (typeof maybeLoader !== 'function') {
-    return;
-  }
-
-  if (!workspaceId) {
-    showWorkspaceTree.value = false;
-    return;
-  }
-
-  await maybeLoader(workspaceId);
+function onToggleAllFiltersChange(event: Event) {
+  onToggleAllFilters((event.target as HTMLInputElement).checked);
 }
 
-async function loadWorkspaces() {
-  const maybeLoader = (library as unknown as { loadWorkspaces?: () => Promise<void> }).loadWorkspaces;
-  if (typeof maybeLoader !== 'function') {
-    return;
-  }
-  workspacePickerLoading.value = true;
+function onResetFilters() {
+  selectedFilterValues.value = [];
+}
+
+function onApplyFilters() {
+  filterOpen.value = false;
+}
+
+function isFilterValueSelected(value: string) {
+  return selectedFilterValues.value.includes(value);
+}
+
+function toggleFilterMenu() {
+  filterOpen.value = !filterOpen.value;
+}
+
+async function onNewQuickNote() {
   try {
     // "新建速记"按钮语义 = 全新空白浮窗。多份草稿天然共存，浮窗会按
     // fresh=true 走空白态、autosave 时由后端分配新 UUID 创建独立草稿，
@@ -344,9 +223,8 @@ async function loadWorkspaces() {
   }
 }
 
-async function refreshListAndTree() {
-  await loadMainList();
-  await loadWorkspaceTree(currentContext.value.workspaceId);
+function onNewNote() {
+  ui.navigateTo('note-editor');
 }
 
 /**
@@ -394,21 +272,17 @@ async function onSaveDraftFromCard(note: Note) {
 
 function closeContextMenu() {
   contextMenu.value.visible = false;
-  contextMenu.value.entry = null;
+  contextMenu.value.exportOpen = false;
 }
 
-function closeWorkspacePicker() {
-  workspacePickerOpen.value = false;
-  pendingWorkspaceAction.value = null;
-}
-
-function openContextMenu(event: MouseEvent, entry: LibraryEntry) {
+function openContextMenu(event: MouseEvent, note: Note | null) {
   event.preventDefault();
   contextMenu.value = {
     visible: true,
     x: event.clientX,
     y: event.clientY,
-    entry,
+    note,
+    exportOpen: false,
   };
 }
 
@@ -474,47 +348,32 @@ async function onCardExportSelect(key: string, note: Note) {
 
 async function exportNote(note: Note, format: 'markdown' | 'html' | 'pdf') {
   try {
-    await win.openQuicknote();
-  } catch (error) {
-    message.error(`打开速记失败：${String(error)}`);
+    const path = format === 'markdown'
+        ? await db.exportNoteMarkdown(note.id)
+        : format === 'html'
+            ? await db.exportNoteHtml(note.id)
+            : await db.exportNotePdf(note.id);
+    message.success(`已导出：${path}`);
+  } catch (e) {
+    message.error(String(e));
   }
 }
 
-async function onNewNote() {
-  if (!currentContext.value.workspaceId) {
-    pendingWorkspaceAction.value = { type: 'new-note' };
-    workspacePickerOpen.value = true;
-    await loadWorkspaces();
-    return;
-  }
-  ui.navigateTo('note-editor');
+function onContextPrint() {
+  window.print();
+}
+
+async function onContextDelete() {
+  const note = contextTargetNote.value;
+  if (!note) return;
   closeContextMenu();
   await onConfirmDelete(note);
 }
 
-async function onOpenEntry(entry: LibraryEntry) {
-  if (entry.kind === 'folder') {
-    setListContext({
-      folderEntryId: entry.id,
-      selectedEntryId: entry.id,
-    });
-    closeContextMenu();
-    await refreshListAndTree();
-    return;
-  }
-
-  if (entry.kind === 'group') {
-    setListContext({
-      groupEntryId: entry.id,
-      selectedEntryId: entry.id,
-    });
-    closeContextMenu();
-    await loadMainList();
-    return;
-  }
-
-  closeContextMenu();
-  ui.navigateTo('note-editor', entry.id);
+function onCloseTagDialog() {
+  tagDialogVisible.value = false;
+  tagDialogNote.value = null;
+  tagDraftRows.value = [];
 }
 
 function onAddTagRow() {
@@ -525,65 +384,34 @@ function onAddTagRow() {
   tagDraftRows.value.push('');
 }
 
-async function onContextConvertToDocument() {
-  const entry = contextTargetEntry.value;
-  if (!entry || entry.kind !== 'text') {
-    return;
-  }
-
-  const workspaceId = currentContext.value.workspaceId;
-  if (!workspaceId) {
-    pendingWorkspaceAction.value = { type: 'convert-text', entry };
-    workspacePickerOpen.value = true;
-    await loadWorkspaces();
-    return;
-  }
-
-  await convertTextEntryToDocument(entry, workspaceId, currentContext.value.folderEntryId);
-}
-
-async function convertTextEntryToDocument(
-  entry: LibraryEntry,
-  workspaceId: string,
-  folderEntryId: string | null,
-) {
-  const convertTextToDocument = (db as unknown as {
-    convertTextToDocument?: (input: {
-      id: string;
-      workspaceId: string;
-      folderEntryId?: string | null;
-    }) => Promise<unknown>;
-  }).convertTextToDocument;
-
-  if (typeof convertTextToDocument !== 'function') {
-    message.error('当前版本暂不支持转为文档');
-    return;
-  }
-
-  try {
-    await convertTextToDocument({
-      id: entry.id,
-      workspaceId,
-      folderEntryId,
-    });
-    closeContextMenu();
-    await refreshListAndTree();
-    message.success('已转为文档');
-  } catch (error) {
-    message.error(`转为文档失败：${String(error)}`);
+function onDeleteTagRow(index: number) {
+  tagDraftRows.value.splice(index, 1);
+  if (tagDraftRows.value.length === 0) {
+    tagDraftRows.value.push('');
   }
 }
 
-function toggleWorkspaceTree() {
-  showWorkspaceTree.value = !showWorkspaceTree.value;
+function parseTagRows(rows: string[]): string[] {
+  return Array.from(
+      new Set(
+          rows
+              .map(tag => tag.replace(/^#+/, '').trim())
+              .filter(Boolean),
+      ),
+  );
 }
 
-async function onOpenCurrentWorkspaceFolder() {
-  const rootPath = currentWorkspace.value?.rootPath;
-  if (!rootPath) {
-    message.warning('请先选择工作区');
-    return;
-  }
+function buildSaveRequest(note: Note, overrides: Partial<Pick<Note, 'title' | 'tags'>>) {
+  return {
+    id: note.id,
+    title: overrides.title ?? note.title,
+    content: note.content,
+    tags: overrides.tags ?? note.tags,
+    isPinned: note.isPinned,
+    pinnedWindowConfig: note.pinnedWindowConfig ?? null,
+    canvasPosition: note.canvasPosition ?? null,
+  };
+}
 
 async function onConfirmTagDialog() {
   const note = tagDialogNote.value;
@@ -601,24 +429,37 @@ async function onConfirmTagDialog() {
   }
 }
 
-function rememberWorkspace(workspace: Workspace) {
-  const maybeUpsert = (library as unknown as { upsertWorkspace?: (workspace: Workspace) => void }).upsertWorkspace;
-  if (typeof maybeUpsert === 'function') {
-    maybeUpsert(workspace);
+function onCloseRenameDialog() {
+  renameDialogVisible.value = false;
+  renameDialogNote.value = null;
+  renameDraft.value = '';
+}
+
+async function onConfirmRenameDialog() {
+  const note = renameDialogNote.value;
+  if (!note) return;
+  try {
+    await notes.saveDraft(buildSaveRequest(note, { title: renameDraft.value }));
+    onCloseRenameDialog();
+  } catch (e) {
+    message.error(String(e));
   }
 }
 
 async function onTogglePin(note: Note) {
   if (blockDraftEdit(note)) return;
   try {
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: '选择工作区文件夹',
-    });
-    if (typeof selected !== 'string' || !selected) {
-      return;
+    if (note.isPinned) {
+      await notes.unpinNote(note.id);
+      await win.closeStickyNote(note.id);
+    } else {
+      await notes.pinNote(note.id);
+      await win.openStickyNote(note.id);
     }
+  } catch (e) {
+    message.error(String(e));
+  }
+}
 
 const editingTitleId = ref<string | null>(null);
 const titleDraft = ref('');
@@ -629,7 +470,7 @@ async function onStartTitleEdit(note: Note) {
   titleDraft.value = note.title;
   await nextTick();
   const input = document.querySelector<HTMLInputElement>(
-    `[data-testid="card-title-input-${note.id}"] input`,
+      `[data-testid="card-title-input-${note.id}"] input`,
   );
   input?.focus();
   input?.select();
@@ -683,10 +524,10 @@ function onOpenTagDialogForCard(note: Note) {
 
 function previewText(content: string): string {
   const stripped = content
-    .replace(/^#+\s+/gm, '')
-    .replace(/\*\*|__|`/g, '')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .trim();
+      .replace(/^#+\s+/gm, '')
+      .replace(/\*\*|__|`/g, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .trim();
   return stripped.length > 120 ? `${stripped.slice(0, 120).trim()}…` : stripped;
 }
 
@@ -695,9 +536,9 @@ function formatUpdatedAt(iso: string): string {
     const d = new Date(iso);
     const now = new Date();
     const sameDay =
-      d.getFullYear() === now.getFullYear() &&
-      d.getMonth() === now.getMonth() &&
-      d.getDate() === now.getDate();
+        d.getFullYear() === now.getFullYear() &&
+        d.getMonth() === now.getMonth() &&
+        d.getDate() === now.getDate();
     if (sameDay) {
       return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
     }
@@ -1005,142 +846,41 @@ function formatUpdatedAt(iso: string): string {
             新建笔记
           </button>
         </div>
-      </header>
-
-      <section
-        v-if="showTypeFilters"
-        class="main-filter-panel"
-        data-testid="main-type-filter-panel"
-      >
-        <button
-          v-for="option in typeFilterOptions"
-          :key="option.kind"
-          type="button"
-          class="main-filter-chip"
-          :class="{ 'main-filter-chip--active': activeTypeFilters.includes(option.kind) }"
-          :data-testid="`type-filter-${option.kind}`"
-          @click.stop="onToggleTypeFilter(option.kind)"
-        >
-          {{ option.label }}
-        </button>
-      </section>
-    </div>
-
-    <div class="main-body">
-      <div class="main-layout" :class="{ 'main-layout--with-sidebar': showWorkspaceTree }">
-        <div class="main-content" data-testid="main-scroll-region">
-          <div v-if="displayEntries.length > 0" class="entry-grid">
-            <article
-              v-for="entry in displayEntries"
-              :key="entry.id"
-              class="entry-card"
-              :data-kind="entry.kind"
-              @click.stop="onOpenEntry(entry)"
-              @contextmenu.stop="openContextMenu($event, entry)"
-            >
-              <div class="entry-card-head">
-                <h2>{{ entry.title }}</h2>
-                <EntryTypeBadge :kind="asBadgeKind(entry.kind)" />
-              </div>
-              <p class="entry-card-preview">{{ entry.previewText || '暂无摘要内容' }}</p>
-              <div class="entry-card-meta" :title="entryMetaLabel(entry)">
-                <span>{{ entryMetaLabel(entry) }}</span>
-              </div>
-            </article>
-          </div>
-
-          <div v-else class="main-empty">
-            <h2>这里还没有内容</h2>
-            <p>你可以先创建文档，或者用速记把文本收进默认分组。</p>
-          </div>
+        <div class="empty-tips">
+          <div><span class="empty-kbd">⌥ S</span> 呼出浮窗速记</div>
+          <div><span class="empty-kbd">⌘ N</span> 新建一篇笔记</div>
+          <div><span class="empty-kbd">⌘ K</span> 搜索任意内容</div>
         </div>
-
-        <aside v-if="showWorkspaceTree" class="main-sidebar">
-          <WorkspaceTreePanel
-            v-if="workspaceTreeEntries.length > 0"
-            :entries="workspaceTreeEntries"
-            @select="onOpenEntry"
-          />
-          <div v-else class="workspace-tree-empty">
-            先选择工作区后，再查看当前工作区结构。
-          </div>
-        </aside>
       </div>
-    </div>
-
-    <div class="main-footer-shell" data-testid="main-footer-shell">
-      <footer class="main-footer">
-        <div class="main-footer-workspace" data-testid="main-footer-workspace">
-          <button
-            type="button"
-            class="main-footer-icon-button"
-            data-testid="main-footer-open-workspace-folder"
-            :disabled="!currentWorkspace?.rootPath"
-            :title="currentWorkspace?.rootPath ? `打开文件夹：${currentWorkspace.rootPath}` : '未选择工作区'"
-            aria-label="打开当前工作区文件夹"
-            @click.stop="onOpenCurrentWorkspaceFolder"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="M4 6h6l2 2h8v10H4z" />
-              <path d="M4 10h16" />
-            </svg>
-          </button>
-          <span class="main-footer-workspace-name" :title="currentWorkspaceTitle">
-            {{ currentWorkspaceName }}
-          </span>
-          <button
-            type="button"
-            class="main-footer-icon-button"
-            data-testid="main-footer-switch-workspace"
-            title="切换工作区"
-            aria-label="切换工作区"
-            @click.stop="onOpenWorkspaceSwitcher"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="M16 3h5v5" />
-              <path d="M21 3l-7 7" />
-              <path d="M8 21H3v-5" />
-              <path d="M3 21l7-7" />
-            </svg>
-          </button>
-        </div>
-        <button
-          type="button"
-          class="main-footer-icon-button main-footer-icon-button--tree"
-          :class="{ 'main-footer-icon-button--active': showWorkspaceTree }"
-          data-testid="main-footer-open-tree"
-          :aria-pressed="showWorkspaceTree"
-          :title="showWorkspaceTree ? '收起结构栏' : '展开工作区结构'"
-          :aria-label="showWorkspaceTree ? '收起工作区结构' : '展开工作区结构'"
-          @click.stop="toggleWorkspaceTree"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M5 4h5v5H5z" />
-            <path d="M14 4h5v5h-5z" />
-            <path d="M14 15h5v5h-5z" />
-            <path d="M10 6.5h2a2 2 0 0 1 2 2V17" />
-            <path d="M10 6.5h4" />
-          </svg>
-        </button>
-      </footer>
-    </div>
+    </section>
 
     <div
       v-if="contextMenu.visible"
-      class="entry-context-menu"
+      class="note-context-menu"
+      data-testid="note-context-menu"
+      role="menu"
       :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
       @click.stop
+      @contextmenu.stop.prevent
     >
-      <button type="button" class="context-item" @click="onNewNote">
-        新建笔记
+      <button
+        class="context-item"
+        type="button"
+        data-testid="context-new"
+        aria-disabled="false"
+        role="menuitem"
+        @click="onContextNewNote"
+      >
+        新建
       </button>
       <button
-        type="button"
         class="context-item"
-        data-testid="context-convert-document"
-        :disabled="!canConvertContextEntry"
-        :aria-disabled="canConvertContextEntry ? 'false' : 'true'"
-        @click="onContextConvertToDocument"
+        type="button"
+        data-testid="context-edit"
+        :disabled="!contextHasTarget"
+        :aria-disabled="!contextHasTarget"
+        role="menuitem"
+        @click="onContextEdit"
       >
         编辑
       </button>
@@ -1303,328 +1043,285 @@ function formatUpdatedAt(iso: string): string {
 </template>
 
 <style scoped>
-.main-root {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 10px;
-  height: 100%;
-  min-height: 100%;
-  padding: 14px 14px 0;
-  overflow: hidden;
-  background: var(--app-bg);
-  color: var(--app-fg);
-}
-
-.main-top {
-  position: sticky;
-  top: 14px;
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.main-header {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  min-height: 44px;
-  padding: 6px;
-  border: 1px solid var(--app-border);
-  border-radius: 8px;
-  background: color-mix(in oklch, var(--app-surface) 94%, var(--app-bg));
-  backdrop-filter: blur(12px);
-  box-shadow: 0 14px 28px oklch(14% 0.01 70 / 0.14);
-}
-
 .main-toolbar {
   display: flex;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.main-toolbar-button {
-  min-width: 82px;
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid color-mix(in oklch, var(--app-accent) 78%, transparent);
-  border-radius: 7px;
-  background: var(--app-accent);
-  color: #fff;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background 0.12s ease,
-    border-color 0.12s ease,
-    color 0.12s ease;
-}
-
-.main-toolbar-button--secondary {
-  border-color: var(--app-border);
-  background: var(--app-surface-2);
-  color: var(--app-muted);
-}
-
-.main-toolbar-button:hover {
-  border-color: var(--app-accent);
-}
-
-.main-toolbar-button--secondary:hover {
-  background: var(--app-accent-soft);
-  color: var(--app-accent);
-}
-
-.main-body {
-  min-height: 0;
-  overflow: hidden;
-}
-
-.main-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
-  align-items: stretch;
-  height: 100%;
-  min-height: 0;
-}
-
-.main-layout--with-sidebar {
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
-}
-
-.main-filter-panel {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 8px;
-  border: 1px solid var(--app-border);
-  border-radius: 8px;
-  background: color-mix(in oklch, var(--app-surface) 92%, var(--app-bg));
-  backdrop-filter: blur(10px);
-}
-
-.main-filter-chip {
-  min-width: 64px;
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--app-border);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--app-muted);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.main-filter-chip--active {
-  border-color: color-mix(in oklch, var(--app-accent) 70%, var(--app-border));
-  background: var(--app-accent-soft);
-  color: var(--app-accent);
-}
-
-.main-content {
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  padding-right: 2px;
-}
-
-.entry-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 10px;
-}
-
-.entry-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 132px;
-  padding: 12px;
-  border: 1px solid var(--app-border);
-  border-radius: 8px;
-  background: var(--app-surface);
-  cursor: pointer;
-  transition:
-    background 0.12s ease,
-    border-color 0.16s ease;
-}
-
-.entry-card:hover {
-  border-color: color-mix(in oklch, var(--app-accent) 55%, var(--app-border));
-  background: color-mix(in oklch, var(--app-surface-2) 70%, var(--app-surface));
-}
-
-.entry-card-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.entry-card-head h2 {
-  margin: 0;
-  overflow: hidden;
-  color: var(--app-fg);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.entry-card-preview {
-  flex: 1;
-  margin: 0;
-  overflow: hidden;
-  color: var(--app-muted);
-  display: -webkit-box;
-  font-size: 12.5px;
-  line-height: 1.55;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-}
-
-.entry-card-meta {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--app-faint);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.main-empty,
-.workspace-tree-empty {
-  padding: 18px;
-  border: 1px dashed var(--app-border);
-  border-radius: 8px;
-  background: color-mix(in oklch, var(--app-surface) 58%, transparent);
-  color: var(--app-muted);
-  line-height: 1.7;
-}
-
-.main-empty h2 {
-  margin: 0 0 8px;
-  color: var(--app-fg);
-  font-size: 15px;
-}
-
-.main-empty p {
-  margin: 0;
-}
-
-.main-sidebar {
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  padding-right: 2px;
-}
-
-.main-footer-shell {
-  min-height: 47px;
-  margin-inline: -14px;
-  padding: 0 14px;
-  border-top: 1px solid var(--app-border);
-  background: var(--app-surface);
-}
-
-.main-footer {
-  display: flex;
   align-items: center;
-  justify-content: flex-start;
-  min-height: 46px;
   gap: 8px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--app-muted);
-  font-size: 13px;
+  flex-wrap: wrap;
 }
 
-.main-footer-workspace {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 0 1 380px;
-  min-width: 0;
-  max-width: min(420px, 45vw);
+.filter-wrap {
+  position: relative;
 }
 
-.main-footer-workspace-name {
-  min-width: 0;
-  max-width: min(260px, 28vw);
-  overflow: hidden;
-  color: var(--app-fg);
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.main-footer-icon-button {
-  width: 30px;
+.toolbar-btn {
   height: 30px;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--app-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid oklch(88% 0.012 78);
+  border-radius: 7px;
+  background: oklch(99% 0.006 78);
+  color: oklch(20% 0.02 70);
   font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
   cursor: pointer;
   transition:
-    background 0.12s ease,
-    color 0.12s ease;
+      background 0.15s ease,
+      border-color 0.15s ease,
+      color 0.15s ease;
 }
 
-.main-footer-icon-button:hover:not(:disabled),
-.main-footer-icon-button--active {
-  background: var(--app-accent-soft);
-  color: var(--app-accent);
+.toolbar-btn:hover {
+  background: oklch(97% 0.014 78);
+  border-color: oklch(80% 0.014 78);
 }
 
-.main-footer-icon-button:disabled {
-  color: var(--app-faint);
-  cursor: not-allowed;
-}
-
-.main-footer-icon-button svg {
+.toolbar-btn svg {
   width: 16px;
   height: 16px;
+  flex-shrink: 0;
 }
 
-.main-footer-icon-button--tree {
-  margin-left: 2px;
+.toolbar-btn--ghost {
+  color: oklch(49% 0.018 70);
 }
 
-.entry-context-menu {
-  position: fixed;
-  z-index: 30;
+.toolbar-btn--primary {
+  border-color: oklch(61% 0.13 42);
+  background: oklch(61% 0.13 42);
+  color: white;
+}
+
+.toolbar-btn--primary:hover {
+  border-color: oklch(61% 0.13 42);
+  background: oklch(58% 0.13 42);
+}
+
+.filter-badge {
+  min-width: 16px;
+  height: 16px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: oklch(61% 0.13 42);
+  color: white;
+  font-size: 10.5px;
+  line-height: 1;
+}
+
+.filter-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 40;
+  width: min(400px, calc(100vw - 40px));
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-width: 156px;
-  padding: 6px;
-  border: 1px solid var(--app-border);
+  border: 1px solid oklch(86% 0.014 78);
+  border-radius: 10px;
+  background: oklch(99% 0.006 78);
+  box-shadow: 0 14px 34px oklch(24% 0.02 70 / 0.16);
+  overflow: hidden;
+  font-size: 12.5px;
+}
+
+.filter-menu__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid oklch(89% 0.012 78);
+  background: oklch(98% 0.008 78);
+}
+
+.filter-menu__header strong {
+  color: oklch(20% 0.02 70);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.filter-menu__reset {
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: oklch(48% 0.018 70);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.filter-menu__reset:hover {
+  background: oklch(96% 0.014 78);
+  color: oklch(61% 0.13 42);
+}
+
+.filter-list {
+  max-height: 360px;
+  padding: 10px 20px 12px;
+  overflow-y: auto;
+}
+
+.filter-row {
+  position: relative;
+  min-height: 49px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 4px;
+  color: oklch(20% 0.02 70);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s ease;
+}
+
+.filter-row:hover {
+  background: oklch(97% 0.01 78);
+}
+
+.filter-row input {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.filter-row input:focus-visible + .filter-row__check {
+  outline: 2px solid oklch(76% 0.11 42);
+  outline-offset: 2px;
+}
+
+.filter-row__check {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 2px solid oklch(80% 0.012 78);
+  border-radius: 7px;
+  background: oklch(99% 0.006 78);
+  color: white;
+  transition:
+      background 0.12s ease,
+      border-color 0.12s ease;
+}
+
+.filter-row__check svg {
+  width: 15px;
+  height: 15px;
+  opacity: 0;
+}
+
+.filter-row--checked .filter-row__check {
+  border-color: oklch(61% 0.13 42);
+  background: oklch(61% 0.13 42);
+}
+
+.filter-row--checked .filter-row__check svg {
+  opacity: 1;
+}
+
+.filter-row__name {
+  flex: 1;
+  min-width: 0;
+  color: oklch(20% 0.02 70);
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.filter-row--untagged .filter-row__name {
+  color: oklch(55% 0.018 70);
+  font-style: italic;
+}
+
+.filter-row__count {
+  color: oklch(62% 0.015 78);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.filter-row--all {
+  min-height: 54px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid oklch(89% 0.012 78);
+}
+
+.filter-row--all .filter-row__name {
+  font-weight: 600;
+}
+
+.filter-menu__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-top: 1px solid oklch(89% 0.012 78);
+  background: oklch(98% 0.008 78);
+  color: oklch(42% 0.018 70);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+}
+
+.filter-menu__footer button {
+  min-width: 66px;
+  height: 38px;
+  padding: 0 14px;
+  border: 0;
   border-radius: 8px;
-  background: var(--app-surface);
-  box-shadow: 0 16px 36px oklch(10% 0.01 70 / 0.35);
+  background: oklch(61% 0.13 42);
+  color: white;
+  font: inherit;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.filter-menu__footer button:hover {
+  background: oklch(58% 0.13 42);
+}
+
+.main-root {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 100%;
+  padding: 18px 20px 20px;
+  color: #2a2a2a;
+  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.note-context-menu {
+  position: fixed;
+  z-index: 40;
+  width: 172px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid oklch(84% 0.014 78);
+  border-radius: 8px;
+  background: oklch(99% 0.006 78);
+  box-shadow: 0 16px 42px oklch(24% 0.02 70 / 0.18);
 }
 
 .context-item {
-  min-height: 34px;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
   padding: 0 10px;
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--app-fg);
+  color: oklch(22% 0.02 70);
   font: inherit;
   font-size: 12.5px;
   text-align: left;
@@ -1632,24 +1329,23 @@ function formatUpdatedAt(iso: string): string {
 }
 
 .context-item:hover:not(:disabled) {
-  background: var(--app-accent-soft);
-  color: var(--app-accent);
+  background: oklch(96% 0.014 78);
 }
 
 .context-item:disabled {
-  color: var(--app-faint);
+  color: oklch(58% 0.01 70);
   cursor: not-allowed;
+  opacity: 0.48;
 }
 
-@media (max-width: 900px) {
-  .main-layout--with-sidebar {
-    grid-template-columns: 1fr;
-  }
+.context-item--danger:not(:disabled) {
+  color: oklch(48% 0.16 28);
+}
 
-  .main-footer {
-    flex-wrap: wrap;
-    gap: 6px;
-  }
+.context-item--with-arrow {
+  justify-content: space-between;
+  width: 100%;
+}
 
 .context-export-wrap {
   position: relative;
@@ -1780,9 +1476,9 @@ function formatUpdatedAt(iso: string): string {
   background: oklch(99% 0.006 78);
   cursor: default;
   transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.15s ease;
+      border-color 0.15s ease,
+      box-shadow 0.15s ease,
+      transform 0.15s ease;
 }
 
 .note-card:hover {
@@ -2074,37 +1770,7 @@ function formatUpdatedAt(iso: string): string {
 
 @media (max-width: 720px) {
   .main-root {
-    padding: 10px 10px 0;
-  }
-
-  .main-top {
-    top: 10px;
-  }
-
-  .main-header {
-    padding: 6px;
-  }
-
-  .main-toolbar {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .main-toolbar-button {
-    flex: 1;
-  }
-
-  .main-footer-shell {
-    margin-inline: -10px;
-    padding: 0 10px;
-  }
-
-  .main-footer {
-    padding: 6px 0;
-  }
-
-  .main-footer-workspace-name {
-    max-width: 48vw;
+    padding: 14px 14px 16px;
   }
 }
 </style>
