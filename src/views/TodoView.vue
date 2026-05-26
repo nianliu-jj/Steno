@@ -19,8 +19,10 @@ import type { ComponentPublicInstance } from 'vue';
 import { NDatePicker, NDropdown, NScrollbar, useMessage } from 'naive-ui';
 import type { DropdownOption } from 'naive-ui';
 
+import { useSettingsStore } from '@/stores/settings';
 import { useTodosStore } from '@/stores/todos';
 import type { Todo, TodoCategory, TodoStatus } from '@/types/steno';
+import { computeReminderTime } from '@/utils/reminders';
 
 const TODO_CONTENT_LIMIT = 500;
 const STORAGE_KEY = 'steno.todo.selectedCategory';
@@ -35,6 +37,7 @@ const VALID_CATEGORIES: ReadonlySet<TodoCategory> = new Set<TodoCategory>([
 ]);
 
 const todos = useTodosStore();
+const settings = useSettingsStore();
 const message = useMessage();
 
 const categories: ReadonlyArray<{ key: TodoCategory; label: string }> = [
@@ -60,6 +63,7 @@ const search = ref('');
 const editingId = ref<string | null>(null);
 const editingContent = ref('');
 const editInputRef = ref<HTMLInputElement | null>(null);
+const customReminderId = ref<string | null>(null);
 
 /** v-for + v-if 中的模板 ref 会被收集成数组，这里用函数式 ref 取最新挂载实例。 */
 function bindEditInputRef(el: Element | ComponentPublicInstance | null) {
@@ -94,6 +98,18 @@ function buildStatusOptions(item: Todo): DropdownOption[] {
     label: opt.label,
     disabled: opt.key === item.status,
   }));
+}
+
+function buildReminderOptions(): DropdownOption[] {
+  return [
+    ...settings.state.reminderQuickOptions.map(option => ({
+      key: `quick:${option.id}`,
+      label: option.label,
+    })),
+    { type: 'divider', key: 'reminder-divider' },
+    { key: 'custom', label: '自定义' },
+    { key: 'none', label: '无提醒' },
+  ];
 }
 
 async function submitDraft() {
@@ -141,6 +157,44 @@ async function changeDueDate(item: Todo, ts: number | null) {
     await todos.updateTodo({ id: item.id, dueDate });
   } catch (e) {
     message.error(`修改日期失败：${String(e)}`);
+  }
+}
+
+async function changeReminder(item: Todo, key: string) {
+  try {
+    if (key === 'none') {
+      customReminderId.value = null;
+      await todos.updateTodo({ id: item.id, reminderTime: null });
+      return;
+    }
+
+    if (key === 'custom') {
+      customReminderId.value = item.id;
+      return;
+    }
+
+    const optionId = key.replace(/^quick:/, '');
+    const selectedOption = settings.state.reminderQuickOptions.find(
+      candidate => candidate.id === optionId,
+    );
+    if (!selectedOption) return;
+    customReminderId.value = null;
+    await todos.updateTodo({
+      id: item.id,
+      reminderTime: computeReminderTime(selectedOption, new Date()),
+    });
+  } catch (e) {
+    message.error(`修改提醒失败：${String(e)}`);
+  }
+}
+
+async function changeCustomReminder(item: Todo, ts: number | null) {
+  try {
+    const reminderTime = ts ? new Date(ts).toISOString() : null;
+    await todos.updateTodo({ id: item.id, reminderTime });
+    customReminderId.value = null;
+  } catch (e) {
+    message.error(`修改提醒失败：${String(e)}`);
   }
 }
 
@@ -194,6 +248,29 @@ function dueDateValue(item: Todo): number | null {
   if (!item.dueDate) return null;
   const ts = new Date(item.dueDate).getTime();
   return Number.isNaN(ts) ? null : ts;
+}
+
+function reminderTimeValue(item: Todo): number | null {
+  if (!item.reminderTime) return null;
+  const ts = new Date(item.reminderTime).getTime();
+  return Number.isNaN(ts) ? null : ts;
+}
+
+function formatReminderTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '提醒已设置';
+  return `将于 ${date.toLocaleString('zh-CN', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })} 提醒`;
+}
+
+function isOverdueUnfiredReminder(item: Todo): boolean {
+  if (!item.reminderTime || item.reminderFired) return false;
+  const ts = new Date(item.reminderTime).getTime();
+  return Number.isFinite(ts) && ts < Date.now();
 }
 
 onMounted(async () => {
@@ -348,6 +425,40 @@ watch(
                 class="todo-row-date"
                 :data-testid="`todo-row-date-${item.id}`"
                 @update:value="ts => changeDueDate(item, ts)"
+              />
+
+              <NDropdown
+                trigger="click"
+                :options="buildReminderOptions()"
+                @select="(key: string) => changeReminder(item, key)"
+              >
+                <button
+                  type="button"
+                  class="todo-row-reminder"
+                  :class="{ 'todo-row-reminder--active': item.reminderTime }"
+                  :data-testid="`todo-row-reminder-${item.id}`"
+                >
+                  <span>
+                    {{
+                      item.reminderTime
+                        ? formatReminderTime(item.reminderTime)
+                        : '提醒'
+                    }}
+                  </span>
+                  <small v-if="isOverdueUnfiredReminder(item)">未提醒</small>
+                </button>
+              </NDropdown>
+
+              <NDatePicker
+                v-if="customReminderId === item.id"
+                :value="reminderTimeValue(item)"
+                type="datetime"
+                size="small"
+                clearable
+                placeholder="自定义提醒"
+                class="todo-row-reminder-custom"
+                :data-testid="`todo-row-reminder-custom-${item.id}`"
+                @update:value="ts => changeCustomReminder(item, ts)"
               />
 
               <button
@@ -663,6 +774,52 @@ watch(
 
 .todo-row-date {
   width: 130px;
+  flex-shrink: 0;
+}
+
+.todo-row-reminder {
+  max-width: 168px;
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  padding: 4px 9px;
+  background: var(--app-surface);
+  color: var(--app-muted);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.2;
+  flex-shrink: 0;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+
+.todo-row-reminder:hover,
+.todo-row-reminder--active {
+  border-color: var(--app-accent);
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.todo-row-reminder span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.todo-row-reminder small {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 1px 5px;
+  background: rgba(220, 80, 80, 0.18);
+  color: rgb(230, 110, 110);
+  font-size: 10px;
+}
+
+.todo-row-reminder-custom {
+  width: 188px;
   flex-shrink: 0;
 }
 

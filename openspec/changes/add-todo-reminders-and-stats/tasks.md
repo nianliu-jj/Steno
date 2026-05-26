@@ -43,14 +43,14 @@
 
 ## 5. Phase A5 — TodoView 集成提醒选择器
 
-- [ ] 5.1 在任务行 / 任务编辑器中新增"提醒"按钮（与现有"日期"按钮并列）
-- [ ] 5.2 实现下拉弹层：列出当前 `reminderQuickOptions` + "自定义" + "无提醒"
-- [ ] 5.3 选中快捷选项时通过 `computeReminderTime(option, now)` 计算 RFC3339 写入 `reminder_time`
-- [ ] 5.4 选中"自定义"打开 NDatePicker（type='datetime'）
-- [ ] 5.5 任务行 SHALL 显示当前已设提醒（如"将于 5/30 14:00 提醒"，已过期且 fired=0 显示警告小角标）
-- [ ] 5.6 在 `todos` store 的 `updateTodo` action 调用中正确传递 `reminder_time`、`reminder_fired` 字段
-- [ ] 5.7 vitest：computeReminderTime 各种 type/unit 组合返回正确时间
-- [ ] 5.8 提交：`feat(frontend): 待办提醒/统计 Phase A5 — TodoView 接入提醒选择器`
+- [x] 5.1 在任务行 / 任务编辑器中新增"提醒"按钮（与现有"日期"按钮并列）
+- [x] 5.2 实现下拉弹层：列出当前 `reminderQuickOptions` + "自定义" + "无提醒"
+- [x] 5.3 选中快捷选项时通过 `computeReminderTime(option, now)` 计算 RFC3339 写入 `reminder_time`
+- [x] 5.4 选中"自定义"打开 NDatePicker（type='datetime'）
+- [x] 5.5 任务行 SHALL 显示当前已设提醒（如"将于 5/30 14:00 提醒"，已过期且 fired=0 显示警告小角标）
+- [x] 5.6 在 `todos` store 的 `updateTodo` action 调用中正确传递 `reminder_time`、`reminder_fired` 字段
+- [x] 5.7 vitest：computeReminderTime 各种 type/unit 组合返回正确时间
+- [x] 5.8 提交：`feat(frontend): 待办提醒/统计 Phase A5 — TodoView 接入提醒选择器`
 
 ## 6. Phase B1 — 后端统计聚合命令
 

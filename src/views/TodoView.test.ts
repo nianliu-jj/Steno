@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { flushPromises, mount } from '@vue/test-utils';
+import { NDatePicker, NDropdown } from 'naive-ui';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -32,6 +33,22 @@ vi.mock('@/composables/useAppEvents', () => ({
   useAppEvents: () => ({
     listenTodoChanged: vi.fn(async () => () => {}),
     listenTodoPanelToggle: vi.fn(async () => () => {}),
+  }),
+}));
+
+vi.mock('@/stores/settings', () => ({
+  useSettingsStore: () => ({
+    state: {
+      reminderQuickOptions: [
+        {
+          id: 'after-30-minutes',
+          label: '30 分钟后',
+          type: 'relative',
+          value: 30,
+          unit: 'minute',
+        },
+      ],
+    },
   }),
 }));
 
@@ -85,6 +102,7 @@ describe('TodoView', () => {
 
   afterEach(() => {
     localStorage.clear();
+    vi.useRealTimers();
   });
 
   it('renders sidebar with seven categories and counts', async () => {
@@ -253,6 +271,69 @@ describe('TodoView', () => {
     await flushPromises();
 
     expect(deleteTodoIpc).toHaveBeenCalledWith('d1');
+  });
+
+  it('sets and clears a reminder from the row reminder dropdown', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-26T08:30:00.000Z'));
+    const todo = makeTodo({ id: 'rem1' });
+    listTodos.mockResolvedValue([todo]);
+    updateTodoIpc.mockImplementation(async input =>
+      makeTodo({
+        id: input.id,
+        reminderTime: input.reminderTime ?? null,
+      }),
+    );
+
+    const wrapper = mount(TodoView);
+    await flushPromises();
+    await wrapper.find('[data-testid="category-all"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="todo-row-reminder-rem1"]').exists()).toBe(true);
+
+    const reminderDropdown = wrapper.findAllComponents(NDropdown)[1];
+    reminderDropdown.vm.$emit('select', 'quick:after-30-minutes');
+    await flushPromises();
+
+    const firstCall = updateTodoIpc.mock.calls.at(-1)?.[0];
+    expect(firstCall?.id).toBe('rem1');
+    expect(new Date(firstCall?.reminderTime ?? '').getTime()).toBe(
+      new Date('2026-05-26T09:00:00.000Z').getTime(),
+    );
+
+    reminderDropdown.vm.$emit('select', 'none');
+    await flushPromises();
+
+    expect(updateTodoIpc).toHaveBeenLastCalledWith({
+      id: 'rem1',
+      reminderTime: null,
+    });
+  });
+
+  it('opens a custom datetime picker for reminders', async () => {
+    const todo = makeTodo({ id: 'custom1' });
+    listTodos.mockResolvedValue([todo]);
+    updateTodoIpc.mockImplementation(async input =>
+      makeTodo({ id: input.id, reminderTime: input.reminderTime ?? null }),
+    );
+
+    const wrapper = mount(TodoView);
+    await flushPromises();
+    await wrapper.find('[data-testid="category-all"]').trigger('click');
+    await flushPromises();
+
+    wrapper.findAllComponents(NDropdown)[1].vm.$emit('select', 'custom');
+    await flushPromises();
+
+    const picker = wrapper.findAllComponents(NDatePicker)[1];
+    picker.vm.$emit('update:value', Date.parse('2026-05-30T14:00:00.000Z'));
+    await flushPromises();
+
+    expect(updateTodoIpc).toHaveBeenCalledWith({
+      id: 'custom1',
+      reminderTime: '2026-05-30T14:00:00.000Z',
+    });
   });
 
   it('shows empty state when no todos match', async () => {
