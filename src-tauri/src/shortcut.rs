@@ -20,7 +20,7 @@
 
 use std::sync::{LazyLock, Mutex};
 
-use tauri::{AppHandle, Wry, plugin::TauriPlugin};
+use tauri::{AppHandle, Manager, Wry, plugin::TauriPlugin};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 use crate::db::{Db, DbError};
@@ -43,6 +43,11 @@ pub fn clipboard_shortcut() -> Shortcut {
     Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyV)
 }
 
+/// 待办浮窗默认快捷键。settings 读不到时回退到此。
+pub fn todo_panel_shortcut() -> Shortcut {
+    Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyT)
+}
+
 // ----- 全局 registry ---------------------------------------------------
 
 #[derive(Debug, Clone, Copy)]
@@ -50,6 +55,7 @@ enum Action {
     ToggleMain,
     ToggleQuicknote,
     OpenClipboard,
+    ToggleTodoPanel,
 }
 
 static REGISTRY: LazyLock<Mutex<Vec<(Shortcut, Action)>>> =
@@ -158,6 +164,11 @@ pub fn plugin() -> TauriPlugin<Wry> {
                 Some(Action::OpenClipboard) => {
                     let _ = window_manager::open_clipboard(app);
                 }
+                Some(Action::ToggleTodoPanel) => {
+                    if let Some(db) = app.try_state::<Db>() {
+                        let _ = window_manager::toggle_todo_panel(app, db.inner());
+                    }
+                }
                 None => {}
             }
         })
@@ -165,10 +176,11 @@ pub fn plugin() -> TauriPlugin<Wry> {
 }
 
 /// setup 阶段调用一次；设置面板改了 mainWindowShortcut / quicknoteShortcut /
-/// clipboardShortcut 后再调一次（通过 reload_shortcuts command）。
+/// clipboardShortcut / todoQuickPanelShortcut 后再调一次（通过 reload_shortcuts command）。
 ///
-/// 流程：unregister_all → 读 settings (mainWindowShortcut / quicknoteShortcut / clipboardShortcut)
-/// → 解析失败回退默认 → 更新 registry → 重新 register OS。
+/// 流程：unregister_all → 读 settings (mainWindowShortcut / quicknoteShortcut / clipboardShortcut
+/// / todoQuickPanelShortcut) → 解析失败回退默认 → 更新 registry → 重新 register OS。
+/// 注册某条快捷键失败（多与其他应用冲突）时只记录日志、不阻塞其他快捷键。
 pub fn register_from_settings(app: &AppHandle, db: &Db) -> Result<(), ShortcutError> {
     let main_str = db
         .get_setting("mainWindowShortcut")?
@@ -179,23 +191,39 @@ pub fn register_from_settings(app: &AppHandle, db: &Db) -> Result<(), ShortcutEr
     let clipboard_str = db
         .get_setting("clipboardShortcut")?
         .unwrap_or_else(|| "Ctrl+Shift+V".to_string());
+    let todo_enabled = db
+        .get_setting("todoQuickPanelEnabled")?
+        .map(|v| v == "true")
+        .unwrap_or(true);
+    let todo_panel_str = db
+        .get_setting("todoQuickPanelShortcut")?
+        .unwrap_or_else(|| "Ctrl+Shift+T".to_string());
 
     let main_sc = parse_shortcut(&main_str).unwrap_or_else(toggle_shortcut);
     let quicknote_sc = parse_shortcut(&quicknote_str).unwrap_or_else(quicknote_shortcut);
     let clipboard_sc = parse_shortcut(&clipboard_str).unwrap_or_else(clipboard_shortcut);
+    let todo_panel_sc = parse_shortcut(&todo_panel_str).unwrap_or_else(todo_panel_shortcut);
 
     // 先把 OS 端老的注销掉；首次注册时 registry 为空，unregister_all 也安全。
     let _ = app.global_shortcut().unregister_all();
 
-    set_registry(vec![
+    let mut entries = vec![
         (main_sc, Action::ToggleMain),
         (quicknote_sc, Action::ToggleQuicknote),
         (clipboard_sc, Action::OpenClipboard),
-    ])?;
+    ];
+    if todo_enabled {
+        entries.push((todo_panel_sc, Action::ToggleTodoPanel));
+    }
+    set_registry(entries.clone())?;
 
-    app.global_shortcut().register(main_sc)?;
-    app.global_shortcut().register(quicknote_sc)?;
-    app.global_shortcut().register(clipboard_sc)?;
+    for (sc, action) in &entries {
+        if let Err(err) = app.global_shortcut().register(*sc) {
+            eprintln!(
+                "[shortcut] register failed for {action:?}: {err}; 该快捷键可能被其他应用占用，请到设置面板修改"
+            );
+        }
+    }
     Ok(())
 }
 
@@ -244,5 +272,19 @@ mod tests {
         );
         assert!(parse_shortcut("just text").is_none());
         assert!(parse_shortcut("").is_none());
+    }
+
+    #[test]
+    fn parse_ctrl_shift_t_for_todo_panel() {
+        let sc = parse_shortcut("Ctrl+Shift+T").expect("parse");
+        assert_eq!(sc, todo_panel_shortcut());
+    }
+
+    #[test]
+    fn todo_panel_default_uses_ctrl_shift_t() {
+        assert_eq!(
+            todo_panel_shortcut(),
+            Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyT),
+        );
     }
 }

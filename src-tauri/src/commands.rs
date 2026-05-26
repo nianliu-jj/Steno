@@ -650,3 +650,35 @@ pub async fn delete_todo(app: AppHandle, db: State<'_, Db>, id: String) -> Resul
     );
     Ok(())
 }
+
+// ----- 待办浮窗窗口控制 ------------------------------------------------
+
+/// 显示待办浮窗。`position` 可选：传入 "bottom-right" / "cursor" / "last"，
+/// 缺省时从 settings 读 `todoQuickPanelPosition`。
+#[tauri::command]
+pub fn show_todo_panel(
+    app: AppHandle,
+    db: State<'_, Db>,
+    position: Option<String>,
+) -> Result<(), String> {
+    let strategy = match position {
+        Some(value) => window_manager::TodoPanelPosition::parse(&value),
+        None => db
+            .get_setting("todoQuickPanelPosition")
+            .map_err(to_msg)?
+            .as_deref()
+            .map(window_manager::TodoPanelPosition::parse)
+            .unwrap_or(window_manager::TodoPanelPosition::BottomRight),
+    };
+    window_manager::show_todo_panel(&app, db.inner(), strategy).map_err(to_msg)
+}
+
+#[tauri::command]
+pub fn hide_todo_panel(app: AppHandle) -> Result<(), String> {
+    window_manager::hide_todo_panel(&app).map_err(to_msg)
+}
+
+#[tauri::command]
+pub fn toggle_todo_panel(app: AppHandle, db: State<'_, Db>) -> Result<(), String> {
+    window_manager::toggle_todo_panel(&app, db.inner()).map_err(to_msg)
+}

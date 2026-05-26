@@ -301,6 +301,7 @@ impl Db {
     /// - mainWindowShortcut → 切换主窗口（PR1，默认 Ctrl+Shift+N）
     /// - quicknoteShortcut  → 切换浮窗（PR2，默认 Ctrl+Shift+M）
     /// - searchShortcut     → 全局搜索（plan Task 8，默认 Ctrl+Shift+F）
+    /// - todoQuickPanelShortcut / Enabled / Position → 待办浮窗（add-todo-quick-panel）
     fn ensure_default_settings(conn: &Connection) -> Result<(), DbError> {
         let defaults: &[(&str, &str)] = &[
             ("mainWindowShortcut", "Ctrl+Shift+N"),
@@ -319,6 +320,9 @@ impl Db {
             ("noteEditorOutlineOpen", "false"),
             ("zenOutlineWidth", "300"),
             ("zenOutlineOpen", "true"),
+            ("todoQuickPanelEnabled", "true"),
+            ("todoQuickPanelShortcut", "Ctrl+Shift+T"),
+            ("todoQuickPanelPosition", "bottom-right"),
         ];
         let now = chrono::Utc::now().to_rfc3339();
         for (k, v) in defaults {
@@ -2163,6 +2167,23 @@ mod tests {
         let db = fresh_db();
         let v = db.get_setting("clipboardShortcut").unwrap();
         assert_eq!(v.as_deref(), Some("Ctrl+Shift+V"));
+    }
+
+    #[test]
+    fn default_settings_seed_includes_todo_quick_panel_keys() {
+        let db = fresh_db();
+        assert_eq!(
+            db.get_setting("todoQuickPanelEnabled").unwrap().as_deref(),
+            Some("true")
+        );
+        assert_eq!(
+            db.get_setting("todoQuickPanelShortcut").unwrap().as_deref(),
+            Some("Ctrl+Shift+T")
+        );
+        assert_eq!(
+            db.get_setting("todoQuickPanelPosition").unwrap().as_deref(),
+            Some("bottom-right")
+        );
     }
 
     #[test]

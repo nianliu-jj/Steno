@@ -87,6 +87,9 @@ pub fn run() {
             commands::update_todo,
             commands::complete_todo,
             commands::delete_todo,
+            commands::show_todo_panel,
+            commands::hide_todo_panel,
+            commands::toggle_todo_panel,
         ])
         .on_window_event(|window, event| match event {
             // 关闭按钮 = 隐藏，不真正退出。真正退出走托盘菜单"退出"项。
