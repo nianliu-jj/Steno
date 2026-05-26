@@ -88,4 +88,64 @@ describe('settings store', () => {
     await store.update('clipboardShortcut', 'Ctrl+Shift+V');
     expect(dbSetSettingMock).toHaveBeenCalledWith('clipboardShortcut', 'Ctrl+Shift+V');
   });
+
+  it('uses defaults for todo quick panel settings when nothing is persisted', async () => {
+    const store = useSettingsStore();
+    await store.load();
+
+    expect(store.state.todoQuickPanelEnabled).toBe(true);
+    expect(store.state.todoQuickPanelShortcut).toBe('Ctrl+Shift+T');
+    expect(store.state.todoQuickPanelPosition).toBe('bottom-right');
+    expect(store.state.todoQuickPanelLastPos).toBe('');
+  });
+
+  it('decodes persisted todo quick panel settings', async () => {
+    dbGetSettingMock.mockImplementation(async (key: string) => {
+      const map: Record<string, string | null> = {
+        todoQuickPanelEnabled: 'false',
+        todoQuickPanelShortcut: 'Alt+T',
+        todoQuickPanelPosition: 'cursor',
+        todoQuickPanelLastPos: '120,80',
+      };
+      return map[key] ?? null;
+    });
+
+    const store = useSettingsStore();
+    await store.load();
+
+    expect(store.state.todoQuickPanelEnabled).toBe(false);
+    expect(store.state.todoQuickPanelShortcut).toBe('Alt+T');
+    expect(store.state.todoQuickPanelPosition).toBe('cursor');
+    expect(store.state.todoQuickPanelLastPos).toBe('120,80');
+  });
+
+  it('falls back to defaults when todo quick panel position is invalid', async () => {
+    dbGetSettingMock.mockImplementation(async (key: string) => {
+      const map: Record<string, string | null> = {
+        todoQuickPanelEnabled: 'maybe',
+        todoQuickPanelPosition: 'somewhere-weird',
+      };
+      return map[key] ?? null;
+    });
+
+    const store = useSettingsStore();
+    await store.load();
+
+    expect(store.state.todoQuickPanelEnabled).toBe(true);
+    expect(store.state.todoQuickPanelPosition).toBe('bottom-right');
+  });
+
+  it('persists todo quick panel updates through the db adapter', async () => {
+    const store = useSettingsStore();
+
+    await store.update('todoQuickPanelEnabled', false);
+    await store.update('todoQuickPanelShortcut', 'Ctrl+Alt+T');
+    await store.update('todoQuickPanelPosition', 'last');
+    await store.update('todoQuickPanelLastPos', '320,240');
+
+    expect(dbSetSettingMock).toHaveBeenNthCalledWith(1, 'todoQuickPanelEnabled', 'false');
+    expect(dbSetSettingMock).toHaveBeenNthCalledWith(2, 'todoQuickPanelShortcut', 'Ctrl+Alt+T');
+    expect(dbSetSettingMock).toHaveBeenNthCalledWith(3, 'todoQuickPanelPosition', 'last');
+    expect(dbSetSettingMock).toHaveBeenNthCalledWith(4, 'todoQuickPanelLastPos', '320,240');
+  });
 });

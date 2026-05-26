@@ -28,13 +28,19 @@ import {
   NRadioGroup,
   NSelect,
   NSpace,
+  NSwitch,
   NText,
   useMessage,
 } from 'naive-ui';
 
 import { useAppEvents } from '@/composables/useAppEvents';
 import { useDb } from '@/composables/useDb';
-import { useSettingsStore, type EditorMode, type ThemeMode } from '@/stores/settings';
+import {
+  useSettingsStore,
+  type EditorMode,
+  type StenoSettings,
+  type ThemeMode,
+} from '@/stores/settings';
 import { useUiStore } from '@/stores/ui';
 
 const props = withDefaults(defineProps<{ embedded?: boolean }>(), {
@@ -45,12 +51,13 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-type SettingsSection = 'general' | 'appearance' | 'shortcuts' | 'privacy' | 'storage' | 'about';
+type SettingsSection = 'general' | 'appearance' | 'shortcuts' | 'todo' | 'privacy' | 'storage' | 'about';
 
 const sections: { key: SettingsSection; label: string; eyebrow: string }[] = [
   { key: 'general', label: '常规', eyebrow: '启动与速记' },
   { key: 'appearance', label: '外观', eyebrow: '主题与编辑' },
   { key: 'shortcuts', label: '快捷键', eyebrow: '全局入口' },
+  { key: 'todo', label: '待办浮窗', eyebrow: '快捷与位置' },
   { key: 'privacy', label: '隐私安全', eyebrow: '本地优先' },
   { key: 'storage', label: '存储', eyebrow: '路径与备份' },
   { key: 'about', label: '关于', eyebrow: '版本信息' },
@@ -82,16 +89,23 @@ const mainShortcut = ref('');
 const quicknoteShortcut = ref('');
 const clipboardShortcut = ref('');
 const searchShortcut = ref('');
+const todoShortcut = ref('');
 
 function syncShortcutLocals() {
   mainShortcut.value = settings.state.mainWindowShortcut;
   quicknoteShortcut.value = settings.state.quicknoteShortcut;
   clipboardShortcut.value = settings.state.clipboardShortcut;
   searchShortcut.value = settings.state.searchShortcut;
+  todoShortcut.value = settings.state.todoQuickPanelShortcut;
 }
 
 async function commitShortcut(
-  key: 'mainWindowShortcut' | 'quicknoteShortcut' | 'clipboardShortcut' | 'searchShortcut',
+  key:
+    | 'mainWindowShortcut'
+    | 'quicknoteShortcut'
+    | 'clipboardShortcut'
+    | 'searchShortcut'
+    | 'todoQuickPanelShortcut',
   value: string,
 ) {
   const trimmed = value.trim();
@@ -118,7 +132,12 @@ async function commitShortcut(
 }
 
 function labelOf(
-  key: 'mainWindowShortcut' | 'quicknoteShortcut' | 'clipboardShortcut' | 'searchShortcut',
+  key:
+    | 'mainWindowShortcut'
+    | 'quicknoteShortcut'
+    | 'clipboardShortcut'
+    | 'searchShortcut'
+    | 'todoQuickPanelShortcut',
 ) {
   switch (key) {
     case 'mainWindowShortcut':
@@ -129,6 +148,8 @@ function labelOf(
       return '粘贴板快捷键';
     case 'searchShortcut':
       return '搜索快捷键';
+    case 'todoQuickPanelShortcut':
+      return '待办浮窗快捷键';
   }
 }
 
@@ -149,6 +170,26 @@ async function onEditorModeChange(value: EditorMode) {
     await settings.update('editorMode', value);
   } catch (e) {
     message.error(`编辑器模式保存失败：${String(e)}`);
+  }
+}
+
+async function onTodoEnabledChange(value: boolean) {
+  try {
+    await settings.update('todoQuickPanelEnabled', value);
+    // 后端的 register_from_settings 会读取 enabled 决定是否注册，所以这里需要 reload。
+    await db.reloadShortcuts();
+    message.success(value ? '已启用待办浮窗' : '已停用待办浮窗');
+  } catch (e) {
+    message.error(`保存失败：${String(e)}`);
+    // 失败时回滚本地状态由 settings.update 自身负责；这里不动 settings.state。
+  }
+}
+
+async function onTodoPositionChange(value: StenoSettings['todoQuickPanelPosition']) {
+  try {
+    await settings.update('todoQuickPanelPosition', value);
+  } catch (e) {
+    message.error(`保存失败：${String(e)}`);
   }
 }
 
@@ -407,6 +448,66 @@ const headerSub = computed(() =>
               @blur="commitShortcut('searchShortcut', searchShortcut)"
               @keydown.enter="commitShortcut('searchShortcut', searchShortcut)"
             />
+          </div>
+        </section>
+
+        <section v-else-if="activeSection === 'todo'" class="settings-section">
+          <div class="settings-section__intro">
+            <h2>待办浮窗</h2>
+            <p>全局快捷键随时呼出今日待办；可选择浮窗的弹出位置策略。</p>
+          </div>
+
+          <h3 class="settings-group">浮窗</h3>
+          <div class="settings-row">
+            <div class="settings-row__meta">
+              <strong>启用待办浮窗</strong>
+              <p>关闭后系统级快捷键会注销，浮窗不可呼出。</p>
+            </div>
+            <NSwitch
+              :value="settings.state.todoQuickPanelEnabled"
+              data-testid="todo-enabled-switch"
+              @update:value="onTodoEnabledChange"
+            />
+          </div>
+          <div
+            class="settings-row"
+            :class="{ 'settings-row--disabled': !settings.state.todoQuickPanelEnabled }"
+          >
+            <div class="settings-row__meta">
+              <strong>呼出快捷键</strong>
+              <p>失焦或按回车保存；系统级快捷键会重新注册。</p>
+            </div>
+            <NInput
+              v-model:value="todoShortcut"
+              class="settings-control"
+              data-testid="todo-shortcut-input"
+              placeholder="Ctrl+Shift+T"
+              size="small"
+              :disabled="!settings.state.todoQuickPanelEnabled"
+              @blur="commitShortcut('todoQuickPanelShortcut', todoShortcut)"
+              @keydown.enter="commitShortcut('todoQuickPanelShortcut', todoShortcut)"
+            />
+          </div>
+          <div
+            class="settings-row"
+            :class="{ 'settings-row--disabled': !settings.state.todoQuickPanelEnabled }"
+          >
+            <div class="settings-row__meta">
+              <strong>弹出位置</strong>
+              <p>选择浮窗在屏幕上的初始位置策略。</p>
+            </div>
+            <NRadioGroup
+              :value="settings.state.todoQuickPanelPosition"
+              :disabled="!settings.state.todoQuickPanelEnabled"
+              data-testid="todo-position-radio"
+              @update:value="onTodoPositionChange"
+            >
+              <NSpace>
+                <NRadio value="bottom-right">屏幕右下角</NRadio>
+                <NRadio value="cursor">跟随光标</NRadio>
+                <NRadio value="last">记住上次位置</NRadio>
+              </NSpace>
+            </NRadioGroup>
           </div>
         </section>
 

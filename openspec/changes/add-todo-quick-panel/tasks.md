@@ -52,14 +52,14 @@
 
 ## 6. 设置面板"待办浮窗"分组
 
-- [ ] 6.1 在 `src/stores/settings.ts` 默认 settings 中追加 `todoQuickPanelEnabled: true`、`todoQuickPanelShortcut: 'CommandOrControl+Shift+T'`、`todoQuickPanelPosition: 'bottom-right'`、`todoQuickPanelLastPos: null`
-- [ ] 6.2 在 `src/views/SettingsView.vue` 增加"待办浮窗"分组：
+- [x] 6.1 在 `src/stores/settings.ts` 默认 settings 中追加 `todoQuickPanelEnabled: true`、`todoQuickPanelShortcut: 'Ctrl+Shift+T'`、`todoQuickPanelPosition: 'bottom-right'`、`todoQuickPanelLastPos: ''`（"x,y" 字符串，与 Rust 端 show_todo_panel 期望一致）
+- [x] 6.2 在 `src/views/SettingsView.vue` 增加"待办浮窗"分组：
   - `NSwitch` 开关 `todoQuickPanelEnabled`
-  - 快捷键录入控件（复用 / 新增）绑定 `todoQuickPanelShortcut`
-  - `NRadio` 切换位置（`bottom-right` / `cursor` / `last`）
-- [ ] 6.3 disabled 处理：`todoQuickPanelEnabled=false` 时将快捷键和位置控件置灰
-- [ ] 6.4 settings 变更后通过 IPC 通知 Rust 重注册快捷键 / 销毁浮窗
-- [ ] 6.5 在 `src/stores/settings.test.ts` 补充三项新设置的默认值与序列化测试
+  - `NInput` 快捷键输入框 `todoShortcut`（沿用既有 commitShortcut 模式，blur/Enter 保存 + reloadShortcuts）
+  - `NRadioGroup` 切换位置（`bottom-right` / `cursor` / `last`）
+- [x] 6.3 disabled 处理：`todoQuickPanelEnabled=false` 时通过 `.settings-row--disabled` + `:disabled` 把快捷键和位置控件置灰
+- [x] 6.4 settings 变更后通过 `db.reloadShortcuts()` 通知 Rust 重注册快捷键（开关切换也走 reloadShortcuts，因后端 register_from_settings 已读 enabled 字段）
+- [x] 6.5 在 `src/stores/settings.test.ts` 补充新设置项的默认值与序列化测试（4 个用例：默认值、解码、非法值回退、update 序列化）
 
 ## 7. 跨窗口集成与端到端验证
 

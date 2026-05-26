@@ -73,6 +73,19 @@ export interface StenoSettings {
   zenOutlineWidth: number;
   /** Zen 模式大纲面板是否展开。 */
   zenOutlineOpen: boolean;
+  /** 待办浮窗是否启用（关闭时全局快捷键会注销）。 */
+  todoQuickPanelEnabled: boolean;
+  /** 待办浮窗呼出快捷键（系统级注册）。 */
+  todoQuickPanelShortcut: string;
+  /** 待办浮窗弹出位置策略。 */
+  todoQuickPanelPosition: 'bottom-right' | 'cursor' | 'last';
+  /**
+   * 浮窗上次位置（仅 `position === 'last'` 时使用）。
+   *
+   * 存储为 `"x,y"` 字符串（与 Rust 端 `commands.rs::show_todo_panel` 期望格式一致）。
+   * 空串表示尚未记录过。
+   */
+  todoQuickPanelLastPos: string;
 }
 
 /**
@@ -99,6 +112,10 @@ const DEFAULTS: StenoSettings = {
   noteEditorOutlineOpen: false,
   zenOutlineWidth: 300,
   zenOutlineOpen: true,
+  todoQuickPanelEnabled: true,
+  todoQuickPanelShortcut: 'Ctrl+Shift+T',
+  todoQuickPanelPosition: 'bottom-right',
+  todoQuickPanelLastPos: '',
 };
 
 /**
@@ -150,6 +167,16 @@ function decode<K extends keyof StenoSettings>(
       if (raw === 'true') return true as StenoSettings[K];
       if (raw === 'false') return false as StenoSettings[K];
       return DEFAULTS[key];
+    }
+    case 'todoQuickPanelEnabled': {
+      if (raw === 'true') return true as StenoSettings[K];
+      if (raw === 'false') return false as StenoSettings[K];
+      return DEFAULTS[key];
+    }
+    case 'todoQuickPanelPosition': {
+      return (['bottom-right', 'cursor', 'last'].includes(raw)
+        ? raw
+        : DEFAULTS.todoQuickPanelPosition) as StenoSettings[K];
     }
     default:
       return raw as StenoSettings[K];
