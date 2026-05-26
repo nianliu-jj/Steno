@@ -10,6 +10,9 @@
 //! 把 `DbError` / `JoinError` 都格式化成 `String` 返给前端 —
 //! 前端有完整错误消息便于排查，同时避免泄露内部结构。
 
+use std::path::PathBuf;
+use std::process::Command;
+
 use tauri::{AppHandle, Emitter, State};
 
 use crate::clipboard::{self, ClipboardEntry};

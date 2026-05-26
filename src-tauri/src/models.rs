@@ -14,6 +14,90 @@
 
 use serde::{Deserialize, Serialize};
 
+/// 主列表条目的种类标签。
+///
+/// 工作区视图、文件夹、分组、纯文本草稿、Markdown 文档共用一张
+/// `library_entries` 表，靠 `kind` 区分；前端按 camelCase 序列化。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum EntryKind {
+    Workspace,
+    Folder,
+    Group,
+    Text,
+    Document,
+}
+
+/// 主列表条目（卡片视图）的 DTO。
+///
+/// 对应 SQLite `library_entries` 表，由 `kind` 决定字段语义：
+/// - `Workspace` / `Folder` / `Group` 是容器；`Text` / `Document` 是内容条目
+/// - `file_path` 仅 `Document` 有，指向工作区磁盘上的真实 .md 文件
+/// - `word_count` / `byte_size` 仅内容条目有意义
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryEntry {
+    pub id: String,
+    pub kind: EntryKind,
+    pub title: String,
+    pub preview_text: String,
+    pub tags: Vec<String>,
+    pub workspace_id: Option<String>,
+    pub parent_id: Option<String>,
+    pub group_id: Option<String>,
+    pub file_path: Option<String>,
+    pub word_count: i64,
+    pub byte_size: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// 工作区元数据 — 一条 `library_entries` 中 `kind = workspace` 的行。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Workspace {
+    pub id: String,
+    pub name: String,
+    pub root_path: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// 主列表筛选上下文 — 前端通过它指定"看哪个工作区/分组/文件夹"。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct MainListContext {
+    pub workspace_id: Option<String>,
+    pub folder_entry_id: Option<String>,
+    pub group_entry_id: Option<String>,
+    pub selected_entry_id: Option<String>,
+}
+
+/// 创建工作区的请求体。`name` 为空时从 `root_path` 末段派生。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateWorkspaceRequest {
+    pub name: Option<String>,
+    pub root_path: String,
+}
+
+/// 编辑器视图加载条目时使用的 DTO（携带正文 + 关键标记）。
+///
+/// 与 `LibraryEntry` 的差别：`EditorEntry` 含 `content`，用于真实编辑场景。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditorEntry {
+    pub id: String,
+    pub kind: EntryKind,
+    pub title: String,
+    pub content: String,
+    pub tags: Vec<String>,
+    pub workspace_id: Option<String>,
+    pub parent_id: Option<String>,
+    pub group_id: Option<String>,
+    pub file_path: Option<String>,
+}
+
 /// 置顶便签窗口配置（位置、尺寸、外观）。
 ///
 /// 存 SQLite 时序列化为 JSON 写入 `notes.pinned_window_config` 列。
