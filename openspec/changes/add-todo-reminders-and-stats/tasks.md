@@ -1,26 +1,26 @@
 ## 1. Phase A1 — 后端通知插件接入与 schema 演进
 
-- [ ] 1.1 在 `src-tauri/Cargo.toml` 新增 `tauri-plugin-notification = "2"` 依赖
-- [ ] 1.2 在 `src-tauri/capabilities/default.json`（或现有 capability 文件）加 `notification:default` 权限
-- [ ] 1.3 在 `src-tauri/src/lib.rs`（或 `main.rs`）`.plugin(tauri_plugin_notification::init())` 注册插件
-- [ ] 1.4 在 `package.json` 新增 `@tauri-apps/plugin-notification` 前端 SDK 依赖（`pnpm add`）
-- [ ] 1.5 在 `db.rs` 的 `init_db` 流程加列存在性检查：通过 `PRAGMA table_info(todos)` 探测，缺失则 `ALTER TABLE` 增加 `reminder_fired INTEGER NOT NULL DEFAULT 0` 与 `started_at TEXT NULL`
-- [ ] 1.6 在 `db.rs` 的 `CREATE TABLE IF NOT EXISTS todos` 语句也补全这两列（新装路径覆盖）
-- [ ] 1.7 在 `init_db` 增加 `CREATE INDEX IF NOT EXISTS idx_todos_reminder_time ON todos(reminder_time)` 与 `idx_todos_completed_at ON todos(completed_at)`
-- [ ] 1.8 在 `Todo` Rust struct 与序列化 DTO 上增加 `reminder_fired: bool` 与 `started_at: Option<String>` 字段，并保证向前端 JSON 输出 camelCase
-- [ ] 1.9 在 `src/types/steno.ts` 的 `Todo` 类型加 `reminderFired: boolean` 与 `startedAt: string | null`
-- [ ] 1.10 写 `cargo test` 单测：旧 schema → 升级 → 新列存在；新 schema 直建 → 列齐全；多次 init_db 幂等
-- [ ] 1.11 提交：`feat(backend): 待办提醒/统计 Phase A1 — notification 插件 + schema 演进`
+- [x] 1.1 在 `src-tauri/Cargo.toml` 新增 `tauri-plugin-notification = "2"` 依赖
+- [x] 1.2 在 `src-tauri/capabilities/default.json`（或现有 capability 文件）加 `notification:default` 权限
+- [x] 1.3 在 `src-tauri/src/lib.rs`（或 `main.rs`）`.plugin(tauri_plugin_notification::init())` 注册插件
+- [x] 1.4 在 `package.json` 新增 `@tauri-apps/plugin-notification` 前端 SDK 依赖（`pnpm add`）
+- [x] 1.5 在 `db.rs` 的 `init_db` 流程加列存在性检查：通过 `PRAGMA table_info(todos)` 探测，缺失则 `ALTER TABLE` 增加 `reminder_fired INTEGER NOT NULL DEFAULT 0` 与 `started_at TEXT NULL`
+- [x] 1.6 在 `db.rs` 的 `CREATE TABLE IF NOT EXISTS todos` 语句也补全这两列（新装路径覆盖）
+- [x] 1.7 在 `init_db` 增加 `CREATE INDEX IF NOT EXISTS idx_todos_reminder_time ON todos(reminder_time)` 与 `idx_todos_completed_at ON todos(completed_at)`
+- [x] 1.8 在 `Todo` Rust struct 与序列化 DTO 上增加 `reminder_fired: bool` 与 `started_at: Option<String>` 字段，并保证向前端 JSON 输出 camelCase
+- [x] 1.9 在 `src/types/steno.ts` 的 `Todo` 类型加 `reminderFired: boolean` 与 `startedAt: string | null`
+- [x] 1.10 写 `cargo test` 单测：旧 schema → 升级 → 新列存在；新 schema 直建 → 列齐全；多次 init_db 幂等
+- [x] 1.11 提交：`feat(backend): 待办提醒/统计 Phase A1 — notification 插件 + schema 演进` (ef285b2)
 
 ## 2. Phase A2 — 后端调度器与状态机增强
 
-- [ ] 2.1 在 `commands.rs` `update_todo` 中实现"`status` 首次从非 `doing` 切到 `doing` 时填充 `started_at`"（已有时不覆盖）
-- [ ] 2.2 在 `commands.rs` `update_todo` 中实现"`reminder_time` 修改时 `reminder_fired=0`"
-- [ ] 2.3 新建 `src-tauri/src/reminder_scheduler.rs`：导出 `start_scheduler(app_handle: AppHandle, db: Db)` 函数；内部 `tokio::spawn` 起 30s 周期循环
-- [ ] 2.4 调度循环逻辑：查询 `reminder_time <= now() AND reminder_fired=0 AND is_deleted=0 AND status != 'done'`；限制每周期最多 10 条；逐条调用 `app_handle.notification().builder().title(...).body(...).show()`；用 CAS UPDATE `SET reminder_fired=1 WHERE id=? AND reminder_time=?` 防止竞态
-- [ ] 2.5 在 `lib.rs` `setup` hook 中调用 `start_scheduler`；并实现首次启动时的权限请求逻辑（检测 `permissionState` + 有 reminder_time 任务才 requestPermission）
-- [ ] 2.6 写 `cargo test`：mock `now()` 时间，验证：到期任务被标 fired / 已完成跳过 / 已删除跳过 / 同任务不重复触发
-- [ ] 2.7 提交：`feat(backend): 待办提醒/统计 Phase A2 — reminder scheduler + started_at 状态机`
+- [x] 2.1 在 `commands.rs` `update_todo` 中实现"`status` 首次从非 `doing` 切到 `doing` 时填充 `started_at`"（已有时不覆盖）
+- [x] 2.2 在 `commands.rs` `update_todo` 中实现"`reminder_time` 修改时 `reminder_fired=0`"
+- [x] 2.3 新建 `src-tauri/src/reminder_scheduler.rs`：导出 `start_scheduler(app_handle: AppHandle, db: Db)` 函数；内部 `tokio::spawn` 起 30s 周期循环
+- [x] 2.4 调度循环逻辑：查询 `reminder_time <= now() AND reminder_fired=0 AND is_deleted=0 AND status != 'done'`；限制每周期最多 10 条；逐条调用 `app_handle.notification().builder().title(...).body(...).show()`；用 CAS UPDATE `SET reminder_fired=1 WHERE id=? AND reminder_time=?` 防止竞态
+- [x] 2.5 在 `lib.rs` `setup` hook 中调用 `start_scheduler`；并实现首次启动时的权限请求逻辑（检测 `permissionState` + 有 reminder_time 任务才 requestPermission）
+- [x] 2.6 写 `cargo test`：mock `now()` 时间，验证：到期任务被标 fired / 已完成跳过 / 已删除跳过 / 同任务不重复触发
+- [x] 2.7 提交：`feat(backend): 待办提醒/统计 Phase A2 — reminder scheduler + started_at 状态机`
 
 ## 3. Phase A3 — Settings 模型扩展
 

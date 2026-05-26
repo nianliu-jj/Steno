@@ -64,6 +64,18 @@ impl Clone for Db {
 }
 
 impl Db {
+    /// 内存数据库 + 完整迁移的测试 helper，供跨模块单测用（如 reminder_scheduler）。
+    /// 不走 ensure_default_settings / ensure_default_group，调用方按需触发。
+    #[cfg(test)]
+    pub fn open_in_memory_for_tests() -> Self {
+        let mut conn = Connection::open_in_memory().expect("open in-memory db");
+        Self::migrate(&mut conn).expect("migrate");
+        Self {
+            conn: Arc::new(Mutex::new(conn)),
+            db_path: PathBuf::from(":memory:"),
+        }
+    }
+
     pub fn data_dir() -> Result<PathBuf, DbError> {
         let home = dirs::home_dir().ok_or(DbError::NoHomeDir)?;
         let dir = home.join(".steno");
@@ -1337,14 +1349,29 @@ impl Db {
             _ => existing.completed_at.clone(),
         };
 
-        // `Option<Option<String>>`：外层 None = 不变；外层 Some(None) = 清空。
-        let new_due_date = match input.due_date {
-            Some(value) => value,
-            None => existing.due_date.clone(),
+        // started_at：首次进入 Doing 时填充；后续状态切换不再覆盖。
+        // 这让"开始"折线统计反映用户首次启动任务的时间，符合用户认知。
+        let new_started_at = match (existing.started_at.as_ref(), new_status) {
+            (None, TodoStatus::Doing) => Some(now.clone()),
+            _ => existing.started_at.clone(),
         };
+
+        // `Option<Option<String>>`：外层 None = 不变；外层 Some(None) = 清空。
+        let reminder_explicitly_set = input.reminder_time.is_some();
         let new_reminder_time = match input.reminder_time {
             Some(value) => value,
             None => existing.reminder_time.clone(),
+        };
+        // 用户显式修改提醒时间（含清空）时，重置 reminder_fired，让调度器在新时间到达时再次触发。
+        let new_reminder_fired = if reminder_explicitly_set {
+            false
+        } else {
+            existing.reminder_fired
+        };
+
+        let new_due_date = match input.due_date {
+            Some(value) => value,
+            None => existing.due_date.clone(),
         };
         let new_list_id = input
             .list_id
@@ -1362,8 +1389,10 @@ impl Db {
                     completed_at = ?4,
                     due_date = ?5,
                     reminder_time = ?6,
-                    list_id = ?7
-              WHERE id = ?8",
+                    reminder_fired = ?7,
+                    started_at = ?8,
+                    list_id = ?9
+              WHERE id = ?10",
             rusqlite::params![
                 &new_content,
                 new_status.as_str(),
@@ -1371,6 +1400,8 @@ impl Db {
                 new_completed_at.as_deref(),
                 new_due_date.as_deref(),
                 new_reminder_time.as_deref(),
+                new_reminder_fired as i64,
+                new_started_at.as_deref(),
                 &new_list_id,
                 &input.id,
             ],
@@ -1461,6 +1492,64 @@ impl Db {
             )
             .optional()?;
         todo.ok_or_else(|| DbError::NotFound(id.to_string()))
+    }
+
+    /// 调度器扫描：列出到期、未触发、未删除、未完成的待办。
+    ///
+    /// - `now_rfc3339`：调用方传入的"当前时刻"RFC3339 字符串（便于测试 mock）
+    /// - `limit`：单次最多返回多少条，防止系统长时间休眠醒来后通知淹没用户
+    ///
+    /// 返回时按 `reminder_time` 升序，确保最早到期的先触发。
+    pub fn list_due_reminders(
+        &self,
+        now_rfc3339: &str,
+        limit: usize,
+    ) -> Result<Vec<Todo>, DbError> {
+        let conn = self.lock()?;
+        let mut stmt = conn.prepare(
+            "SELECT id, content, status, created_at, updated_at, completed_at,
+                    due_date, reminder_time, reminder_fired, started_at, list_id
+               FROM todos
+              WHERE reminder_time IS NOT NULL
+                AND reminder_time <= ?1
+                AND reminder_fired = 0
+                AND is_deleted = 0
+                AND status != 'done'
+              ORDER BY reminder_time ASC
+              LIMIT ?2",
+        )?;
+        let rows = stmt.query_map(rusqlite::params![now_rfc3339, limit as i64], row_to_todo)?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    /// CAS 标记 fired：仅当 `reminder_time` 仍是触发时观察到的值才置位。
+    /// 防止用户在调度器读取与标记之间修改了提醒时间，导致新时间被吞掉。
+    ///
+    /// 返回是否成功标记（true = 已置位；false = reminder_time 已变）。
+    pub fn mark_reminder_fired(
+        &self,
+        id: &str,
+        reminder_time: &str,
+    ) -> Result<bool, DbError> {
+        let conn = self.lock()?;
+        let affected = conn.execute(
+            "UPDATE todos
+                SET reminder_fired = 1
+              WHERE id = ?1 AND reminder_time = ?2 AND reminder_fired = 0",
+            rusqlite::params![id, reminder_time],
+        )?;
+        Ok(affected > 0)
+    }
+
+    /// 是否存在至少一条已设置提醒时间的待办（用于"首次启动时按需请求通知权限"）。
+    pub fn has_any_reminder(&self) -> Result<bool, DbError> {
+        let conn = self.lock()?;
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM todos WHERE reminder_time IS NOT NULL AND is_deleted = 0",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(count > 0)
     }
 
     fn validate_todo_content(raw: &str) -> Result<String, DbError> {

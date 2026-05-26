@@ -23,6 +23,7 @@ mod db;
 mod export;
 mod models;
 mod quicknote;
+mod reminder_scheduler;
 mod shortcut;
 mod sync;
 mod todo;
@@ -120,9 +121,22 @@ pub fn run() {
 
             clipboard::start_monitor(app.handle().clone(), database.clone());
 
+            // 提醒调度器需要持有 Db 克隆，单独保留以传给后台 tokio 任务。
+            let db_for_scheduler = database.clone();
+
             app.manage(database);
 
             tray::setup(app)?;
+
+            // 启动 30s 周期的提醒调度器：扫描到期任务并触发系统通知。
+            reminder_scheduler::start_scheduler(app.handle().clone(), db_for_scheduler);
+
+            // 异步按需请求通知权限：仅当库里至少有一条 reminder_time 时弹权限框。
+            let handle_for_perm = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                reminder_scheduler::maybe_request_permission(&handle_for_perm).await;
+            });
+
             Ok(())
         })
         .run(tauri::generate_context!())
