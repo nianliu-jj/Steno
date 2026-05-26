@@ -72,6 +72,7 @@ const VALID_MODES: ReadonlySet<WindowMode> = new Set<WindowMode>([
   'note-editor',
   'clipboard',
   'todo',
+  'todo-panel',
   'screenshot',
   'ocr',
   'translate',
@@ -156,6 +157,7 @@ function parseFromLabel(label: string, search: string): ParsedRoute {
       : { mode: 'main', noteId: null };
   }
   if (label === 'quicknote') return { mode: 'floating', noteId: null };
+  if (label === 'todo-panel') return { mode: 'todo-panel', noteId: null };
   if (label.startsWith('sticky-')) {
     // label = "sticky-550e8400-..." → noteId = "550e8400-..."
     return { mode: 'sticky', noteId: label.slice('sticky-'.length) };

@@ -27,16 +27,16 @@
 
 ## 4. 浮窗前端实现
 
-- [ ] 4.1 在 `src/router/index.ts` 新增 `todo-panel` 路由（`/todo-panel`），渲染新组件 `TodoQuickPanel.vue`
-- [ ] 4.2 新建 `src/views/TodoQuickPanel.vue`：
+- [x] 4.1 在 `App.vue` 通过 `ui.mode === 'todo-panel'` 分流，渲染新组件 `TodoQuickPanel.vue`（项目无 vue-router，遵循 quicknote / sticky 既有模式，对应 `src/stores/ui.ts` 的 label 解析）
+- [x] 4.2 新建 `src/views/TodoQuickPanel.vue`：
   - 顶部：日期 + "今天 N" 计数 + 关闭(×)按钮 + 拖拽区
-  - 输入区：`NInput` 添加新任务（Enter 提交、Shift+Enter 换行禁用、超 500 字符提示）
-  - 列表区：使用 `NScrollbar` 包裹任务条目，每项含 `NCheckbox` + 文本 + hover 显示的删除按钮
-  - 空态：使用截图 3 风格的圆形 ✓ + "太棒了！所有任务都已完成"
-- [ ] 4.3 监听窗口 `steno:todo-panel-toggle` 自定义事件以隐藏窗口；监听 `focus` 自动 focus 输入框
-- [ ] 4.4 实现 `position='last'` 的窗口拖拽位置持久化（拖拽结束后写 settings.todoQuickPanelLastPos）
-- [ ] 4.5 样式遵循 Steno 暖色调（深背景 rgba(20,20,24,0.92)、圆角 12、阴影、暖色 accent）；与截图 3 一致
-- [ ] 4.6 编写 `src/views/TodoQuickPanel.test.ts`：覆盖输入提交、勾选完成、删除、空态渲染、计数刷新
+  - 输入区：原生 `<input>` 添加新任务（Enter 提交、超 500 字符 maxlength 截断 + 剩余提示、空白拒绝提交）
+  - 列表区：使用 `NScrollbar` 包裹任务条目，每项含原生 checkbox + 文本 + hover 显示的删除按钮
+  - 空态：圆形 ✓ + "太棒了！所有任务都已完成"
+- [x] 4.3 监听 `steno:todo-panel-toggle` 事件：`visible=true` 时自动 focus 输入框，`visible=false` 时持久化最后位置；卸载时清理订阅
+- [x] 4.4 实现 `position='last'` 的窗口拖拽位置持久化（关闭 / 隐藏前调用 `outerPosition` 写 `settings.todoQuickPanelLastPos`）
+- [x] 4.5 样式遵循 Steno 暖色调（深背景 rgba(20,20,24,0.92)、圆角 12、阴影、暖色 accent #e8ad7a）
+- [x] 4.6 编写 `src/views/TodoQuickPanel.test.ts`：覆盖输入提交、空白拒绝、勾选完成、删除、空态渲染、计数同步、关闭按钮、跨窗口远端 applyRemoteChange（8 个用例全部通过）
 
 ## 5. 主窗口待办视图替换
 

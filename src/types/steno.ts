@@ -196,6 +196,7 @@ export type WindowMode =
   | 'note-editor'
   | 'clipboard'
   | 'todo'
+  | 'todo-panel'
   | 'screenshot'
   | 'ocr'
   | 'translate';

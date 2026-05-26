@@ -23,6 +23,7 @@ import MainView from '@/views/MainView.vue';
 import NoteEditorView from '@/views/NoteEditorView.vue';
 import PlaceholderView from '@/views/PlaceholderView.vue';
 import SettingsView from '@/views/SettingsView.vue';
+import TodoQuickPanel from '@/views/TodoQuickPanel.vue';
 import ZenMode from '@/views/ZenMode.vue';
 import type { WindowMode } from '@/types/steno';
 import type { ThemeMode } from '@/stores/settings';
@@ -159,6 +160,7 @@ watch(
           </NModal>
         </template>
         <FloatingEditor v-else-if="ui.mode === 'floating'" />
+        <TodoQuickPanel v-else-if="ui.mode === 'todo-panel'" />
         <FloatingEditor
           v-else-if="ui.mode === 'sticky' && ui.noteId"
           :key="ui.noteId"
