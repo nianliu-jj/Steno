@@ -17,29 +17,27 @@
  * @props — 无（所有参数通过 `ui.noteId` 获取）
  */
 
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { NButton, NIcon, NInput, NText, useMessage } from 'naive-ui';
 import { onClickOutside } from '@vueuse/core';
 
 import DocumentOutlineTree from '@/components/DocumentOutlineTree.vue';
 import MarkdownReadSurface from '@/components/MarkdownReadSurface.vue';
 import MarkdownEditor from '@/components/MarkdownEditor.vue';
-import { useAutosave } from '@/composables/useAutosave';
-import { useDb } from '@/composables/useDb';
 import { useMarkdown } from '@/composables/useMarkdown';
 import { useMarkdownOutline } from '@/composables/useMarkdownOutline';
-import { useNotesStore } from '@/stores/notes';
+import { useWritingSession } from '@/composables/useWritingSession';
 import { useUiStore } from '@/stores/ui';
 
 const ui = useUiStore();
 const message = useMessage();
-const { countWords } = useMarkdown();
+useMarkdown();
 
 const currentNoteId = ref<string | null>(ui.noteId ?? null);
+const session = useWritingSession(currentNoteId);
 const title = ref('');
 const content = ref('');
 const tags = ref<string[]>([]);
-const loaded = ref(false);
 const editingTitle = ref(false);
 const tagsDialogVisible = ref(false);
 const tagsDraftRows = ref<string[]>([]);
@@ -152,8 +150,8 @@ function onToggleEditMode() {
 }
 
 async function onOpenZen() {
-  await flushSave();
-  ui.navigateTo('zen', currentNoteId.value, 'note-editor');
+  await session.flushSave();
+  ui.navigateToZenFromEditor(currentNoteId.value);
 }
 
 function onSelectMode(mode: 'edit' | 'read' | 'zen') {

@@ -138,7 +138,7 @@ describe('ui store', () => {
     const ui = useUiStore();
 
     ui.navigateTo('note-editor', 'note-1');
-    ui.navigateTo('zen', 'note-1', 'note-editor');
+    ui.navigateTo('zen', 'note-1', { mode: 'note-editor', noteId: 'note-1' });
     ui.exitZen();
 
     expect(ui.mode).toBe('note-editor');

@@ -58,8 +58,21 @@ export interface StenoSettings {
   mainSidebarWidth: number;
   /** 主窗口侧边栏是否折叠。 */
   mainSidebarCollapsed: boolean;
+  /**
+   * 主列表条目类型筛选（持久化为逗号分隔字符串）。
+   *
+   * 空串 = 不过滤；典型值如 `'document,text'`。
+   * 解析/序列化通过 `parseTypeFilters` / `serializeTypeFilters`（在 library store 中）。
+   */
+  mainListTypeFilters: string;
+  /** 笔记编辑器大纲面板宽度（px）。 */
+  noteEditorOutlineWidth: number;
+  /** 笔记编辑器大纲面板是否展开。 */
+  noteEditorOutlineOpen: boolean;
   /** Zen 模式大纲面板宽度（px）。 */
   zenOutlineWidth: number;
+  /** Zen 模式大纲面板是否展开。 */
+  zenOutlineOpen: boolean;
 }
 
 /**
@@ -81,7 +94,11 @@ const DEFAULTS: StenoSettings = {
   backupEveryChanges: 10,
   mainSidebarWidth: 220,
   mainSidebarCollapsed: false,
-  zenOutlineWidth: 280,
+  mainListTypeFilters: '',
+  noteEditorOutlineWidth: 280,
+  noteEditorOutlineOpen: false,
+  zenOutlineWidth: 300,
+  zenOutlineOpen: true,
 };
 
 /**
@@ -109,6 +126,7 @@ function decode<K extends keyof StenoSettings>(
     case 'blurCloseDelayMs':
     case 'backupEveryChanges':
     case 'mainSidebarWidth':
+    case 'noteEditorOutlineWidth':
     case 'zenOutlineWidth': {
       const n = Number.parseInt(raw, 10);
       // 解析失败或 ≤0 时使用默认值

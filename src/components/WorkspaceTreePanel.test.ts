@@ -10,8 +10,8 @@ describe('WorkspaceTreePanel', () => {
     const wrapper = mount(WorkspaceTreePanel, {
       props: {
         entries: [
-          { id: 'folder-1', kind: 'folder', title: '项目目录', previewText: '', tags: [] },
-          { id: 'doc-1', kind: 'document', title: '设计文档', previewText: '', tags: [] },
+          { id: 'folder-1', kind: 'folder', title: '项目目录', previewText: '', tags: [], wordCount: 0, byteSize: 0, createdAt: '', updatedAt: '' },
+          { id: 'doc-1', kind: 'document', title: '设计文档', previewText: '', tags: [], wordCount: 0, byteSize: 0, createdAt: '', updatedAt: '' },
         ],
       },
     });
@@ -25,7 +25,7 @@ describe('WorkspaceTreePanel', () => {
     const wrapper = mount(WorkspaceTreePanel, {
       props: {
         entries: [
-          { id: 'folder-1', kind: 'folder', title: '项目目录', previewText: '', tags: [] },
+          { id: 'folder-1', kind: 'folder', title: '项目目录', previewText: '', tags: [], wordCount: 0, byteSize: 0, createdAt: '', updatedAt: '' },
         ],
       },
     });

@@ -199,3 +199,121 @@ export type WindowMode =
   | 'screenshot'
   | 'ocr'
   | 'translate';
+
+// ----- 工作区与文库条目（library_entries）DTO ----------------------------
+
+/**
+ * `library_entries.kind` 列对应的判别字段。
+ *
+ * - 容器型：`workspace` / `folder` / `group`
+ * - 内容型：`text`（Inbox 速记）/ `document`（工作区中的 .md 文件）
+ *
+ * 与 Rust `EntryKind`（`#[serde(rename_all = "camelCase")]`）对齐。
+ */
+export type EntryKind = 'workspace' | 'folder' | 'group' | 'text' | 'document';
+
+/**
+ * 主列表卡片视图条目 DTO — 对应 SQLite `library_entries` 一行。
+ *
+ * 字段语义由 `kind` 决定：容器条目（workspace/folder/group）没有 `filePath`；
+ * 内容条目（text/document）才有 `wordCount` / `byteSize` 等统计字段。
+ */
+export interface LibraryEntry {
+  id: string;
+  kind: EntryKind;
+  title: string;
+  previewText: string;
+  tags: string[];
+  workspaceId?: string | null;
+  parentId?: string | null;
+  groupId?: string | null;
+  /** 仅 `kind = 'document'` 时存在，指向工作区根目录下的相对路径。 */
+  filePath?: string | null;
+  wordCount: number;
+  byteSize: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * 工作区元数据 — 一条 `library_entries` 中 `kind = 'workspace'` 的行的额外信息。
+ */
+export interface Workspace {
+  id: string;
+  name: string;
+  /** 工作区在文件系统的绝对根路径。 */
+  rootPath: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * 主列表筛选上下文 — 前端通过它指定"看哪个工作区 / 分组 / 文件夹"。
+ *
+ * 三个 id 字段互斥：同时只允许其中一个非空（或全空表示全局 Inbox）。
+ */
+export interface MainListContext {
+  workspaceId?: string | null;
+  folderEntryId?: string | null;
+  groupEntryId?: string | null;
+  selectedEntryId?: string | null;
+}
+
+/**
+ * 创建工作区请求体。`name` 为空时后端自动从 `rootPath` 末段派生。
+ */
+export interface CreateWorkspaceRequest {
+  name?: string | null;
+  rootPath: string;
+}
+
+/**
+ * 编辑器加载条目时的 DTO — 比 `LibraryEntry` 多 `content`，少统计字段。
+ */
+export interface EditorEntry {
+  id: string;
+  kind: EntryKind;
+  title: string;
+  content: string;
+  tags: string[];
+  workspaceId?: string | null;
+  parentId?: string | null;
+  groupId?: string | null;
+  filePath?: string | null;
+}
+
+/**
+ * 保存 Text 条目（Inbox 速记）请求体。
+ *
+ * `id` 缺省时后端分配新 UUID；存在则更新。
+ */
+export interface SaveTextEntryRequest {
+  id?: string | null;
+  title?: string | null;
+  content: string;
+  tags: string[];
+  groupId?: string | null;
+}
+
+/**
+ * 保存 Document 条目（工作区 .md 文件）请求体。
+ *
+ * 必填 `workspaceId`；`folderEntryId` 为空时落到工作区根目录。
+ */
+export interface SaveDocumentEntryRequest {
+  id?: string | null;
+  title?: string | null;
+  content: string;
+  tags: string[];
+  workspaceId: string;
+  folderEntryId?: string | null;
+}
+
+/**
+ * 将 Text 条目"晋升"为工作区 Document（写到磁盘文件）的请求体。
+ */
+export interface ConvertTextToDocumentRequest {
+  id: string;
+  workspaceId: string;
+  folderEntryId?: string | null;
+}

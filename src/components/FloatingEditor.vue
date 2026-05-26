@@ -22,7 +22,7 @@ import { useAutosave } from '@/composables/useAutosave';
 import { useDb } from '@/composables/useDb';
 import { useMarkdown } from '@/composables/useMarkdown';
 import { useWindow } from '@/composables/useWindow';
-import { useLibraryStore } from '@/stores/library';
+import { useNotesStore } from '@/stores/notes';
 import { useSettingsStore } from '@/stores/settings';
 import type { Note, SaveNoteRequest } from '@/types/steno';
 
@@ -33,10 +33,9 @@ const props = withDefaults(defineProps<{
 });
 
 const db = useDb();
-const library = useLibraryStore();
+const notes = useNotesStore();
 const settings = useSettingsStore();
 const win = useWindow();
-const db = useDb();
 const appEvents = useAppEvents();
 const message = useMessage();
 const { countWords } = useMarkdown();

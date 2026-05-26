@@ -45,7 +45,9 @@ export function useWritingSession(initialNoteId: Ref<string | null>) {
         title.value = editorEntry.title;
         content.value = editorEntry.content;
         tags.value = [...editorEntry.tags];
-        sessionKind.value = editorEntry.kind;
+        if (editorEntry.kind === 'text' || editorEntry.kind === 'document') {
+          sessionKind.value = editorEntry.kind;
+        }
         if (editorEntry.kind === 'document' && editorEntry.workspaceId) {
           documentContext.value = {
             workspaceId: editorEntry.workspaceId,
@@ -63,7 +65,7 @@ export function useWritingSession(initialNoteId: Ref<string | null>) {
       sessionKind.value = 'document';
       documentContext.value = {
         workspaceId: library.context.workspaceId,
-        folderEntryId: library.context.folderEntryId,
+        folderEntryId: library.context.folderEntryId ?? null,
       };
     }
     loaded.value = true;

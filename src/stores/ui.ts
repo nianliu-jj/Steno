@@ -202,10 +202,10 @@ export const useUiStore = defineStore('ui', () => {
   /**
    * Zen 模式的"返回目标"。
    *
-   * 进入 Zen 前记录来源模式，退出时导航回去。
-   * 例如从 Canvas 双击卡片进入 Zen → `zenReturnMode = 'canvas'` → exitZen 回到画布。
+   * 进入 Zen 前记录来源路由（含 mode + noteId），退出时导航回去。
+   * 例如从 Canvas 双击卡片进入 Zen → `zenReturnRoute = { mode: 'canvas', noteId: null }` → exitZen 回到画布。
    */
-  const zenReturnMode = ref<MainRouteMode | null>(null);
+  const zenReturnRoute = ref<{ mode: MainRouteMode; noteId: string | null } | null>(null);
 
   /**
    * 导航到指定页面型模式。
@@ -264,10 +264,10 @@ export const useUiStore = defineStore('ui', () => {
 
   /** 退出 Zen 模式，回到进入前的页面。 */
   function exitZen() {
-    const target = zenReturnMode.value;
+    const target = zenReturnRoute.value;
     // navigateTo 内部只在 zen / note-editor 模式下接受 noteId，
     // 对 canvas / main 等目标会自动丢弃，不必在此分类处理。
-    navigateTo(target ?? 'main', noteId.value);
+    navigateTo(target?.mode ?? 'main', target?.noteId ?? noteId.value);
   }
 
   /** 关闭设置 Modal。 */

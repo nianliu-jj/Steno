@@ -18,16 +18,15 @@
  * （如从 Canvas 双击进入 → 退出后回到 Canvas）。
  */
 
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { NDropdown, NInput, NText, useMessage } from 'naive-ui';
 
 import DocumentOutlineTree from '@/components/DocumentOutlineTree.vue';
 import MarkdownEditor from '@/components/MarkdownEditor.vue';
-import { useAutosave } from '@/composables/useAutosave';
 import { useDb } from '@/composables/useDb';
 import { useMarkdown } from '@/composables/useMarkdown';
 import { useMarkdownOutline } from '@/composables/useMarkdownOutline';
-import { useNotesStore } from '@/stores/notes';
+import { useWritingSession } from '@/composables/useWritingSession';
 import { useUiStore } from '@/stores/ui';
 
 const db = useDb();
@@ -36,13 +35,10 @@ const { countWords } = useMarkdown();
 const { buildOutline } = useMarkdownOutline();
 const message = useMessage();
 const session = useWritingSession(ref(ui.noteId ?? readIdFromUrl()));
-const outline = useOutlineSidebarState('zen');
 
-const currentNoteId = ref<string | null>(null);
 const title = ref('');
 const content = ref('');
 const tags = ref<string[]>([]);
-const loaded = ref(false);
 
 const titleEditing = ref(false);
 const titleInputRef = ref<{ focus: () => void } | null>(null);
@@ -50,7 +46,7 @@ const outlineOpen = ref(false);
 
 const wordCount = computed(() => countWords(content.value));
 const isEmpty = computed(
-  () => !session.title.value.trim() && !session.content.value.trim() && session.tags.value.length === 0,
+    () => !session.title.value.trim() && !session.content.value.trim() && session.tags.value.length === 0,
 );
 const outlineNodes = computed(() => buildOutline(content.value));
 const displayTitle = computed(() => title.value.trim() || '无标题');
@@ -73,8 +69,8 @@ const statusText = computed(() => {
       return '保存中…';
     case 'saved':
       return session.savedAt.value
-        ? `已保存 ${session.savedAt.value.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
-        : '已保存';
+          ? `已保存 ${session.savedAt.value.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
+          : '已保存';
     case 'error':
       return `保存失败：${String(session.error.value).slice(0, 40)}`;
     default:
@@ -132,8 +128,8 @@ async function onExport(key: string) {
     message.warning('请先输入内容（保存后才能导出）');
     return;
   }
-  await flushSave();
-  if (status.value === 'error') {
+  await session.flushSave();
+  if (session.status.value === 'error') {
     message.error('保存失败，已取消导出');
     return;
   }
@@ -155,7 +151,7 @@ onMounted(() => {
 });
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown);
-  void flushSave();
+  void session.flushSave();
 });
 </script>
 

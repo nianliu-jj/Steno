@@ -13,6 +13,11 @@ import { invoke } from '@tauri-apps/api/core';
 import type {
   CanvasPosition,
   ClipboardEntry,
+  ConvertTextToDocumentRequest,
+  CreateWorkspaceRequest,
+  EditorEntry,
+  LibraryEntry,
+  MainListContext,
   Note,
   PinnedWindowConfig,
   SaveDocumentEntryRequest,
@@ -145,6 +150,72 @@ export function useDb() {
    */
   function updateCanvasPosition(id: string, position: CanvasPosition) {
     return invoke<Note>('update_canvas_position', { id, position });
+  }
+
+  // ----- workspaces & library entries ---------------------------------
+
+  /**
+   * 保存/新建 Text 类型条目（Inbox 速记）。
+   *
+   * `id` 缺省 → 新建；存在 → 更新。
+   */
+  function saveTextEntry(input: SaveTextEntryRequest) {
+    return invoke<LibraryEntry>('save_text_entry', { input });
+  }
+
+  /**
+   * 保存/新建 Document 类型条目（工作区中的 .md 文件）。
+   *
+   * 必填 `workspaceId`；`folderEntryId` 为空时落到工作区根目录。
+   */
+  function saveDocumentEntry(input: SaveDocumentEntryRequest) {
+    return invoke<LibraryEntry>('save_document_entry', { input });
+  }
+
+  /**
+   * 将 Text 条目"晋升"为工作区 Document（写入磁盘文件）。
+   */
+  function convertTextToDocument(input: ConvertTextToDocumentRequest) {
+    return invoke<LibraryEntry>('convert_text_to_document', { input });
+  }
+
+  /**
+   * 加载编辑器视图所需的条目（含正文）。
+   *
+   * @returns 编辑器条目；不存在返回 `null`
+   */
+  function getEditorEntry(id: string) {
+    return invoke<EditorEntry | null>('get_editor_entry', { id });
+  }
+
+  /**
+   * 列出主列表条目（按 `MainListContext` 筛选）。
+   *
+   * 上下文三个 id 字段互斥：同时只允许其中一个非空（或全空表示全局 Inbox）。
+   */
+  function listLibraryEntries(context: MainListContext) {
+    return invoke<LibraryEntry[]>('list_library_entries', { context });
+  }
+
+  /**
+   * 列出指定工作区的层级树（按 `parentId` 嵌套，前端自行组装）。
+   */
+  function listWorkspaceTree(workspaceId: string) {
+    return invoke<LibraryEntry[]>('list_workspace_tree', { workspaceId });
+  }
+
+  /**
+   * 列出所有工作区元数据。
+   */
+  function listWorkspaces() {
+    return invoke<Workspace[]>('list_workspaces');
+  }
+
+  /**
+   * 创建新工作区。`name` 为空时后端从 `rootPath` 末段派生。
+   */
+  function createWorkspace(input: CreateWorkspaceRequest) {
+    return invoke<Workspace>('create_workspace', { input });
   }
 
   // ----- clipboard -----------------------------------------------------
