@@ -14,6 +14,7 @@ import type {
   CanvasPosition,
   ClipboardEntry,
   ConvertTextToDocumentRequest,
+  CreateTodoRequest,
   CreateWorkspaceRequest,
   EditorEntry,
   LibraryEntry,
@@ -24,6 +25,8 @@ import type {
   SaveNoteRequest,
   SaveTextEntryRequest,
   SearchNotesRequest,
+  Todo,
+  UpdateTodoRequest,
   Workspace,
 } from '@/types/steno';
 
@@ -244,6 +247,63 @@ export function useDb() {
     return invoke<void>('copy_clipboard_entry', { id });
   }
 
+  // ----- todos ---------------------------------------------------------
+
+  /** 列出全部未删除待办（按状态 + 截止日 + 创建时间排序）。 */
+  function listTodos() {
+    return invoke<Todo[]>('list_todos');
+  }
+
+  /**
+   * 取"今日"维度的待办。
+   *
+   * @param includeCompleted - 是否包含当日已完成；默认 `false`
+   */
+  function getTodayTodos(includeCompleted = false) {
+    return invoke<Todo[]>('get_today_todos', {
+      input: { includeCompleted },
+    });
+  }
+
+  /** 新增待办；后端会校验 content 长度（1..=500）。 */
+  function createTodo(input: CreateTodoRequest) {
+    return invoke<Todo>('create_todo', { input });
+  }
+
+  /** 部分字段更新待办；状态转换 done ⇄ 非 done 会自动维护 completedAt。 */
+  function updateTodo(input: UpdateTodoRequest) {
+    return invoke<Todo>('update_todo', { input });
+  }
+
+  /** 标记为已完成 — 等价于 `updateTodo({ id, status: 'done' })` 的快捷路径。 */
+  function completeTodo(id: string) {
+    return invoke<Todo>('complete_todo', { id });
+  }
+
+  /** 逻辑删除（is_deleted=1），列表查询会自动跳过。 */
+  function deleteTodo(id: string) {
+    return invoke<void>('delete_todo', { id });
+  }
+
+  // ----- 待办浮窗窗口控制 ----------------------------------------------
+
+  /**
+   * 显示待办浮窗。
+   *
+   * @param position - 可选位置策略；缺省时从 settings 读 `todoQuickPanelPosition`
+   */
+  function showTodoPanel(position?: 'bottom-right' | 'cursor' | 'last') {
+    return invoke<void>('show_todo_panel', { position: position ?? null });
+  }
+
+  function hideTodoPanel() {
+    return invoke<void>('hide_todo_panel');
+  }
+
+  function toggleTodoPanel() {
+    return invoke<void>('toggle_todo_panel');
+  }
+
   // ----- settings ------------------------------------------------------
 
   /**
@@ -353,6 +413,15 @@ export function useDb() {
     deleteClipboardEntry,
     clearClipboardEntries,
     copyClipboardEntry,
+    listTodos,
+    getTodayTodos,
+    createTodo,
+    updateTodo,
+    completeTodo,
+    deleteTodo,
+    showTodoPanel,
+    hideTodoPanel,
+    toggleTodoPanel,
     getSetting,
     setSetting,
     reloadShortcuts,

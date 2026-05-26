@@ -126,6 +126,13 @@ vi.mock('@/stores/settings', () => ({
   }),
 }));
 
+vi.mock('@/stores/todos', () => ({
+  useTodosStore: () => ({
+    startEventListeners: vi.fn(async () => {}),
+    stopEventListeners: vi.fn(() => {}),
+  }),
+}));
+
 vi.mock('@/components/MainWorkbenchShell.vue', async () => {
   const { defineComponent, h } = await import('vue');
 

@@ -317,3 +317,73 @@ export interface ConvertTextToDocumentRequest {
   workspaceId: string;
   folderEntryId?: string | null;
 }
+
+// ----- 待办（todos） ---------------------------------------------------
+
+/** 待办状态机：新建 / 进行中 / 暂停 / 已完成。 */
+export type TodoStatus = 'todo' | 'doing' | 'paused' | 'done';
+
+/**
+ * 待办事项 DTO — 与后端 `todo.rs::Todo`（camelCase 序列化）一致。
+ *
+ * 时间字段一律 RFC3339 字符串，前端可直接 `new Date(field)` 构造。
+ */
+export interface Todo {
+  id: string;
+  content: string;
+  status: TodoStatus;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  dueDate: string | null;
+  reminderTime: string | null;
+  listId: string;
+}
+
+/** 创建请求 — `id` 由后端生成，`status` 始终从 `todo` 起步。 */
+export interface CreateTodoRequest {
+  content: string;
+  dueDate?: string | null;
+  reminderTime?: string | null;
+  listId?: string | null;
+}
+
+/**
+ * 更新请求 — 所有字段可选，仅传入要改的部分。
+ *
+ * `dueDate` / `reminderTime` 显式传 `null` 表示清空；不传字段则保留原值
+ * （前端调用方需自行判断是否传 `null`）。
+ */
+export interface UpdateTodoRequest {
+  id: string;
+  content?: string;
+  status?: TodoStatus;
+  dueDate?: string | null;
+  reminderTime?: string | null;
+  listId?: string;
+}
+
+/** 跨窗口同步事件变更类型。 */
+export type TodoChangeKind = 'created' | 'updated' | 'completed' | 'deleted';
+
+/**
+ * `steno:todo-changed` 事件 payload — 由后端 `commands.rs` 在每次
+ * 写操作成功后 emit；前端 `useTodosStore.applyRemoteChange` 据此局部更新缓存。
+ *
+ * 删除事件下 `todo` 为 `null`。
+ */
+export interface TodoChangePayload {
+  kind: TodoChangeKind;
+  id: string;
+  todo: Todo | null;
+}
+
+/** 主窗口待办视图的左侧分类标识。 */
+export type TodoCategory =
+  | 'today'
+  | 'planned'
+  | 'doing'
+  | 'paused'
+  | 'done'
+  | 'all'
+  | 'inbox';

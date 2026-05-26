@@ -13,6 +13,7 @@ import { useDark } from '@vueuse/core';
 import { useAppEvents } from '@/composables/useAppEvents';
 import { useUiStore } from '@/stores/ui';
 import { useSettingsStore } from '@/stores/settings';
+import { useTodosStore } from '@/stores/todos';
 import { getAppThemeVars } from '@/theme';
 import FloatingEditor from '@/components/FloatingEditor.vue';
 import MainWorkbenchShell from '@/components/MainWorkbenchShell.vue';
@@ -28,6 +29,7 @@ import type { ThemeMode } from '@/stores/settings';
 
 const ui = useUiStore();
 const settings = useSettingsStore();
+const todos = useTodosStore();
 const { listenThemeModeChanged } = useAppEvents();
 
 const isDark = useDark();
@@ -103,12 +105,15 @@ onMounted(() => {
       themeModeDuringLoad = null;
     }
   });
+
+  void todos.startEventListeners();
 });
 
 onBeforeUnmount(() => {
   disposed = true;
   unlistenThemeModeChanged?.();
   unlistenThemeModeChanged = null;
+  todos.stopEventListeners();
 });
 
 // themeMode 优先级：用户在 SettingsView 显式切换 → 覆盖 system；'system' 时

@@ -16,7 +16,7 @@ import { isTauri } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';
 
 import type { ThemeMode } from '@/stores/settings';
-import type { Note } from '@/types/steno';
+import type { Note, TodoChangePayload } from '@/types/steno';
 
 /** 主题变更事件名。 */
 const THEME_MODE_CHANGED_EVENT = 'steno:theme-mode-changed';
@@ -24,11 +24,17 @@ const THEME_MODE_CHANGED_EVENT = 'steno:theme-mode-changed';
 const NOTE_SAVED_EVENT = 'steno:note-saved';
 /** 笔记删除事件名（payload = `{ id: string }`）。 */
 const NOTE_REMOVED_EVENT = 'steno:note-removed';
+/** 待办增量同步事件名（payload = `TodoChangePayload`）。 */
+const TODO_CHANGED_EVENT = 'steno:todo-changed';
+/** 待办浮窗 toggle 事件名（payload = `boolean`，true = 刚显示，false = 刚隐藏）。 */
+const TODO_PANEL_TOGGLE_EVENT = 'steno:todo-panel-toggle';
 
 /** 笔记保存事件的 payload 类型 — 就是完整的 Note DTO。 */
 export type NoteSavedPayload = Note;
 /** 笔记删除事件的 payload 类型 — 仅需 id。 */
 export type NoteRemovedPayload = { id: string };
+/** 待办浮窗 toggle 事件 payload — `true` 表示窗口已显示。 */
+export type TodoPanelTogglePayload = boolean;
 
 /** 主题变更事件的 payload 类型。 */
 export type AppThemeModeChangedPayload = ThemeMode;
@@ -123,6 +129,26 @@ export function useAppEvents() {
     return safeListen(NOTE_REMOVED_EVENT, handler);
   }
 
+  /**
+   * 监听待办变更事件 — store 据此局部更新缓存。
+   *
+   * @param handler - 收到 payload 后的回调（store.applyRemoteChange 的入参）
+   * @returns unlisten 函数
+   */
+  function listenTodoChanged(handler: (payload: TodoChangePayload) => void) {
+    return safeListen(TODO_CHANGED_EVENT, handler);
+  }
+
+  /**
+   * 监听待办浮窗 toggle 事件 — 浮窗内可在 `true` 时聚焦输入框。
+   *
+   * @param handler - 收到事件后的回调（payload = 当前是否可见）
+   * @returns unlisten 函数
+   */
+  function listenTodoPanelToggle(handler: (payload: TodoPanelTogglePayload) => void) {
+    return safeListen(TODO_PANEL_TOGGLE_EVENT, handler);
+  }
+
   return {
     emitThemeModeChanged,
     emitNoteSaved,
@@ -130,5 +156,7 @@ export function useAppEvents() {
     listenThemeModeChanged,
     listenNoteSaved,
     listenNoteRemoved,
+    listenTodoChanged,
+    listenTodoPanelToggle,
   };
 }
