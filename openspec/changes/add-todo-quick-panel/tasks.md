@@ -63,11 +63,11 @@
 
 ## 7. 跨窗口集成与端到端验证
 
-- [ ] 7.1 在主窗口、浮窗、Quicknote 三处都建立 `listenTodoChanged` 监听器，并在窗口卸载时正确 unlisten
-- [ ] 7.2 在 macOS / Windows 实机分别按快捷键唤起浮窗，验证 ≤200ms、focus 正确、ESC 行为符合预期
-- [ ] 7.3 验证：浮窗写入 → 主窗口"今天"分类立即看到；主窗口完成任务 → 浮窗对应项消失
-- [ ] 7.4 验证：在快捷键被占用场景下（先开 Chrome 占用 Ctrl+Shift+T），设置面板能正常重新绑定
-- [ ] 7.5 验证：关闭浮窗功能开关后再打开，无残留监听 / 重复注册
+- [x] 7.1 在主窗口、浮窗、Quicknote 三处都建立 `listenTodoChanged` 监听器，并在窗口卸载时正确 unlisten（App.vue mounted 启动 + onBeforeUnmount stop；TodoQuickPanel/TodoView mounted 再调一次走 store 内 listenersStarted mutex 幂等；TodoQuickPanel.listenTodoPanelToggle 单独 onBeforeUnmount unlisten）
+- [ ] 7.2 在 macOS / Windows 实机分别按快捷键唤起浮窗，验证 ≤200ms、focus 正确、ESC 行为符合预期（见 manual-verification.md §7.2）
+- [ ] 7.3 验证：浮窗写入 → 主窗口"今天"分类立即看到；主窗口完成任务 → 浮窗对应项消失（见 manual-verification.md §7.3）
+- [ ] 7.4 验证：在快捷键被占用场景下（先开 Chrome 占用 Ctrl+Shift+T），设置面板能正常重新绑定（见 manual-verification.md §7.4）
+- [ ] 7.5 验证：关闭浮窗功能开关后再打开，无残留监听 / 重复注册（见 manual-verification.md §7.5）
 
 ## 8. 文档与归档
 
