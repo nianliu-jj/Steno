@@ -89,13 +89,13 @@
 
 ## 9. Phase C — 综合验证、文档与归档
 
-- [ ] 9.1 在仓库根目录执行 `pnpm typecheck` 通过
-- [ ] 9.2 执行 `pnpm test` (vitest) 全套通过
-- [ ] 9.3 在 `src-tauri/` 执行 `cargo test` 全套通过（包括迁移测试、调度器测试、统计查询测试）
-- [ ] 9.4 执行 `pnpm lint` 0 errors
-- [ ] 9.5 在 `openspec/changes/add-todo-reminders-and-stats/` 创建 `manual-verification.md`：手动冒烟清单（含提醒触发实测、热力图渲染、折线图过滤、重置数据）
+- [x] 9.1 在仓库根目录执行 `pnpm typecheck` 通过
+- [x] 9.2 执行 `pnpm test` (vitest) 全套通过
+- [x] 9.3 在 `src-tauri/` 执行 `cargo test` 全套通过（包括迁移测试、调度器测试、统计查询测试）
+- [x] 9.4 执行 `pnpm lint` 0 errors
+- [x] 9.5 在 `openspec/changes/add-todo-reminders-and-stats/` 创建 `manual-verification.md`：手动冒烟清单（含提醒触发实测、热力图渲染、折线图过滤、重置数据）
 - [ ] 9.6 `pnpm tauri dev` 实机验证：提醒到期弹通知、跨主窗口/浮窗的 `started_at` / `reminder_fired` 一致、StatsView 双图渲染正确、暗色模式样式
-- [ ] 9.7 更新 `README.md` 的特性表（提醒系统、统计视图）
-- [ ] 9.8 执行 `openspec validate add-todo-reminders-and-stats --strict` 通过
-- [ ] 9.9 提交：`docs+test: 待办提醒/统计 Phase C — 验证清单 + README 更新`
+- [x] 9.7 更新 `README.md` 的特性表（提醒系统、统计视图）
+- [x] 9.8 执行 `openspec validate add-todo-reminders-and-stats --strict` 通过
+- [x] 9.9 提交：`docs+test: 待办提醒/统计 Phase C — 验证清单 + README 更新`
 - [ ] 9.10 用户验收后 `openspec archive add-todo-reminders-and-stats`（写入 `openspec/specs/`）

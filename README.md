@@ -89,6 +89,8 @@
 | 📝 | **速记浮窗** | 任何应用之上弹出，Markdown 语法 + `#tag` 标签，自动保存 |
 | 📌 | **置顶便签** | 笔记可"钉"在桌面，多窗口并存，可调透明度/颜色/字号 |
 | ✅ | **待办浮窗** | 全局快捷键呼出今日待办，跨窗口同步；主窗口提供分类管理（今天 / 计划中 / 进行中 / 已暂停 / 已完成 / 收件箱 / 全部） |
+| ⏰ | **待办提醒** | 可配置快捷提醒选项或自定义时间，到期后由系统原生通知提醒 |
+| 📊 | **统计视图** | 任务活跃度热力图 + 每日创建 / 开始 / 完成趋势折线图，支持范围与状态过滤 |
 | 🗺 | **无限画布** | 卡片自由排列/缩放/平移，标签过滤，双击编辑 |
 | 🧘 | **Zen 模式** | 全屏沉浸写作，大纲导航，Esc 退出 |
 | 🌗 | **亮/暗/系统主题** | 跟随系统，OKLCH 均匀色彩空间，瞬切 |
@@ -135,6 +137,7 @@ pnpm tauri:build
 
 ```bash
 pnpm typecheck   # vue-tsc --noEmit
+pnpm test        # Vitest 全套测试
 pnpm lint        # oxlint + eslint --fix
 pnpm fmt         # oxfmt
 cd src-tauri && cargo test   # Rust 单元测试
@@ -245,6 +248,7 @@ steno/
 | `pnpm tauri:dev` | Tauri 开发窗口 |
 | `pnpm tauri:build` | 生产构建 |
 | `pnpm typecheck` | `vue-tsc --noEmit` 类型检查 |
+| `pnpm test` | Vitest 全套测试 |
 | `pnpm lint` | `oxlint + eslint --fix` |
 | `pnpm fmt` | `oxfmt` 格式化 |
 | `cd src-tauri && cargo test` | Rust 单元测试 |
