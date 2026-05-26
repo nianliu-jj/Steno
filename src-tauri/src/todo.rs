@@ -67,6 +67,10 @@ pub struct Todo {
     pub completed_at: Option<String>,
     pub due_date: Option<String>,
     pub reminder_time: Option<String>,
+    /// 提醒是否已被调度器触发（防止重复弹通知）。修改 `reminder_time` 时后端会重置为 false。
+    pub reminder_fired: bool,
+    /// `status` 首次进入 `Doing` 的 RFC3339 时间戳；用于"开始"折线统计。
+    pub started_at: Option<String>,
     pub list_id: String,
 }
 
@@ -155,6 +159,8 @@ mod tests {
             completed_at: None,
             due_date: None,
             reminder_time: None,
+            reminder_fired: false,
+            started_at: None,
             list_id: "default".into(),
         };
         let json = serde_json::to_value(&todo).unwrap();
@@ -162,6 +168,8 @@ mod tests {
         assert_eq!(json["updatedAt"], "2026-05-26T10:00:00Z");
         assert_eq!(json["listId"], "default");
         assert_eq!(json["status"], "todo");
+        assert_eq!(json["reminderFired"], false);
+        assert!(json["startedAt"].is_null());
         assert!(json.get("created_at").is_none());
     }
 

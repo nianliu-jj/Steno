@@ -338,6 +338,10 @@ export interface Todo {
   completedAt: string | null;
   dueDate: string | null;
   reminderTime: string | null;
+  /** 提醒是否已被调度器触发；修改 `reminderTime` 会重置为 false。 */
+  reminderFired: boolean;
+  /** 首次进入 `doing` 的 RFC3339 时间戳，用于统计折线"开始"序列。 */
+  startedAt: string | null;
   listId: string;
 }
 

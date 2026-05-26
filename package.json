@@ -38,6 +38,7 @@
     "@sa/utils": "workspace:*",
     "@tauri-apps/api": "^2.1.1",
     "@tauri-apps/plugin-dialog": "^2.7.1",
+    "@tauri-apps/plugin-notification": "^2.3.3",
     "@vueuse/core": "14.2.1",
     "dayjs": "1.11.19",
     "defu": "6.1.4",

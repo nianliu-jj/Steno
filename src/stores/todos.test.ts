@@ -69,6 +69,8 @@ function makeTodo(overrides: Partial<Todo> = {}): Todo {
     completedAt: null,
     dueDate: null,
     reminderTime: null,
+    reminderFired: false,
+    startedAt: null,
     listId: 'default',
     ...overrides,
   };

@@ -246,16 +246,18 @@ impl Db {
             tx.execute_batch(
                 "
                 CREATE TABLE IF NOT EXISTS todos (
-                  id            TEXT PRIMARY KEY,
-                  content       TEXT NOT NULL,
-                  status        TEXT NOT NULL DEFAULT 'todo',
-                  created_at    TEXT NOT NULL,
-                  updated_at    TEXT NOT NULL,
-                  completed_at  TEXT,
-                  due_date      TEXT,
-                  reminder_time TEXT,
-                  list_id       TEXT NOT NULL DEFAULT 'default',
-                  is_deleted    INTEGER NOT NULL DEFAULT 0
+                  id             TEXT PRIMARY KEY,
+                  content        TEXT NOT NULL,
+                  status         TEXT NOT NULL DEFAULT 'todo',
+                  created_at     TEXT NOT NULL,
+                  updated_at     TEXT NOT NULL,
+                  completed_at   TEXT,
+                  due_date       TEXT,
+                  reminder_time  TEXT,
+                  reminder_fired INTEGER NOT NULL DEFAULT 0,
+                  started_at     TEXT,
+                  list_id        TEXT NOT NULL DEFAULT 'default',
+                  is_deleted     INTEGER NOT NULL DEFAULT 0
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_todos_status ON todos(status);
@@ -264,6 +266,28 @@ impl Db {
                 ",
             )?;
             tx.pragma_update(None, "user_version", 5_i64)?;
+            tx.commit()?;
+        }
+        if version < 6 {
+            // v6：todos 表新增 reminder_fired / started_at 两列（提醒触发标记与首次进入 doing 时间戳），
+            // 并补 reminder_time / completed_at 两个统计/调度用索引。已升过 v5 的旧库通过 ALTER 补齐。
+            let tx = conn.transaction()?;
+            if !Self::todos_has_column(&tx, "reminder_fired")? {
+                tx.execute(
+                    "ALTER TABLE todos ADD COLUMN reminder_fired INTEGER NOT NULL DEFAULT 0",
+                    [],
+                )?;
+            }
+            if !Self::todos_has_column(&tx, "started_at")? {
+                tx.execute("ALTER TABLE todos ADD COLUMN started_at TEXT", [])?;
+            }
+            tx.execute_batch(
+                "
+                CREATE INDEX IF NOT EXISTS idx_todos_reminder_time ON todos(reminder_time);
+                CREATE INDEX IF NOT EXISTS idx_todos_completed_at  ON todos(completed_at);
+                ",
+            )?;
+            tx.pragma_update(None, "user_version", 6_i64)?;
             tx.commit()?;
         }
         // 幂等自检：dev 库偶尔会出现 user_version 已升到 2 但实际 ALTER 没成功
@@ -278,6 +302,16 @@ impl Db {
             .query_map([], |row| row.get::<_, String>(1))?
             .filter_map(Result::ok)
             .any(|name| name == "is_draft");
+        Ok(exists)
+    }
+
+    /// 检查 `todos` 表是否已存在指定列。v6 ALTER 之前用于幂等保护。
+    fn todos_has_column(conn: &Connection, column: &str) -> Result<bool, DbError> {
+        let mut stmt = conn.prepare("PRAGMA table_info(todos)")?;
+        let exists = stmt
+            .query_map([], |row| row.get::<_, String>(1))?
+            .filter_map(Result::ok)
+            .any(|name| name == column);
         Ok(exists)
     }
 
@@ -1378,7 +1412,7 @@ impl Db {
         let conn = self.lock()?;
         let mut stmt = conn.prepare(
             "SELECT id, content, status, created_at, updated_at, completed_at,
-                    due_date, reminder_time, list_id
+                    due_date, reminder_time, reminder_fired, started_at, list_id
                FROM todos
               WHERE is_deleted = 0
               ORDER BY
@@ -1398,7 +1432,7 @@ impl Db {
         let conn = self.lock()?;
         let mut sql = String::from(
             "SELECT id, content, status, created_at, updated_at, completed_at,
-                    due_date, reminder_time, list_id
+                    due_date, reminder_time, reminder_fired, started_at, list_id
                FROM todos
               WHERE is_deleted = 0
                 AND (
@@ -1419,7 +1453,7 @@ impl Db {
         let todo = conn
             .query_row(
                 "SELECT id, content, status, created_at, updated_at, completed_at,
-                        due_date, reminder_time, list_id
+                        due_date, reminder_time, reminder_fired, started_at, list_id
                    FROM todos
                   WHERE id = ?1 AND is_deleted = 0",
                 rusqlite::params![id],
@@ -1479,6 +1513,7 @@ fn row_to_workspace(row: &rusqlite::Row<'_>) -> rusqlite::Result<Workspace> {
 fn row_to_todo(row: &rusqlite::Row<'_>) -> rusqlite::Result<Todo> {
     let status_raw: String = row.get(2)?;
     let status = TodoStatus::parse(&status_raw).unwrap_or(TodoStatus::Todo);
+    let reminder_fired: i64 = row.get(8)?;
     Ok(Todo {
         id: row.get(0)?,
         content: row.get(1)?,
@@ -1488,7 +1523,9 @@ fn row_to_todo(row: &rusqlite::Row<'_>) -> rusqlite::Result<Todo> {
         completed_at: row.get(5)?,
         due_date: row.get(6)?,
         reminder_time: row.get(7)?,
-        list_id: row.get(8)?,
+        reminder_fired: reminder_fired != 0,
+        started_at: row.get(9)?,
+        list_id: row.get(10)?,
     })
 }
 
@@ -1776,7 +1813,7 @@ mod tests {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 5);
+        assert_eq!(version, 6);
     }
 
     #[test]
@@ -1863,7 +1900,7 @@ mod tests {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 5);
+        assert_eq!(version, 6);
     }
 
     // --- derive_title ---
@@ -2511,17 +2548,109 @@ mod tests {
         assert!(indexes.contains(&"idx_todos_status".to_string()));
         assert!(indexes.contains(&"idx_todos_due_date".to_string()));
         assert!(indexes.contains(&"idx_todos_is_deleted".to_string()));
+        assert!(indexes.contains(&"idx_todos_reminder_time".to_string()));
+        assert!(indexes.contains(&"idx_todos_completed_at".to_string()));
+
+        // 新装路径下 v6 列也应在 CREATE TABLE 中存在。
+        let mut stmt = conn.prepare("PRAGMA table_info(todos)").unwrap();
+        let columns: Vec<String> = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert!(columns.contains(&"reminder_fired".to_string()));
+        assert!(columns.contains(&"started_at".to_string()));
     }
 
     #[test]
-    fn migrate_v5_is_idempotent() {
+    fn migrate_v5_to_v6_adds_columns_and_indexes() {
+        // 模拟"上一版本"留下的库：user_version=5、todos 表存在但缺少 v6 两列与索引。
+        // notes 表也要预先建好，因为 migrate 末尾的 ensure_is_draft_column 自检会触达 notes。
         let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "
+            CREATE TABLE notes (
+              id TEXT PRIMARY KEY,
+              title TEXT NOT NULL,
+              content TEXT NOT NULL,
+              html_content TEXT NOT NULL,
+              tags TEXT NOT NULL DEFAULT '[]',
+              is_pinned INTEGER NOT NULL DEFAULT 0,
+              pinned_window_config TEXT,
+              canvas_position TEXT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              word_count INTEGER NOT NULL DEFAULT 0,
+              is_draft INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE TABLE todos (
+              id            TEXT PRIMARY KEY,
+              content       TEXT NOT NULL,
+              status        TEXT NOT NULL DEFAULT 'todo',
+              created_at    TEXT NOT NULL,
+              updated_at    TEXT NOT NULL,
+              completed_at  TEXT,
+              due_date      TEXT,
+              reminder_time TEXT,
+              list_id       TEXT NOT NULL DEFAULT 'default',
+              is_deleted    INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX idx_todos_status ON todos(status);
+            CREATE INDEX idx_todos_due_date ON todos(due_date);
+            CREATE INDEX idx_todos_is_deleted ON todos(is_deleted);
+            ",
+        )
+        .unwrap();
+        conn.pragma_update(None, "user_version", 5_i64).unwrap();
+        // 插入一行旧数据，验证 ALTER 后保留。
+        conn.execute(
+            "INSERT INTO todos (id, content, status, created_at, updated_at)
+             VALUES ('legacy-1', '旧任务', 'todo', '2026-05-25T10:00:00Z', '2026-05-25T10:00:00Z')",
+            [],
+        )
+        .unwrap();
+
         Db::migrate(&mut conn).unwrap();
-        Db::migrate(&mut conn).unwrap();
+
+        // 新列已加。
+        let mut stmt = conn.prepare("PRAGMA table_info(todos)").unwrap();
+        let columns: Vec<String> = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert!(columns.contains(&"reminder_fired".to_string()));
+        assert!(columns.contains(&"started_at".to_string()));
+
+        // 新索引已建。
+        let mut stmt = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='todos'")
+            .unwrap();
+        let indexes: Vec<String> = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert!(indexes.contains(&"idx_todos_reminder_time".to_string()));
+        assert!(indexes.contains(&"idx_todos_completed_at".to_string()));
+
+        // 旧数据保留，新列填充默认值。
+        let (rf, sa): (i64, Option<String>) = conn
+            .query_row(
+                "SELECT reminder_fired, started_at FROM todos WHERE id='legacy-1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(rf, 0);
+        assert_eq!(sa, None);
+
+        // user_version 已升到 6。
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 5);
+        assert_eq!(version, 6);
     }
 
     #[test]
