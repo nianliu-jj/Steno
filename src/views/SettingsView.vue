@@ -24,6 +24,7 @@ import {
   NButton,
   NInput,
   NInputNumber,
+  NPopconfirm,
   NRadio,
   NRadioGroup,
   NSelect,
@@ -36,11 +37,13 @@ import {
 import { useAppEvents } from '@/composables/useAppEvents';
 import { useDb } from '@/composables/useDb';
 import {
+  DEFAULT_REMINDER_QUICK_OPTIONS,
   useSettingsStore,
   type EditorMode,
   type StenoSettings,
   type ThemeMode,
 } from '@/stores/settings';
+import type { ReminderOption } from '@/types/steno';
 import { useUiStore } from '@/stores/ui';
 
 const props = withDefaults(defineProps<{ embedded?: boolean }>(), {
@@ -51,13 +54,22 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-type SettingsSection = 'general' | 'appearance' | 'shortcuts' | 'todo' | 'privacy' | 'storage' | 'about';
+type SettingsSection =
+  | 'general'
+  | 'appearance'
+  | 'shortcuts'
+  | 'todo'
+  | 'reminders'
+  | 'privacy'
+  | 'storage'
+  | 'about';
 
 const sections: { key: SettingsSection; label: string; eyebrow: string }[] = [
   { key: 'general', label: '常规', eyebrow: '启动与速记' },
   { key: 'appearance', label: '外观', eyebrow: '主题与编辑' },
   { key: 'shortcuts', label: '快捷键', eyebrow: '全局入口' },
   { key: 'todo', label: '待办浮窗', eyebrow: '快捷与位置' },
+  { key: 'reminders', label: '提醒设置', eyebrow: '快捷选项' },
   { key: 'privacy', label: '隐私安全', eyebrow: '本地优先' },
   { key: 'storage', label: '存储', eyebrow: '路径与备份' },
   { key: 'about', label: '关于', eyebrow: '版本信息' },
@@ -198,6 +210,90 @@ const editorModeOptions = [
   { label: '只编辑', value: 'edit' },
   { label: '只预览', value: 'preview' },
 ] satisfies { label: string; value: EditorMode }[];
+
+const reminderUnitOptions = [
+  { label: '分钟', value: 'minute' },
+  { label: '小时', value: 'hour' },
+  { label: '天', value: 'day' },
+] satisfies { label: string; value: ReminderOption['unit'] }[];
+
+function cloneReminderOptions(options: ReminderOption[]) {
+  return options.map(option => ({ ...option }));
+}
+
+function nanoid(size = 10) {
+  const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  const bytes = new Uint8Array(size);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, byte => alphabet[byte % alphabet.length]).join('');
+}
+
+async function persistReminderOptions(options: ReminderOption[]) {
+  try {
+    await settings.update('reminderQuickOptions', options);
+  } catch (e) {
+    message.error(`提醒选项保存失败：${String(e)}`);
+  }
+}
+
+function updateReminderOption(index: number, patch: Partial<ReminderOption>) {
+  const next = cloneReminderOptions(settings.state.reminderQuickOptions);
+  next[index] = { ...next[index], ...patch };
+  void persistReminderOptions(next);
+}
+
+function onReminderTypeChange(index: number, type: ReminderOption['type']) {
+  if (type === 'relative') {
+    updateReminderOption(index, {
+      type,
+      value: 15,
+      unit: 'minute',
+      absoluteTime: undefined,
+      dayOffset: undefined,
+    });
+    return;
+  }
+
+  updateReminderOption(index, {
+    type,
+    value: 0,
+    unit: 'minute',
+    absoluteTime: '16:00',
+    dayOffset: 0,
+  });
+}
+
+function onReminderNumberChange(
+  index: number,
+  key: 'value' | 'dayOffset',
+  value: number | null,
+) {
+  if (value === null || !Number.isFinite(value)) return;
+  updateReminderOption(index, { [key]: value });
+}
+
+function addReminderOption() {
+  void persistReminderOptions([
+    ...cloneReminderOptions(settings.state.reminderQuickOptions),
+    {
+      id: `reminder-${nanoid()}`,
+      label: '15 分钟后',
+      type: 'relative',
+      value: 15,
+      unit: 'minute',
+    },
+  ]);
+}
+
+function deleteReminderOption(index: number) {
+  const next = cloneReminderOptions(settings.state.reminderQuickOptions);
+  next.splice(index, 1);
+  void persistReminderOptions(next);
+}
+
+function restoreDefaultReminderOptions() {
+  void persistReminderOptions(cloneReminderOptions(DEFAULT_REMINDER_QUICK_OPTIONS));
+}
 
 const paths = ref<{ dataDir: string; dbPath: string; backupDir: string } | null>(null);
 
@@ -508,6 +604,110 @@ const headerSub = computed(() =>
                 <NRadio value="last">记住上次位置</NRadio>
               </NSpace>
             </NRadioGroup>
+          </div>
+        </section>
+
+        <section v-else-if="activeSection === 'reminders'" class="settings-section">
+          <div class="settings-section__intro">
+            <h2>提醒设置</h2>
+            <p>配置任务编辑器中的快捷提醒选项，修改后会立即用于下次打开的提醒菜单。</p>
+          </div>
+
+          <div class="settings-section__toolbar">
+            <NButton
+              size="small"
+              type="primary"
+              data-testid="reminder-option-add"
+              @click="addReminderOption"
+            >
+              添加选项
+            </NButton>
+            <NPopconfirm
+              positive-text="恢复默认"
+              negative-text="取消"
+              @positive-click="restoreDefaultReminderOptions"
+            >
+              <template #trigger>
+                <NButton size="small" secondary data-testid="reminder-options-reset">
+                  恢复默认
+                </NButton>
+              </template>
+              使用默认 6 个提醒选项覆盖当前列表。
+            </NPopconfirm>
+          </div>
+
+          <div class="reminder-options">
+            <div
+              v-for="(option, index) in settings.state.reminderQuickOptions"
+              :key="option.id"
+              class="reminder-option-row"
+            >
+              <NInput
+                class="reminder-option-label"
+                size="small"
+                :value="option.label"
+                :data-testid="`reminder-option-label-${index}`"
+                placeholder="显示名称"
+                @update:value="value => updateReminderOption(index, { label: value })"
+              />
+
+              <NRadioGroup
+                :value="option.type"
+                @update:value="value => onReminderTypeChange(index, value as ReminderOption['type'])"
+              >
+                <NSpace :size="10">
+                  <NRadio value="relative">相对</NRadio>
+                  <NRadio value="absolute">绝对</NRadio>
+                </NSpace>
+              </NRadioGroup>
+
+              <template v-if="option.type === 'relative'">
+                <NInputNumber
+                  class="reminder-option-number"
+                  size="small"
+                  :min="1"
+                  :value="option.value"
+                  @update:value="value => onReminderNumberChange(index, 'value', value)"
+                />
+                <NSelect
+                  class="reminder-option-unit"
+                  size="small"
+                  :value="option.unit"
+                  :options="reminderUnitOptions"
+                  @update:value="value => updateReminderOption(index, { unit: value as ReminderOption['unit'] })"
+                />
+              </template>
+
+              <template v-else>
+                <NInput
+                  class="reminder-option-time"
+                  size="small"
+                  :value="option.absoluteTime"
+                  placeholder="16:00"
+                  @update:value="value => updateReminderOption(index, { absoluteTime: value })"
+                />
+                <NInputNumber
+                  class="reminder-option-number"
+                  size="small"
+                  :min="0"
+                  :value="option.dayOffset ?? 0"
+                  @update:value="value => onReminderNumberChange(index, 'dayOffset', value)"
+                />
+              </template>
+
+              <NButton
+                size="small"
+                type="error"
+                secondary
+                :data-testid="`reminder-option-delete-${index}`"
+                @click="deleteReminderOption(index)"
+              >
+                删除
+              </NButton>
+            </div>
+            <NText v-if="settings.state.reminderQuickOptions.length === 0" depth="3">
+              暂无快捷提醒选项。
+            </NText>
           </div>
         </section>
 
@@ -853,6 +1053,14 @@ const headerSub = computed(() =>
   color: #b8aea4;
 }
 
+.settings-section__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 .settings-group {
   margin: 22px 0 8px;
   padding-bottom: 6px;
@@ -923,6 +1131,41 @@ const headerSub = computed(() =>
   border: 1px solid rgba(128, 117, 105, 0.28);
   border-radius: 6px;
   background: var(--swatch);
+}
+
+.reminder-options {
+  display: grid;
+  gap: 10px;
+}
+
+.reminder-option-row {
+  display: grid;
+  grid-template-columns: minmax(132px, 1fr) auto 82px 112px auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(128, 117, 105, 0.2);
+  border-radius: 8px;
+  background: rgba(128, 117, 105, 0.06);
+}
+
+.reminder-option-label {
+  min-width: 0;
+}
+
+.reminder-option-number,
+.reminder-option-time {
+  width: 82px;
+}
+
+.reminder-option-unit {
+  width: 112px;
+}
+
+:global(.dark) .reminder-option-row,
+.settings-shell:not(.settings-shell--embedded) .reminder-option-row {
+  border-color: var(--app-border);
+  background: var(--app-surface);
 }
 
 .settings-paths {
@@ -1026,12 +1269,16 @@ const headerSub = computed(() =>
   }
 
   .settings-row,
-  .settings-path-row {
+  .settings-path-row,
+  .reminder-option-row {
     grid-template-columns: 1fr;
     align-items: stretch;
   }
 
-  .settings-control {
+  .settings-control,
+  .reminder-option-number,
+  .reminder-option-time,
+  .reminder-option-unit {
     width: 100%;
   }
 

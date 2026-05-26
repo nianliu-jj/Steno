@@ -1,13 +1,55 @@
 // @vitest-environment jsdom
 
 import { flushPromises, mount } from '@vue/test-utils';
-import { NConfigProvider, NMessageProvider, NRadioGroup } from 'naive-ui';
+import { NConfigProvider, NMessageProvider, NPopconfirm, NRadioGroup } from 'naive-ui';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, h } from 'vue';
 
 import SettingsView from './SettingsView.vue';
 import SettingsViewSource from './SettingsView.vue?raw';
+
+const { defaultReminderQuickOptions, settingsState } = vi.hoisted(() => {
+  const reminderDefaults = [
+    {
+      id: 'after-30-minutes',
+      label: '30 分钟后',
+      type: 'relative',
+      value: 30,
+      unit: 'minute',
+    },
+    {
+      id: 'today-16',
+      label: '今天下午 4 点',
+      type: 'absolute',
+      value: 0,
+      unit: 'minute',
+      absoluteTime: '16:00',
+      dayOffset: 0,
+    },
+  ];
+
+  return {
+    defaultReminderQuickOptions: reminderDefaults,
+    settingsState: {
+      themeMode: 'system',
+      mainWindowShortcut: 'Ctrl+Shift+N',
+      quicknoteShortcut: 'Ctrl+Shift+M',
+      clipboardShortcut: 'Ctrl+Shift+V',
+      searchShortcut: 'Ctrl+Shift+F',
+      floatingWidth: 420,
+      floatingHeight: 300,
+      blurCloseDelayMs: 200,
+      editorMode: 'split',
+      backupEveryChanges: 10,
+      todoQuickPanelEnabled: true,
+      todoQuickPanelShortcut: 'Ctrl+Shift+T',
+      todoQuickPanelPosition: 'bottom-right',
+      todoQuickPanelLastPos: '',
+      reminderQuickOptions: reminderDefaults,
+    },
+  };
+});
 
 const getDataPaths = vi.fn(() =>
   Promise.resolve({
@@ -45,21 +87,11 @@ vi.mock('@/composables/useDb', () => ({
 }));
 
 vi.mock('@/stores/settings', () => ({
+  DEFAULT_REMINDER_QUICK_OPTIONS: defaultReminderQuickOptions,
   useSettingsStore: () => ({
     loaded: true,
     error: null,
-    state: {
-      themeMode: 'system',
-      mainWindowShortcut: 'Ctrl+Shift+N',
-      quicknoteShortcut: 'Ctrl+Shift+M',
-      clipboardShortcut: 'Ctrl+Shift+V',
-      searchShortcut: 'Ctrl+Shift+F',
-      floatingWidth: 420,
-      floatingHeight: 300,
-      blurCloseDelayMs: 200,
-      editorMode: 'split',
-      backupEveryChanges: 10,
-    },
+    state: settingsState,
     load: loadSettings,
     update: updateSetting,
   }),
@@ -118,6 +150,7 @@ describe('SettingsView', () => {
     messageError.mockClear();
     messageSuccess.mockClear();
     messageInfo.mockClear();
+    settingsState.reminderQuickOptions = defaultReminderQuickOptions.map(option => ({ ...option }));
   });
 
   it('renders the v2 header, category tabs, and footer actions', async () => {
@@ -130,6 +163,7 @@ describe('SettingsView', () => {
     expect(wrapper.get('.settings-tabs').text()).toContain('常规');
     expect(wrapper.get('.settings-tabs').text()).toContain('外观');
     expect(wrapper.get('.settings-tabs').text()).toContain('快捷键');
+    expect(wrapper.get('.settings-tabs').text()).toContain('提醒设置');
     expect(wrapper.get('.settings-tabs').text()).toContain('隐私安全');
     expect(wrapper.get('.settings-tabs').text()).toContain('存储');
     expect(wrapper.get('.settings-tabs').text()).toContain('关于');
@@ -138,6 +172,59 @@ describe('SettingsView', () => {
     expect(wrapper.get('.settings-panel__footer').text()).toContain('重置');
     expect(wrapper.get('.settings-panel__footer').text()).toContain('确认');
     expect(wrapper.get('.settings-save-hint').text()).toContain('所有更改自动保存到本地');
+  });
+
+  it('renders the reminders section between todo and privacy tabs', async () => {
+    const wrapper = mountSettingsView();
+    await flushPromises();
+
+    const tabText = wrapper.get('.settings-tabs').text();
+    expect(tabText.indexOf('待办浮窗')).toBeLessThan(tabText.indexOf('提醒设置'));
+    expect(tabText.indexOf('提醒设置')).toBeLessThan(tabText.indexOf('隐私安全'));
+
+    await wrapper.get('[data-testid="settings-tab-reminders"]').trigger('click');
+
+    expect(wrapper.text()).toContain('提醒设置');
+    expect(wrapper.findAll('.reminder-option-row')).toHaveLength(2);
+    expect((wrapper.get('[data-testid="reminder-option-label-0"] input').element as HTMLInputElement).value).toBe(
+      '30 分钟后',
+    );
+    expect((wrapper.get('[data-testid="reminder-option-label-1"] input').element as HTMLInputElement).value).toBe(
+      '今天下午 4 点',
+    );
+    expect(wrapper.find('[data-testid="reminder-option-add"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="reminder-options-reset"]').exists()).toBe(true);
+  });
+
+  it('persists reminder option add, delete, and restore actions', async () => {
+    const wrapper = mountSettingsView();
+    await flushPromises();
+    await wrapper.get('[data-testid="settings-tab-reminders"]').trigger('click');
+
+    await wrapper.get('[data-testid="reminder-option-add"]').trigger('click');
+    expect(updateSetting).toHaveBeenLastCalledWith(
+      'reminderQuickOptions',
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '15 分钟后',
+          type: 'relative',
+          value: 15,
+          unit: 'minute',
+        }),
+      ]),
+    );
+
+    await wrapper.get('[data-testid="reminder-option-delete-0"]').trigger('click');
+    expect(updateSetting).toHaveBeenLastCalledWith(
+      'reminderQuickOptions',
+      [defaultReminderQuickOptions[1]],
+    );
+
+    wrapper.findComponent(NPopconfirm).vm.$emit('positive-click');
+    expect(updateSetting).toHaveBeenLastCalledWith(
+      'reminderQuickOptions',
+      defaultReminderQuickOptions,
+    );
   });
 
   it('switches between storage, shortcuts, and privacy sections', async () => {

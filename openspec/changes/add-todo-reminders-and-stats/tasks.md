@@ -33,13 +33,13 @@
 
 ## 4. Phase A4 — 设置面板「提醒设置」UI
 
-- [ ] 4.1 在 `SettingsView.vue` 的标签页列表中插入"提醒设置"，位于"待办浮窗"和"隐私安全"之间
-- [ ] 4.2 实现编辑器组件（行内式）：每行 label 输入 + type 选择（NRadio）+ value/unit/absoluteTime/dayOffset 字段 + 删除按钮（红色）
-- [ ] 4.3 顶部添加"添加选项"按钮 + "恢复默认"按钮（恢复默认走 NConfirm）
-- [ ] 4.4 实现"添加选项"逻辑：生成 nanoid id、push 默认值到数组
-- [ ] 4.5 暗色模式样式：复用现有 `--app-*` CSS 变量；删除按钮用 var(--app-danger) 或硬编码红色
-- [ ] 4.6 vitest（如可行）或 vue-tsc typecheck 通过
-- [ ] 4.7 提交：`feat(frontend): 待办提醒/统计 Phase A4 — 设置面板提醒设置分组`
+- [x] 4.1 在 `SettingsView.vue` 的标签页列表中插入"提醒设置"，位于"待办浮窗"和"隐私安全"之间
+- [x] 4.2 实现编辑器组件（行内式）：每行 label 输入 + type 选择（NRadio）+ value/unit/absoluteTime/dayOffset 字段 + 删除按钮（红色）
+- [x] 4.3 顶部添加"添加选项"按钮 + "恢复默认"按钮（恢复默认走 NConfirm）
+- [x] 4.4 实现"添加选项"逻辑：生成 nanoid id、push 默认值到数组
+- [x] 4.5 暗色模式样式：复用现有 `--app-*` CSS 变量；删除按钮用 var(--app-danger) 或硬编码红色
+- [x] 4.6 vitest（如可行）或 vue-tsc typecheck 通过
+- [x] 4.7 提交：`feat(frontend): 待办提醒/统计 Phase A4 — 设置面板提醒设置分组`
 
 ## 5. Phase A5 — TodoView 集成提醒选择器
 
