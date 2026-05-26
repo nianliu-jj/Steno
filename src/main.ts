@@ -21,6 +21,7 @@ import { createPinia } from 'pinia';
 import 'virtual:uno.css';
 // 全局样式（reset、基础排版等）
 import './styles/global.css';
+import './plugins/echarts';
 import App from './App.vue';
 
 const app = createApp(App);

@@ -66,11 +66,11 @@
 
 ## 7. Phase B2 — 前端图表库引入
 
-- [ ] 7.1 `pnpm add echarts vue-echarts`
-- [ ] 7.2 创建 `src/plugins/echarts.ts`：按需 import `echarts/core` + `CalendarChart` + `LineChart` + `TooltipComponent` + `LegendComponent` + `GridComponent` + `VisualMapComponent` + `CanvasRenderer`，并 `echarts.use([...])`
-- [ ] 7.3 在 `src/main.ts` 引入该 plugin（仅注册一次）
-- [ ] 7.4 验证 `pnpm build` 体积增加合理（< 200KB gzip）
-- [ ] 7.5 提交：`chore(frontend): 待办提醒/统计 Phase B2 — 引入 echarts + vue-echarts`
+- [x] 7.1 `pnpm add echarts vue-echarts`
+- [x] 7.2 创建 `src/plugins/echarts.ts`：按需 import `echarts/core` + `CalendarChart` + `LineChart` + `TooltipComponent` + `LegendComponent` + `GridComponent` + `VisualMapComponent` + `CanvasRenderer`，并 `echarts.use([...])`
+- [x] 7.3 在 `src/main.ts` 引入该 plugin（仅注册一次）
+- [x] 7.4 验证 `pnpm build` 体积增加合理（< 200KB gzip）
+- [x] 7.5 提交：`chore(frontend): 待办提醒/统计 Phase B2 — 引入 echarts + vue-echarts`
 
 ## 8. Phase B3 — StatsView 视图与侧边栏入口
 

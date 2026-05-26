@@ -42,6 +42,7 @@
     "@vueuse/core": "14.2.1",
     "dayjs": "1.11.19",
     "defu": "6.1.4",
+    "echarts": "^6.1.0",
     "markdown-it": "^14.1.1",
     "marked": "^16.0.0",
     "naive-ui": "2.44.1",
@@ -55,7 +56,8 @@
     "prosemirror-schema-list": "^1.5.1",
     "prosemirror-state": "^1.4.4",
     "prosemirror-view": "^1.41.8",
-    "vue": "3.5.29"
+    "vue": "3.5.29",
+    "vue-echarts": "^8.0.1"
   },
   "devDependencies": {
     "@sa/scripts": "workspace:*",
