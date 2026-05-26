@@ -74,18 +74,18 @@
 
 ## 8. Phase B3 — StatsView 视图与侧边栏入口
 
-- [ ] 8.1 在 `src/stores/ui.ts` 的 `WindowMode` 联合类型加入 `'stats'`
-- [ ] 8.2 在 `MainWorkbenchShell.vue` 侧边栏导航数组中插入"统计"项（位于待办与设置之间，icon 用 stats 类图标）
-- [ ] 8.3 新建 `src/views/StatsView.vue`：顶层布局含两个 card（任务活跃度 + 每日状态趋势）+ 底部"重置数据"按钮
-- [ ] 8.4 任务活跃度 card：调用 `todos.getActivity(start, end)` → echarts CalendarChart（最近 12 个月）
-- [ ] 8.5 每日状态趋势 card：上方两个 NSelect（时间范围 / 状态过滤）+ echarts LineChart 三条折线
-- [ ] 8.6 在 `todos` store 暴露 `getActivity` / `getDailyTrend` / `resetStats` actions（封装 invoke）
-- [ ] 8.7 在 store 的 `applyRemoteChange` 处理 `kind='reset'`：调用 `load()` 全量重拉
-- [ ] 8.8 "重置数据"按钮：调用 NConfirm 二次确认，确认后 invoke + toast 显示删除条数 + 重新拉两块图表数据
-- [ ] 8.9 路由：在 `App.vue` 的 `ui.mode === 'stats'` 分支中渲染 `<StatsView />`（lazy-load）
-- [ ] 8.10 暗色模式：echarts 配色按 useDark 自动切换（提供 lightOption/darkOption 两套配色）
-- [ ] 8.11 vue-tsc typecheck + vitest 通过
-- [ ] 8.12 提交：`feat(frontend): 待办提醒/统计 Phase B3 — StatsView 视图 + 侧边栏统计入口`
+- [x] 8.1 在 `src/stores/ui.ts` 的 `WindowMode` 联合类型加入 `'stats'`
+- [x] 8.2 在 `MainWorkbenchShell.vue` 侧边栏导航数组中插入"统计"项（位于待办与设置之间，icon 用 stats 类图标）
+- [x] 8.3 新建 `src/views/StatsView.vue`：顶层布局含两个 card（任务活跃度 + 每日状态趋势）+ 底部"重置数据"按钮
+- [x] 8.4 任务活跃度 card：调用 `todos.getActivity(start, end)` → echarts CalendarChart（最近 12 个月）
+- [x] 8.5 每日状态趋势 card：上方两个 NSelect（时间范围 / 状态过滤）+ echarts LineChart 三条折线
+- [x] 8.6 在 `todos` store 暴露 `getActivity` / `getDailyTrend` / `resetStats` actions（封装 invoke）
+- [x] 8.7 在 store 的 `applyRemoteChange` 处理 `kind='reset'`：调用 `load()` 全量重拉
+- [x] 8.8 "重置数据"按钮：调用 NConfirm 二次确认，确认后 invoke + toast 显示删除条数 + 重新拉两块图表数据
+- [x] 8.9 路由：在 `App.vue` 的 `ui.mode === 'stats'` 分支中渲染 `<StatsView />`（lazy-load）
+- [x] 8.10 暗色模式：echarts 配色按 useDark 自动切换（提供 lightOption/darkOption 两套配色）
+- [x] 8.11 vue-tsc typecheck + vitest 通过
+- [x] 8.12 提交：`feat(frontend): 待办提醒/统计 Phase B3 — StatsView 视图 + 侧边栏统计入口`
 
 ## 9. Phase C — 综合验证、文档与归档
 

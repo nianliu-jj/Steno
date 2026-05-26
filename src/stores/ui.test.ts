@@ -123,6 +123,16 @@ describe('ui store', () => {
     expect(ui.noteId).toBeNull();
   });
 
+  it('navigates to the stats page in the main window', async () => {
+    const ui = useUiStore();
+    await Promise.resolve();
+
+    emit('steno:navigate', { mode: 'stats' });
+
+    expect(ui.mode).toBe('stats');
+    expect(ui.noteId).toBeNull();
+  });
+
   it('returns to the canvas view after opening Zen from the canvas', () => {
     const ui = useUiStore();
 

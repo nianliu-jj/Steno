@@ -26,6 +26,10 @@ import type {
   SaveTextEntryRequest,
   SearchNotesRequest,
   Todo,
+  TodoActivityPoint,
+  TodoDailyTrendRequest,
+  TodoStatsRange,
+  TodoTrendPoint,
   UpdateTodoRequest,
   Workspace,
 } from '@/types/steno';
@@ -285,6 +289,21 @@ export function useDb() {
     return invoke<void>('delete_todo', { id });
   }
 
+  /** 查询最近一段时间的每日完成活跃度。 */
+  function getTodoActivity(input: TodoStatsRange) {
+    return invoke<TodoActivityPoint[]>('get_todo_activity', { input });
+  }
+
+  /** 查询每日创建 / 开始 / 完成趋势。 */
+  function getTodoDailyTrend(input: TodoDailyTrendRequest) {
+    return invoke<TodoTrendPoint[]>('get_todo_daily_trend', { input });
+  }
+
+  /** 永久删除已完成和已删除任务，返回删除条数。 */
+  function resetTodoStats() {
+    return invoke<number>('reset_todo_stats');
+  }
+
   // ----- 待办浮窗窗口控制 ----------------------------------------------
 
   /**
@@ -419,6 +438,9 @@ export function useDb() {
     updateTodo,
     completeTodo,
     deleteTodo,
+    getTodoActivity,
+    getTodoDailyTrend,
+    resetTodoStats,
     showTodoPanel,
     hideTodoPanel,
     toggleTodoPanel,

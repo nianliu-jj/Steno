@@ -41,6 +41,7 @@ type MainRouteMode = Extract<
   | 'note-editor'
   | 'clipboard'
   | 'todo'
+  | 'stats'
   | 'screenshot'
   | 'ocr'
   | 'translate'
@@ -72,6 +73,7 @@ const VALID_MODES: ReadonlySet<WindowMode> = new Set<WindowMode>([
   'note-editor',
   'clipboard',
   'todo',
+  'stats',
   'todo-panel',
   'screenshot',
   'ocr',
@@ -87,6 +89,7 @@ const MAIN_ROUTE_MODES: ReadonlySet<MainRouteMode> = new Set<MainRouteMode>([
   'note-editor',
   'clipboard',
   'todo',
+  'stats',
   'screenshot',
   'ocr',
   'translate',

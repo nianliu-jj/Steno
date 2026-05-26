@@ -6,8 +6,12 @@ import { useDb } from '@/composables/useDb';
 import type {
   CreateTodoRequest,
   Todo,
+  TodoActivityPoint,
   TodoCategory,
   TodoChangePayload,
+  TodoDailyTrendRequest,
+  TodoStatsRange,
+  TodoTrendPoint,
   TodoStatus,
   UpdateTodoRequest,
 } from '@/types/steno';
@@ -191,6 +195,18 @@ export const useTodosStore = defineStore('todos', () => {
     removeLocal(id);
   }
 
+  function getActivity(input: TodoStatsRange): Promise<TodoActivityPoint[]> {
+    return db.getTodoActivity(input);
+  }
+
+  function getDailyTrend(input: TodoDailyTrendRequest): Promise<TodoTrendPoint[]> {
+    return db.getTodoDailyTrend(input);
+  }
+
+  function resetStats(): Promise<number> {
+    return db.resetTodoStats();
+  }
+
   /**
    * 处理后端 `steno:todo-changed` 事件 — 按 kind 局部更新缓存。
    *
@@ -206,6 +222,9 @@ export const useTodosStore = defineStore('todos', () => {
         break;
       case 'deleted':
         removeLocal(payload.id);
+        break;
+      case 'reset':
+        void load();
         break;
     }
   }
@@ -258,6 +277,9 @@ export const useTodosStore = defineStore('todos', () => {
     setStatus,
     completeTodo,
     deleteTodo,
+    getActivity,
+    getDailyTrend,
+    resetStats,
     applyRemoteChange,
     setSelectedCategory,
     startEventListeners,

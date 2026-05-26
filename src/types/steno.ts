@@ -182,7 +182,7 @@ export interface ClipboardEntry {
  *
  * **模式分类**：
  * - **页面型**（在 main 窗口内通过 `steno:navigate` 事件切换）：
- *   `main` `note-editor` `canvas` `clipboard` `todo` `screenshot` `ocr` `translate`
+ *   `main` `note-editor` `canvas` `clipboard` `todo` `stats` `screenshot` `ocr` `translate`
  * - **独立窗口型**（各自拥有独立 webview）：
  *   `floating`（速记浮窗） `sticky`（置顶便签） `zen` `settings`
  */
@@ -196,6 +196,7 @@ export type WindowMode =
   | 'note-editor'
   | 'clipboard'
   | 'todo'
+  | 'stats'
   | 'todo-panel'
   | 'screenshot'
   | 'ocr'
@@ -380,7 +381,7 @@ export interface UpdateTodoRequest {
 }
 
 /** 跨窗口同步事件变更类型。 */
-export type TodoChangeKind = 'created' | 'updated' | 'completed' | 'deleted';
+export type TodoChangeKind = 'created' | 'updated' | 'completed' | 'deleted' | 'reset';
 
 /**
  * `steno:todo-changed` 事件 payload — 由后端 `commands.rs` 在每次
@@ -392,6 +393,31 @@ export interface TodoChangePayload {
   kind: TodoChangeKind;
   id: string;
   todo: Todo | null;
+}
+
+/** 统计查询范围，日期格式为 YYYY-MM-DD。 */
+export interface TodoStatsRange {
+  start: string;
+  end: string;
+}
+
+/** 每日趋势查询请求。 */
+export interface TodoDailyTrendRequest extends TodoStatsRange {
+  statusFilter?: 'all' | TodoStatus;
+}
+
+/** 任务活跃度热力图点。 */
+export interface TodoActivityPoint {
+  date: string;
+  count: number;
+}
+
+/** 每日状态趋势折线图点。 */
+export interface TodoTrendPoint {
+  date: string;
+  created: number;
+  started: number;
+  completed: number;
 }
 
 /** 主窗口待办视图的左侧分类标识。 */

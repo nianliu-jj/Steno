@@ -90,10 +90,18 @@ const featureEntries = computed<FeatureEntry[]>(() => [
   {
     key: 'nav-todo',
     label: '待办',
-    description: '管理待办事项（规划中）',
+    description: '管理待办事项',
     keywords: 'todo 待办 任务 tasks',
     iconPath: iconPathFor('todo'),
     run: () => ui.navigateTo('todo'),
+  },
+  {
+    key: 'nav-stats',
+    label: '统计',
+    description: '查看待办活跃度与趋势',
+    keywords: 'stats statistics chart 统计 趋势 图表 活跃度',
+    iconPath: iconPathFor('stats'),
+    run: () => ui.navigateTo('stats'),
   },
   {
     key: 'nav-screenshot',
@@ -322,6 +330,8 @@ function iconPathFor(key: WindowMode) {
       return 'M8 4h8 M9 2h6v4H9z M6 4h12v18H6z';
     case 'todo':
       return 'M3 5h18v14H3z M8 12l2.5 2.5L16 9';
+    case 'stats':
+      return 'M4 19V5 M4 19h16 M8 16v-5 M12 16V8 M16 16v-9';
     case 'screenshot':
       return 'M7 4h2l1-2h4l1 2h2v16H7z M12 12m-3.5 0a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0';
     case 'ocr':

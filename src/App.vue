@@ -6,7 +6,7 @@
 // Naive UI 的 useMessage，因此根节点需要套 NMessageProvider。页面型 mode
 // 在 main 窗口里通过 `steno:navigate` 事件切换；floating / sticky 仍由独立
 // 窗口 label 初始化。
-import { computed, onBeforeUnmount, onMounted, watch } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, watch } from 'vue';
 import { NConfigProvider, NMessageProvider, NModal, darkTheme } from 'naive-ui';
 import { useDark } from '@vueuse/core';
 
@@ -33,6 +33,9 @@ const ui = useUiStore();
 const settings = useSettingsStore();
 const todos = useTodosStore();
 const { listenThemeModeChanged } = useAppEvents();
+const StatsView = defineAsyncComponent(() =>
+  import('@/views/StatsView.vue').then(module => module.default),
+);
 
 const isDark = useDark();
 
@@ -50,6 +53,7 @@ const shellNavItems = computed<
   { key: 'canvas', label: '画布', active: ui.mode === 'canvas' },
   { key: 'clipboard', label: '粘贴板', active: ui.mode === 'clipboard' },
   { key: 'todo', label: '待办', active: ui.mode === 'todo' },
+  { key: 'stats', label: '统计', active: ui.mode === 'stats' },
   { key: 'screenshot', label: '截图', active: ui.mode === 'screenshot' },
   { key: 'ocr', label: 'OCR', active: ui.mode === 'ocr' },
   { key: 'translate', label: '翻译', active: ui.mode === 'translate' },
@@ -74,6 +78,7 @@ const shellModes = new Set<WindowMode>([
   'canvas',
   'clipboard',
   'todo',
+  'stats',
   'screenshot',
   'ocr',
   'translate',
@@ -142,6 +147,7 @@ watch(
             <CanvasView v-else-if="ui.mode === 'canvas'" />
             <ClipboardView v-else-if="ui.mode === 'clipboard'" />
             <TodoView v-else-if="ui.mode === 'todo'" />
+            <StatsView v-else-if="ui.mode === 'stats'" />
             <PlaceholderView
               v-else-if="placeholderMeta"
               :title="placeholderMeta.title"

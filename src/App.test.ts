@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Teleport, nextTick, reactive, ref, type PropType } from 'vue';
 
@@ -220,6 +220,15 @@ vi.mock('@/views/ClipboardView.vue', async () => {
   };
 });
 
+vi.mock('@/views/StatsView.vue', async () => {
+  const { defineComponent, h } = await import('vue');
+  return {
+    default: defineComponent({
+      setup: () => () => h('div', { 'data-testid': 'stats-view' }, 'stats-view'),
+    }),
+  };
+});
+
 vi.mock('@/views/PlaceholderView.vue', async () => {
   const { defineComponent, h } = await import('vue');
   return {
@@ -288,7 +297,7 @@ describe('App', () => {
 
     expect(wrapper.find('[data-testid="shell"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="main-actions"]').exists()).toBe(false);
-    expect(wrapper.get('[data-testid="shell-nav-labels"]').text()).toBe('笔记列表|画布|粘贴板|待办|截图|OCR|翻译');
+    expect(wrapper.get('[data-testid="shell-nav-labels"]').text()).toBe('笔记列表|画布|粘贴板|待办|统计|截图|OCR|翻译');
     expect(wrapper.get('[data-testid="shell-nav-labels"]').text()).not.toContain('搜索');
     expect(wrapper.findAll('[data-testid="main-view"]')).toHaveLength(1);
     expect(document.body.querySelector('[data-testid="settings-modal"]')).not.toBeNull();
@@ -325,6 +334,19 @@ describe('App', () => {
     expect(wrapper.find('[data-testid="shell"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="clipboard-view"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="placeholder-view"]').exists()).toBe(false);
+  });
+
+  it('renders the stats view from the workbench navigation shell', async () => {
+    uiState.mode = 'stats';
+
+    const wrapper = mount(App);
+    await nextTick();
+    await flushPromises();
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="shell"]').exists()).toBe(true);
+    expect(wrapper.get('[data-testid="shell-nav-labels"]').text()).toBe('笔记列表|画布|粘贴板|待办|统计|截图|OCR|翻译');
+    expect(wrapper.find('[data-testid="stats-view"]').exists()).toBe(true);
   });
 
   it('teleports the embedded settings modal into the themed app root instead of body', async () => {

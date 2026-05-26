@@ -6,7 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   CreateTodoRequest,
   Todo,
+  TodoActivityPoint,
   TodoChangePayload,
+  TodoDailyTrendRequest,
+  TodoStatsRange,
+  TodoTrendPoint,
   UpdateTodoRequest,
 } from '@/types/steno';
 import { useTodosStore } from './todos';
@@ -19,6 +23,9 @@ const createTodoIpc = vi.fn<(input: CreateTodoRequest) => Promise<Todo>>();
 const updateTodoIpc = vi.fn<(input: UpdateTodoRequest) => Promise<Todo>>();
 const completeTodoIpc = vi.fn<(id: string) => Promise<Todo>>();
 const deleteTodoIpc = vi.fn<(id: string) => Promise<void>>();
+const getTodoActivityIpc = vi.fn<(input: TodoStatsRange) => Promise<TodoActivityPoint[]>>();
+const getTodoDailyTrendIpc = vi.fn<(input: TodoDailyTrendRequest) => Promise<TodoTrendPoint[]>>();
+const resetTodoStatsIpc = vi.fn<() => Promise<number>>();
 
 const todoChangedListeners = new Set<(payload: TodoChangePayload) => void>();
 const todoPanelToggleListeners = new Set<(payload: boolean) => void>();
@@ -31,6 +38,9 @@ vi.mock('@/composables/useDb', () => ({
     updateTodo: updateTodoIpc,
     completeTodo: completeTodoIpc,
     deleteTodo: deleteTodoIpc,
+    getTodoActivity: getTodoActivityIpc,
+    getTodoDailyTrend: getTodoDailyTrendIpc,
+    resetTodoStats: resetTodoStatsIpc,
   }),
 }));
 
@@ -87,6 +97,9 @@ describe('todos store', () => {
     updateTodoIpc.mockReset();
     completeTodoIpc.mockReset();
     deleteTodoIpc.mockReset();
+    getTodoActivityIpc.mockReset();
+    getTodoDailyTrendIpc.mockReset();
+    resetTodoStatsIpc.mockReset();
   });
 
   it('loads todos from the db adapter', async () => {
@@ -231,6 +244,45 @@ describe('todos store', () => {
     // deleted
     store.applyRemoteChange({ kind: 'deleted', id: 'r1', todo: null });
     expect(store.entries).toEqual([]);
+  });
+
+  it('exposes stats query and reset actions through the db adapter', async () => {
+    const activity = [{ date: '2026-05-20', count: 4 }];
+    const trend = [{ date: '2026-05-20', created: 2, started: 1, completed: 1 }];
+    getTodoActivityIpc.mockResolvedValue(activity);
+    getTodoDailyTrendIpc.mockResolvedValue(trend);
+    resetTodoStatsIpc.mockResolvedValue(3);
+
+    const store = useTodosStore();
+    await expect(store.getActivity({ start: '2026-05-01', end: '2026-05-31' })).resolves.toEqual(activity);
+    await expect(
+      store.getDailyTrend({
+        start: '2026-05-01',
+        end: '2026-05-31',
+        statusFilter: 'doing',
+      }),
+    ).resolves.toEqual(trend);
+    await expect(store.resetStats()).resolves.toBe(3);
+
+    expect(getTodoActivityIpc).toHaveBeenCalledWith({ start: '2026-05-01', end: '2026-05-31' });
+    expect(getTodoDailyTrendIpc).toHaveBeenCalledWith({
+      start: '2026-05-01',
+      end: '2026-05-31',
+      statusFilter: 'doing',
+    });
+    expect(resetTodoStatsIpc).toHaveBeenCalledOnce();
+  });
+
+  it('reloads all todos when a reset event is received', async () => {
+    const afterReset = [makeTodo({ id: 'active', content: '保留的活动任务' })];
+    listTodos.mockResolvedValue(afterReset);
+
+    const store = useTodosStore();
+    store.applyRemoteChange({ kind: 'reset', id: '', todo: null });
+    await Promise.resolve();
+
+    expect(listTodos).toHaveBeenCalledOnce();
+    expect(store.entries).toEqual(afterReset);
   });
 
   it('startEventListeners wires applyRemoteChange to the global event bus', async () => {

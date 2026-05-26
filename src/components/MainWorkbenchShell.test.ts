@@ -184,6 +184,10 @@ describe('MainWorkbenchShell', () => {
     expect(navigateToMain).toHaveBeenCalled();
 
     await wrapper.get('[data-testid="feature-search-input"]').trigger('focus');
+    await wrapper.get('[data-testid="feature-search-item-nav-stats"]').trigger('click');
+    expect(navigateTo).toHaveBeenCalledWith('stats');
+
+    await wrapper.get('[data-testid="feature-search-input"]').trigger('focus');
     await wrapper.get('[data-testid="feature-search-item-action-new-quicknote"]').trigger('click');
     expect(openQuicknote).toHaveBeenCalledOnce();
   });
@@ -196,6 +200,7 @@ describe('MainWorkbenchShell', () => {
           { key: 'canvas', label: '画布', active: false, count: '3' },
           { key: 'clipboard', label: '粘贴板', active: false, count: '128' },
           { key: 'todo', label: '待办', active: false, count: '7' },
+          { key: 'stats', label: '统计', active: false },
           { key: 'screenshot', label: '截图', active: false, count: '⌘⇧4' },
           { key: 'ocr', label: 'OCR', active: false },
           { key: 'translate', label: '翻译', active: false },
@@ -204,7 +209,7 @@ describe('MainWorkbenchShell', () => {
     });
 
     expect(wrapper.get('.workbench-root').attributes('data-rail')).toBe('expanded');
-    expect(wrapper.findAll('.rail-item')).toHaveLength(7);
+    expect(wrapper.findAll('.rail-item')).toHaveLength(8);
     expect(wrapper.get('[data-nav="main"]').classes()).toContain('rail-item--active');
     expect(wrapper.get('[data-nav="main"] .rail-label').text()).toBe('笔记列表');
     expect(wrapper.get('[data-nav="main"] .rail-count').text()).toBe('24');
@@ -213,12 +218,14 @@ describe('MainWorkbenchShell', () => {
     expect(wrapper.get('[data-testid="rail-collapse"]').attributes('aria-expanded')).toBe('true');
 
     await wrapper.get('[data-nav="canvas"]').trigger('click');
+    await wrapper.get('[data-nav="stats"]').trigger('click');
     await wrapper.get('[data-testid="rail-settings"]').trigger('click');
     await wrapper.get('[data-testid="rail-language"]').trigger('click');
     await wrapper.get('[data-testid="rail-collapse"]').trigger('click');
 
     expect(navigateTo).toHaveBeenNthCalledWith(1, 'canvas');
-    expect(navigateTo).toHaveBeenNthCalledWith(2, 'settings');
+    expect(navigateTo).toHaveBeenNthCalledWith(2, 'stats');
+    expect(navigateTo).toHaveBeenNthCalledWith(3, 'settings');
     expect(wrapper.get('[data-testid="rail-language"] .lang-badge').text()).toBe('EN');
     expect(wrapper.get('.workbench-root').attributes('data-rail')).toBe('collapsed');
     expect(wrapper.get('[data-testid="rail-collapse"]').attributes('aria-expanded')).toBe('false');
