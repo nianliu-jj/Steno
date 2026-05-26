@@ -24,7 +24,8 @@ use crate::models::{
     SaveTextEntryRequest, SearchNotesRequest, Workspace, EditorEntry,
 };
 use crate::todo::{
-    self, CreateTodoRequest, TodoChangeKind, TodoChangePayload, TodayTodosRequest, UpdateTodoRequest,
+    self, CreateTodoRequest, TodoActivityPoint, TodoChangeKind, TodoChangePayload,
+    TodoDailyTrendRequest, TodoStatsRange, TodayTodosRequest, TodoTrendPoint, UpdateTodoRequest,
 };
 use crate::{quicknote, shortcut, window_manager};
 
@@ -649,6 +650,54 @@ pub async fn delete_todo(app: AppHandle, db: State<'_, Db>, id: String) -> Resul
         },
     );
     Ok(())
+}
+
+#[tauri::command]
+pub async fn get_todo_activity(
+    db: State<'_, Db>,
+    input: TodoStatsRange,
+) -> Result<Vec<TodoActivityPoint>, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.get_activity(&input.start, &input.end))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn get_todo_daily_trend(
+    db: State<'_, Db>,
+    input: TodoDailyTrendRequest,
+) -> Result<Vec<TodoTrendPoint>, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        db.get_daily_trend(
+            &input.start,
+            &input.end,
+            input.status_filter.as_deref(),
+        )
+    })
+    .await
+    .map_err(to_msg)?
+    .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn reset_todo_stats(app: AppHandle, db: State<'_, Db>) -> Result<usize, String> {
+    let db = db.inner().clone();
+    let affected = tauri::async_runtime::spawn_blocking(move || db.reset_stats())
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)?;
+    let _ = app.emit(
+        todo::TODO_CHANGED_EVENT,
+        TodoChangePayload {
+            kind: TodoChangeKind::Reset,
+            id: String::new(),
+            todo: None,
+        },
+    );
+    Ok(affected)
 }
 
 // ----- 待办浮窗窗口控制 ------------------------------------------------

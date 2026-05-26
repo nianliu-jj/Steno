@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, NaiveDate, Utc};
 use rusqlite::{Connection, OptionalExtension};
 
 use crate::clipboard::{ClipboardEntry, NewClipboardEntry};
@@ -26,7 +26,9 @@ use crate::models::{
     ConvertTextToDocumentRequest, EditorEntry, EntryKind, LibraryEntry, MainListContext, Note,
     SaveDocumentEntryRequest, SaveNoteRequest, SaveTextEntryRequest, SearchNotesRequest, Workspace,
 };
-use crate::todo::{CreateTodoRequest, Todo, TodoStatus, UpdateTodoRequest};
+use crate::todo::{
+    CreateTodoRequest, Todo, TodoActivityPoint, TodoStatus, TodoTrendPoint, UpdateTodoRequest,
+};
 use crate::workspace_fs::{self, WorkspaceFsEntryKind};
 
 const INBOX_GROUP_ID: &str = "group-inbox";
@@ -1541,6 +1543,71 @@ impl Db {
         Ok(affected > 0)
     }
 
+    pub fn get_activity(
+        &self,
+        start: &str,
+        end: &str,
+    ) -> Result<Vec<TodoActivityPoint>, DbError> {
+        let _ = Self::validate_stats_range(start, end)?;
+        let conn = self.lock()?;
+        let mut stmt = conn.prepare(
+            "SELECT date(completed_at, 'localtime') AS d, COUNT(*)
+               FROM todos
+              WHERE completed_at IS NOT NULL
+                AND status = 'done'
+                AND is_deleted = 0
+                AND date(completed_at, 'localtime') BETWEEN ?1 AND ?2
+              GROUP BY d
+              ORDER BY d ASC",
+        )?;
+        let rows = stmt.query_map(rusqlite::params![start, end], |row| {
+            Ok(TodoActivityPoint {
+                date: row.get(0)?,
+                count: row.get(1)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    pub fn get_daily_trend(
+        &self,
+        start: &str,
+        end: &str,
+        status_filter: Option<&str>,
+    ) -> Result<Vec<TodoTrendPoint>, DbError> {
+        let (start_date, end_date) = Self::validate_stats_range(start, end)?;
+        let status = Self::validate_stats_status_filter(status_filter)?;
+        let conn = self.lock()?;
+        let created = Self::count_todos_by_day(&conn, "created_at", start, end, status)?;
+        let started = Self::count_todos_by_day(&conn, "started_at", start, end, status)?;
+        let completed = Self::count_todos_by_day(&conn, "completed_at", start, end, status)?;
+
+        let mut points = Vec::new();
+        let mut current = start_date;
+        while current <= end_date {
+            let date = current.format("%Y-%m-%d").to_string();
+            points.push(TodoTrendPoint {
+                created: *created.get(&date).unwrap_or(&0),
+                started: *started.get(&date).unwrap_or(&0),
+                completed: *completed.get(&date).unwrap_or(&0),
+                date,
+            });
+            current += Duration::days(1);
+        }
+        Ok(points)
+    }
+
+    pub fn reset_stats(&self) -> Result<usize, DbError> {
+        let mut conn = self.lock()?;
+        let tx = conn.transaction()?;
+        let affected = tx.execute(
+            "DELETE FROM todos WHERE is_deleted = 1 OR status = 'done'",
+            [],
+        )?;
+        tx.commit()?;
+        Ok(affected)
+    }
+
     /// 是否存在至少一条已设置提醒时间的待办（用于"首次启动时按需请求通知权限"）。
     pub fn has_any_reminder(&self) -> Result<bool, DbError> {
         let conn = self.lock()?;
@@ -1550,6 +1617,74 @@ impl Db {
             |row| row.get(0),
         )?;
         Ok(count > 0)
+    }
+
+    fn validate_stats_range(start: &str, end: &str) -> Result<(NaiveDate, NaiveDate), DbError> {
+        let start_date = NaiveDate::parse_from_str(start, "%Y-%m-%d")
+            .map_err(|_| DbError::Validation("InvalidRange".into()))?;
+        let end_date = NaiveDate::parse_from_str(end, "%Y-%m-%d")
+            .map_err(|_| DbError::Validation("InvalidRange".into()))?;
+        if start_date > end_date {
+            return Err(DbError::Validation("InvalidRange".into()));
+        }
+        if (end_date - start_date).num_days() > 366 {
+            return Err(DbError::Validation("InvalidRange".into()));
+        }
+        Ok((start_date, end_date))
+    }
+
+    fn validate_stats_status_filter(
+        status_filter: Option<&str>,
+    ) -> Result<Option<TodoStatus>, DbError> {
+        match status_filter {
+            None | Some("all") | Some("") => Ok(None),
+            Some(raw) => TodoStatus::parse(raw)
+                .map(Some)
+                .ok_or_else(|| DbError::Validation("InvalidStatus".into())),
+        }
+    }
+
+    fn count_todos_by_day(
+        conn: &Connection,
+        column: &str,
+        start: &str,
+        end: &str,
+        status_filter: Option<TodoStatus>,
+    ) -> Result<HashMap<String, i64>, DbError> {
+        let status_clause = if status_filter.is_some() {
+            " AND status = ?3"
+        } else {
+            ""
+        };
+        let sql = format!(
+            "SELECT date({column}, 'localtime') AS d, COUNT(*)
+               FROM todos
+              WHERE {column} IS NOT NULL
+                AND is_deleted = 0
+                AND date({column}, 'localtime') BETWEEN ?1 AND ?2
+                {status_clause}
+              GROUP BY d"
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let mut counts = HashMap::new();
+        if let Some(status) = status_filter {
+            let rows = stmt.query_map(rusqlite::params![start, end, status.as_str()], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })?;
+            for row in rows {
+                let (date, count) = row?;
+                counts.insert(date, count);
+            }
+        } else {
+            let rows = stmt.query_map(rusqlite::params![start, end], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })?;
+            for row in rows {
+                let (date, count) = row?;
+                counts.insert(date, count);
+            }
+        }
+        Ok(counts)
     }
 
     fn validate_todo_content(raw: &str) -> Result<String, DbError> {
@@ -2988,5 +3123,144 @@ mod tests {
         }
         let today = db.list_today_todos(false).unwrap();
         assert!(today.iter().all(|t| t.id != id));
+    }
+
+    fn insert_stats_todo(
+        db: &Db,
+        id: &str,
+        status: &str,
+        created_at: &str,
+        started_at: Option<&str>,
+        completed_at: Option<&str>,
+        is_deleted: bool,
+    ) {
+        let conn = db.lock().unwrap();
+        conn.execute(
+            "INSERT INTO todos
+             (id, content, status, created_at, updated_at, completed_at, due_date,
+              reminder_time, reminder_fired, started_at, list_id, is_deleted)
+             VALUES (?1, ?2, ?3, ?4, ?4, ?5, NULL, NULL, 0, ?6, 'default', ?7)",
+            rusqlite::params![
+                id,
+                format!("task-{id}"),
+                status,
+                created_at,
+                completed_at,
+                started_at,
+                is_deleted as i64,
+            ],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn get_activity_counts_completed_tasks_by_local_day_and_ignores_deleted() {
+        let db = fresh_db();
+        insert_stats_todo(
+            &db,
+            "done-1",
+            "done",
+            "2026-05-19T08:00:00Z",
+            None,
+            Some("2026-05-20T10:00:00Z"),
+            false,
+        );
+        insert_stats_todo(
+            &db,
+            "done-2",
+            "done",
+            "2026-05-19T08:00:00Z",
+            None,
+            Some("2026-05-20T11:00:00Z"),
+            false,
+        );
+        insert_stats_todo(
+            &db,
+            "deleted",
+            "done",
+            "2026-05-19T08:00:00Z",
+            None,
+            Some("2026-05-20T12:00:00Z"),
+            true,
+        );
+
+        let activity = db.get_activity("2026-05-19", "2026-05-21").unwrap();
+
+        assert_eq!(activity.len(), 1);
+        assert_eq!(activity[0].date, "2026-05-20");
+        assert_eq!(activity[0].count, 2);
+    }
+
+    #[test]
+    fn get_daily_trend_returns_each_day_and_applies_status_filter() {
+        let db = fresh_db();
+        insert_stats_todo(
+            &db,
+            "doing-1",
+            "doing",
+            "2026-05-20T08:00:00Z",
+            Some("2026-05-21T09:00:00Z"),
+            None,
+            false,
+        );
+        insert_stats_todo(
+            &db,
+            "done-1",
+            "done",
+            "2026-05-20T10:00:00Z",
+            Some("2026-05-21T11:00:00Z"),
+            Some("2026-05-22T12:00:00Z"),
+            false,
+        );
+
+        let all = db
+            .get_daily_trend("2026-05-20", "2026-05-22", None)
+            .unwrap();
+        assert_eq!(all.len(), 3);
+        assert_eq!(all[0].date, "2026-05-20");
+        assert_eq!(all[0].created, 2);
+        assert_eq!(all[1].started, 2);
+        assert_eq!(all[2].completed, 1);
+
+        let doing = db
+            .get_daily_trend("2026-05-20", "2026-05-22", Some("doing"))
+            .unwrap();
+        assert_eq!(doing[0].created, 1);
+        assert_eq!(doing[1].started, 1);
+        assert_eq!(doing[2].completed, 0);
+    }
+
+    #[test]
+    fn reset_stats_deletes_done_and_deleted_rows_only() {
+        let db = fresh_db();
+        insert_stats_todo(&db, "todo", "todo", "2026-05-20T08:00:00Z", None, None, false);
+        insert_stats_todo(&db, "done", "done", "2026-05-20T08:00:00Z", None, None, false);
+        insert_stats_todo(&db, "deleted", "todo", "2026-05-20T08:00:00Z", None, None, true);
+
+        assert_eq!(db.reset_stats().unwrap(), 2);
+
+        let remaining_ids: Vec<String> = {
+            let conn = db.lock().unwrap();
+            let mut stmt = conn.prepare("SELECT id FROM todos ORDER BY id").unwrap();
+            stmt.query_map([], |row| row.get(0))
+                .unwrap()
+                .map(Result::unwrap)
+                .collect()
+        };
+        assert_eq!(remaining_ids, vec!["todo".to_string()]);
+    }
+
+    #[test]
+    fn stats_range_rejects_invalid_or_too_large_ranges() {
+        let db = fresh_db();
+        assert!(matches!(
+            db.get_activity("2026-05-22", "2026-05-20").unwrap_err(),
+            DbError::Validation(_)
+        ));
+        assert!(matches!(
+            db.get_daily_trend("2024-01-01", "2026-01-01", None)
+                .unwrap_err(),
+            DbError::Validation(_)
+        ));
     }
 }

@@ -112,6 +112,40 @@ pub struct TodayTodosRequest {
     pub include_completed: bool,
 }
 
+/// 统计查询范围：日期格式为 YYYY-MM-DD。
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TodoStatsRange {
+    pub start: String,
+    pub end: String,
+}
+
+/// 每日趋势查询输入。
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TodoDailyTrendRequest {
+    pub start: String,
+    pub end: String,
+    #[serde(default)]
+    pub status_filter: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TodoActivityPoint {
+    pub date: String,
+    pub count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TodoTrendPoint {
+    pub date: String,
+    pub created: i64,
+    pub started: i64,
+    pub completed: i64,
+}
+
 /// 跨窗口事件变更类型。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -120,6 +154,7 @@ pub enum TodoChangeKind {
     Updated,
     Completed,
     Deleted,
+    Reset,
 }
 
 /// 跨窗口事件 payload。`todo` 为快照（被删除时为 `None`）。
@@ -182,5 +217,16 @@ mod tests {
         };
         let json = serde_json::to_value(&payload).unwrap();
         assert_eq!(json["kind"], "created");
+    }
+
+    #[test]
+    fn reset_payload_serializes_kind_lowercase() {
+        let payload = TodoChangePayload {
+            kind: TodoChangeKind::Reset,
+            id: String::new(),
+            todo: None,
+        };
+        let json = serde_json::to_value(&payload).unwrap();
+        assert_eq!(json["kind"], "reset");
     }
 }

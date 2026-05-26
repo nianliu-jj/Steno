@@ -54,15 +54,15 @@
 
 ## 6. Phase B1 — 后端统计聚合命令
 
-- [ ] 6.1 在 `db.rs` 新增 `get_activity(start, end)`：`SELECT date(completed_at, 'localtime') AS d, COUNT(*) FROM todos WHERE completed_at BETWEEN ? AND ? AND is_deleted=0 GROUP BY d`
-- [ ] 6.2 在 `db.rs` 新增 `get_daily_trend(start, end, status_filter)`：三个独立子查询合并（按 created_at / started_at / completed_at 分别 day-bucket），用 SQL CTE 或 Rust 端 zip 合并
-- [ ] 6.3 在 `db.rs` 新增 `reset_stats()`：事务内 `DELETE FROM todos WHERE is_deleted=1 OR status='done'`，返回影响行数
-- [ ] 6.4 在 `commands.rs` 添加 3 个对应 Tauri 命令：`get_todo_activity` / `get_todo_daily_trend` / `reset_todo_stats`
-- [ ] 6.5 `reset_todo_stats` 成功后 `app_handle.emit("steno:todo-changed", json!({ "kind": "reset", "id": "" }))`
-- [ ] 6.6 在 `lib.rs` `invoke_handler!` 中注册三个新命令
-- [ ] 6.7 输入校验：range 跨度 ≤ 366 天，start ≤ end，否则返回 `InvalidRange`
-- [ ] 6.8 `cargo test`：插入测试数据后调用三命令验证结果；range 校验
-- [ ] 6.9 提交：`feat(backend): 待办提醒/统计 Phase B1 — 3 个统计聚合命令`
+- [x] 6.1 在 `db.rs` 新增 `get_activity(start, end)`：`SELECT date(completed_at, 'localtime') AS d, COUNT(*) FROM todos WHERE completed_at BETWEEN ? AND ? AND is_deleted=0 GROUP BY d`
+- [x] 6.2 在 `db.rs` 新增 `get_daily_trend(start, end, status_filter)`：三个独立子查询合并（按 created_at / started_at / completed_at 分别 day-bucket），用 SQL CTE 或 Rust 端 zip 合并
+- [x] 6.3 在 `db.rs` 新增 `reset_stats()`：事务内 `DELETE FROM todos WHERE is_deleted=1 OR status='done'`，返回影响行数
+- [x] 6.4 在 `commands.rs` 添加 3 个对应 Tauri 命令：`get_todo_activity` / `get_todo_daily_trend` / `reset_todo_stats`
+- [x] 6.5 `reset_todo_stats` 成功后 `app_handle.emit("steno:todo-changed", json!({ "kind": "reset", "id": "" }))`
+- [x] 6.6 在 `lib.rs` `invoke_handler!` 中注册三个新命令
+- [x] 6.7 输入校验：range 跨度 ≤ 366 天，start ≤ end，否则返回 `InvalidRange`
+- [x] 6.8 `cargo test`：插入测试数据后调用三命令验证结果；range 校验
+- [x] 6.9 提交：`feat(backend): 待办提醒/统计 Phase B1 — 3 个统计聚合命令`
 
 ## 7. Phase B2 — 前端图表库引入
 

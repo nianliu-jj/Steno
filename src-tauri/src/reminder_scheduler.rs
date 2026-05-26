@@ -163,7 +163,6 @@ fn format_local(rfc3339: &Option<String>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::db::Db;
     use crate::todo::{CreateTodoRequest, UpdateTodoRequest, TodoStatus};
 
