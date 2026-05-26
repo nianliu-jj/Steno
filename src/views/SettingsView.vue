@@ -1039,4 +1039,55 @@ const headerSub = computed(() =>
     grid-template-columns: 1fr;
   }
 }
+
+/* ===== 暗色模式下 naive-ui 控件对比度强化 =====
+   .settings-panel 在 dark 下背景 #202025，naive-ui 默认控件颜色偏弱看不清。
+   下面通过 naive-ui 暴露的内部 CSS vars 覆盖，提升 input/select/switch/button 的
+   对比度（背景更深、边框更明显、文字更亮、disabled 文字不至于隐没）。 */
+:global(.dark) .settings-panel :deep(.n-input),
+:global(.dark) .settings-panel :deep(.n-base-selection) {
+  --n-color: var(--app-surface-2);
+  --n-color-focus: var(--app-surface-2);
+  --n-color-disabled: var(--app-surface);
+  --n-text-color: var(--app-fg);
+  --n-text-color-disabled: var(--app-muted);
+  --n-placeholder-color: var(--app-faint);
+  --n-placeholder-color-disabled: var(--app-faint);
+  --n-border: 1px solid var(--app-border);
+  --n-border-hover: 1px solid var(--app-accent);
+  --n-border-focus: 1px solid var(--app-accent);
+  --n-border-disabled: 1px solid var(--app-border);
+}
+
+:global(.dark) .settings-panel :deep(.n-base-selection-label),
+:global(.dark) .settings-panel :deep(.n-base-selection-input) {
+  color: var(--app-fg);
+}
+
+:global(.dark) .settings-panel :deep(.n-button) {
+  --n-text-color: var(--app-fg);
+  --n-text-color-hover: var(--app-accent);
+  --n-text-color-pressed: var(--app-accent);
+  --n-text-color-focus: var(--app-fg);
+  --n-text-color-disabled: var(--app-muted);
+  --n-border: 1px solid var(--app-border);
+  --n-border-hover: 1px solid var(--app-accent);
+  --n-border-focus: 1px solid var(--app-accent);
+  --n-border-disabled: 1px dashed var(--app-border);
+  --n-color-disabled: transparent;
+}
+
+:global(.dark) .settings-panel :deep(.n-switch) {
+  --n-rail-color: var(--app-border);
+  --n-rail-color-disabled: var(--app-surface);
+  --n-button-color: var(--app-fg);
+  --n-button-color-disabled: var(--app-muted);
+  --n-loading-color: var(--app-accent);
+}
+
+/* NInputNumber 内的加减按钮以及数字本身在 dark 下文字偏暗，需明确文字色 */
+:global(.dark) .settings-panel :deep(.n-input-number .n-input__input-el),
+:global(.dark) .settings-panel :deep(.n-input-number-suffix) {
+  color: var(--app-fg);
+}
 </style>

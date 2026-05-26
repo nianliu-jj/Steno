@@ -383,26 +383,26 @@ watch(
   display: flex;
   width: 100%;
   height: 100%;
-  color: rgba(40, 36, 32, 0.92);
-  background: rgba(251, 250, 248, 0.65);
+  color: var(--app-fg);
+  background: var(--app-bg);
 }
 
 .todo-view-sidebar {
   width: 180px;
   flex-shrink: 0;
-  border-right: 1px solid rgba(40, 36, 32, 0.08);
+  border-right: 1px solid var(--app-border);
   padding: 18px 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: rgba(251, 250, 248, 0.85);
+  background: var(--app-surface);
 }
 
 .sidebar-title {
   margin: 0 8px 4px;
   font-size: 16px;
   font-weight: 600;
-  color: rgba(40, 36, 32, 0.85);
+  color: var(--app-fg);
 }
 
 .category-list {
@@ -422,30 +422,31 @@ watch(
   border-radius: 8px;
   cursor: pointer;
   font-size: 13px;
-  color: rgba(40, 36, 32, 0.78);
-  transition: background 120ms;
+  color: var(--app-muted);
+  transition: background 120ms, color 120ms;
 }
 
 .category-item:hover {
-  background: rgba(40, 36, 32, 0.05);
+  background: var(--app-accent-soft);
+  color: var(--app-fg);
 }
 
 .category-item.active {
-  background: rgba(168, 95, 50, 0.12);
-  color: rgba(168, 95, 50, 1);
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
   font-weight: 600;
 }
 
 .category-count {
   font-size: 12px;
   font-weight: 500;
-  color: rgba(40, 36, 32, 0.5);
+  color: var(--app-faint);
   min-width: 18px;
   text-align: right;
 }
 
 .category-item.active .category-count {
-  color: rgba(168, 95, 50, 0.85);
+  color: var(--app-accent);
 }
 
 .todo-view-main {
@@ -454,6 +455,7 @@ watch(
   display: flex;
   flex-direction: column;
   padding: 18px 22px;
+  background: var(--app-bg);
 }
 
 .todo-view-toolbar {
@@ -468,21 +470,28 @@ watch(
   margin: 0;
   font-size: 18px;
   font-weight: 600;
+  color: var(--app-fg);
 }
 
 .todo-view-search {
   width: 220px;
   padding: 6px 10px;
   border-radius: 8px;
-  border: 1px solid rgba(40, 36, 32, 0.12);
-  background: rgba(251, 250, 248, 0.9);
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-fg);
   font-size: 13px;
   outline: none;
-  transition: border 120ms;
+  transition: border 120ms, background 120ms;
 }
 
 .todo-view-search:focus {
-  border-color: rgba(168, 95, 50, 0.5);
+  border-color: var(--app-accent);
+  background: var(--app-surface-2);
+}
+
+.todo-view-search::placeholder {
+  color: var(--app-faint);
 }
 
 .todo-view-add {
@@ -496,34 +505,41 @@ watch(
   padding: 9px 12px;
   font-size: 13px;
   border-radius: 8px;
-  border: 1px solid rgba(40, 36, 32, 0.12);
-  background: rgba(251, 250, 248, 0.95);
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-fg);
   outline: none;
-  transition: border 120ms;
+  transition: border 120ms, background 120ms;
 }
 
 .todo-view-input:focus {
-  border-color: rgba(168, 95, 50, 0.5);
+  border-color: var(--app-accent);
+  background: var(--app-surface-2);
+}
+
+.todo-view-input::placeholder {
+  color: var(--app-faint);
 }
 
 .todo-view-submit {
   padding: 0 16px;
   border-radius: 8px;
-  border: none;
-  background: rgba(168, 95, 50, 0.9);
-  color: #fffaf3;
+  border: 1px solid var(--app-accent);
+  background: var(--app-accent);
+  color: var(--app-bg);
   cursor: pointer;
   font-size: 13px;
-  transition: background 120ms;
+  font-weight: 600;
+  transition: filter 120ms;
 }
 
 .todo-view-submit:disabled {
-  background: rgba(168, 95, 50, 0.35);
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
 .todo-view-submit:hover:not(:disabled) {
-  background: rgba(168, 95, 50, 1);
+  filter: brightness(1.08);
 }
 
 .todo-view-body {
@@ -551,11 +567,11 @@ watch(
 }
 
 .todo-row:hover {
-  background: rgba(40, 36, 32, 0.04);
+  background: var(--app-surface);
 }
 
 .todo-row.done .todo-row-content {
-  color: rgba(40, 36, 32, 0.4);
+  color: var(--app-faint);
   text-decoration: line-through;
 }
 
@@ -579,13 +595,13 @@ watch(
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  border: 1.5px solid rgba(40, 36, 32, 0.4);
+  border: 1.5px solid var(--app-faint);
   transition: background 120ms, border-color 120ms;
 }
 
 .todo-row.done .checkbox-indicator {
-  background: rgba(168, 95, 50, 0.9);
-  border-color: rgba(168, 95, 50, 0.9);
+  background: var(--app-accent);
+  border-color: var(--app-accent);
 }
 
 .todo-row-text {
@@ -596,6 +612,7 @@ watch(
 .todo-row-content {
   display: inline-block;
   font-size: 14px;
+  color: var(--app-fg);
   cursor: text;
   user-select: text;
   word-break: break-word;
@@ -604,42 +621,44 @@ watch(
 .todo-row-edit-input {
   width: 100%;
   padding: 4px 6px;
-  border: 1px solid rgba(168, 95, 50, 0.5);
+  border: 1px solid var(--app-accent);
   border-radius: 6px;
-  background: rgba(251, 250, 248, 1);
+  background: var(--app-surface-2);
+  color: var(--app-fg);
   font-size: 14px;
   outline: none;
 }
 
 .todo-row-status {
   border: none;
-  background: rgba(40, 36, 32, 0.08);
-  color: rgba(40, 36, 32, 0.78);
+  background: var(--app-surface);
+  color: var(--app-muted);
   font-size: 12px;
   padding: 3px 10px;
   border-radius: 999px;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 120ms;
+  transition: background 120ms, color 120ms;
 }
 
 .todo-row-status:hover {
-  background: rgba(40, 36, 32, 0.14);
+  background: var(--app-surface-2);
+  color: var(--app-fg);
 }
 
 .todo-row-status.status-doing {
   background: rgba(96, 140, 200, 0.18);
-  color: rgba(56, 100, 160, 1);
+  color: rgb(108, 152, 210);
 }
 
 .todo-row-status.status-paused {
   background: rgba(200, 160, 60, 0.18);
-  color: rgba(150, 110, 30, 1);
+  color: rgb(210, 175, 80);
 }
 
 .todo-row-status.status-done {
   background: rgba(120, 168, 96, 0.18);
-  color: rgba(75, 120, 50, 1);
+  color: rgb(140, 190, 110);
 }
 
 .todo-row-date {
@@ -650,7 +669,7 @@ watch(
 .todo-row-delete {
   background: transparent;
   border: none;
-  color: rgba(40, 36, 32, 0.4);
+  color: var(--app-faint);
   font-size: 18px;
   width: 28px;
   height: 28px;
@@ -665,8 +684,8 @@ watch(
 }
 
 .todo-row-delete:hover {
-  background: rgba(220, 80, 80, 0.14);
-  color: rgba(200, 60, 60, 1);
+  background: rgba(220, 80, 80, 0.18);
+  color: rgb(230, 110, 110);
 }
 
 .todo-view-empty {
@@ -676,19 +695,19 @@ watch(
   align-items: center;
   justify-content: center;
   padding: 32px;
-  color: rgba(40, 36, 32, 0.55);
+  color: var(--app-muted);
 }
 
 .empty-title {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: rgba(40, 36, 32, 0.7);
+  color: var(--app-fg);
 }
 
 .empty-subtitle {
   margin: 6px 0 0;
   font-size: 13px;
-  color: rgba(40, 36, 32, 0.5);
+  color: var(--app-muted);
 }
 </style>
