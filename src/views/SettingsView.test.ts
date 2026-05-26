@@ -336,13 +336,13 @@ describe('SettingsView', () => {
 
     expect(capture.find('input').exists()).toBe(false);
     await capture.trigger('keydown', {
-      key: 'V',
+      key: 'B',
       ctrlKey: true,
       shiftKey: true,
     });
     await flushPromises();
 
-    expect(updateSetting).toHaveBeenCalledWith('clipboardShortcut', 'Ctrl+Shift+V');
+    expect(updateSetting).toHaveBeenCalledWith('clipboardShortcut', 'Ctrl+Shift+B');
     expect(reloadShortcuts).toHaveBeenCalledOnce();
     expect(messageSuccess).toHaveBeenCalledWith('已更新「粘贴板快捷键」');
   });

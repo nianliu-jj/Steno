@@ -12,6 +12,7 @@ import type {
 } from '@/types/steno';
 
 type TrendRange = 30 | 60 | 90;
+type ActivityRange = 30 | 60 | 90 | 365;
 type StatusFilter = NonNullable<TodoDailyTrendRequest['statusFilter']>;
 
 const todos = useTodosStore();
@@ -20,6 +21,7 @@ const isDark = useDark();
 
 const activity = ref<TodoActivityPoint[]>([]);
 const trend = ref<TodoTrendPoint[]>([]);
+const activityRange = ref<ActivityRange>(30);
 const trendRange = ref<TrendRange>(30);
 const statusFilter = ref<StatusFilter>('all');
 const loadingActivity = ref(false);
@@ -30,7 +32,12 @@ const rangeOptions = [
   { label: '最近 30 天', value: 30 },
   { label: '最近 60 天', value: 60 },
   { label: '最近 90 天', value: 90 },
-];
+] satisfies Array<{ label: string; value: TrendRange }>;
+
+const activityRangeOptions = [
+  ...rangeOptions,
+  { label: '最近 1 年', value: 365 },
+] satisfies Array<{ label: string; value: ActivityRange }>;
 
 const statusOptions: Array<{ label: string; value: StatusFilter }> = [
   { label: '全部', value: 'all' },
@@ -67,7 +74,7 @@ const palette = computed(() =>
 const today = computed(() => new Date());
 const activityStart = computed(() => {
   const start = new Date(today.value);
-  start.setFullYear(start.getFullYear() - 1);
+  start.setDate(start.getDate() - activityRange.value + 1);
   return formatDate(start);
 });
 const activityEnd = computed(() => formatDate(today.value));
@@ -195,6 +202,10 @@ watch([trendRange, statusFilter], () => {
   void loadTrend();
 });
 
+watch(activityRange, () => {
+  void loadActivity();
+});
+
 async function loadAll() {
   await Promise.all([loadActivity(), loadTrend()]);
 }
@@ -276,6 +287,15 @@ function parseDate(value: string): Date {
 
     <section class="stats-grid">
       <NCard class="stats-card" title="任务活跃度">
+        <template #header-extra>
+          <NSelect
+            v-model:value="activityRange"
+            class="trend-select"
+            :options="activityRangeOptions"
+            size="small"
+            data-testid="activity-range-select"
+          />
+        </template>
         <div class="chart-wrap" :aria-busy="loadingActivity">
           <VChart class="stats-chart" :option="activityOption" autoresize />
         </div>
@@ -289,12 +309,14 @@ function parseDate(value: string): Date {
               class="trend-select"
               :options="rangeOptions"
               size="small"
+              data-testid="trend-range-select"
             />
             <NSelect
               v-model:value="statusFilter"
               class="trend-select"
               :options="statusOptions"
               size="small"
+              data-testid="trend-status-select"
             />
           </div>
         </template>

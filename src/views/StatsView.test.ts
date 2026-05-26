@@ -106,7 +106,7 @@ describe('StatsView', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(getActivity).toHaveBeenCalledWith({ start: '2025-05-26', end: '2026-05-26' });
+    expect(getActivity).toHaveBeenCalledWith({ start: '2026-04-27', end: '2026-05-26' });
     expect(getDailyTrend).toHaveBeenCalledWith({
       start: '2026-04-27',
       end: '2026-05-26',
@@ -114,12 +114,24 @@ describe('StatsView', () => {
     });
   });
 
+  it('reloads activity data when the activity range select changes', async () => {
+    const wrapper = mount(StatsView);
+    await Promise.resolve();
+    await Promise.resolve();
+    getActivity.mockClear();
+
+    await wrapper.find('[data-testid="activity-range-select"]').setValue('90');
+    await Promise.resolve();
+
+    expect(getActivity).toHaveBeenCalledWith({ start: '2026-02-26', end: '2026-05-26' });
+  });
+
   it('reloads trend data when the range select changes', async () => {
     const wrapper = mount(StatsView);
     await Promise.resolve();
     getDailyTrend.mockClear();
 
-    await wrapper.find('select').setValue('90');
+    await wrapper.find('[data-testid="trend-range-select"]').setValue('90');
     await Promise.resolve();
 
     expect(getDailyTrend).toHaveBeenCalledWith({

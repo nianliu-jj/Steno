@@ -53,7 +53,6 @@ const shellNavItems = computed<
   { key: 'canvas', label: '画布', active: ui.mode === 'canvas' },
   { key: 'clipboard', label: '粘贴板', active: ui.mode === 'clipboard' },
   { key: 'todo', label: '待办', active: ui.mode === 'todo' },
-  { key: 'stats', label: '统计', active: ui.mode === 'stats' },
   { key: 'screenshot', label: '截图', active: ui.mode === 'screenshot' },
   { key: 'ocr', label: 'OCR', active: ui.mode === 'ocr' },
   { key: 'translate', label: '翻译', active: ui.mode === 'translate' },

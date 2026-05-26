@@ -103,6 +103,13 @@ const clipboardShortcut = ref('');
 const searchShortcut = ref('');
 const todoShortcut = ref('');
 
+type ShortcutKey =
+  | 'mainWindowShortcut'
+  | 'quicknoteShortcut'
+  | 'clipboardShortcut'
+  | 'searchShortcut'
+  | 'todoQuickPanelShortcut';
+
 function syncShortcutLocals() {
   mainShortcut.value = settings.state.mainWindowShortcut;
   quicknoteShortcut.value = settings.state.quicknoteShortcut;
@@ -112,12 +119,7 @@ function syncShortcutLocals() {
 }
 
 async function commitShortcut(
-  key:
-    | 'mainWindowShortcut'
-    | 'quicknoteShortcut'
-    | 'clipboardShortcut'
-    | 'searchShortcut'
-    | 'todoQuickPanelShortcut',
+  key: ShortcutKey,
   value: string,
 ) {
   const trimmed = value.trim();
@@ -143,13 +145,60 @@ async function commitShortcut(
   }
 }
 
+function shortcutRefOf(key: ShortcutKey) {
+  switch (key) {
+    case 'mainWindowShortcut':
+      return mainShortcut;
+    case 'quicknoteShortcut':
+      return quicknoteShortcut;
+    case 'clipboardShortcut':
+      return clipboardShortcut;
+    case 'searchShortcut':
+      return searchShortcut;
+    case 'todoQuickPanelShortcut':
+      return todoShortcut;
+  }
+}
+
+function formatShortcutKey(event: KeyboardEvent) {
+  const key = normalizeShortcutKey(event);
+  if (!key) return '';
+  const parts: string[] = [];
+  if (event.ctrlKey) parts.push('Ctrl');
+  if (event.altKey) parts.push('Alt');
+  if (event.shiftKey) parts.push('Shift');
+  if (event.metaKey) parts.push('Meta');
+  if (!parts.length) return '';
+  parts.push(key);
+  return parts.join('+');
+}
+
+function normalizeShortcutKey(event: KeyboardEvent) {
+  const ignored = new Set(['Control', 'Alt', 'Shift', 'Meta', 'Process', 'Unidentified']);
+  if (ignored.has(event.key)) return '';
+  if (event.key === ' ') return 'Space';
+  if (event.key.length === 1) return event.key.toUpperCase();
+  return event.key;
+}
+
+function captureShortcut(event: KeyboardEvent, key: ShortcutKey) {
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.key === 'Escape') {
+    (event.currentTarget as HTMLElement | null)?.blur();
+    return;
+  }
+  const next = formatShortcutKey(event);
+  if (!next) {
+    message.info('请同时按下 Ctrl / Alt / Shift / Meta 与一个按键');
+    return;
+  }
+  shortcutRefOf(key).value = next;
+  void commitShortcut(key, next);
+}
+
 function labelOf(
-  key:
-    | 'mainWindowShortcut'
-    | 'quicknoteShortcut'
-    | 'clipboardShortcut'
-    | 'searchShortcut'
-    | 'todoQuickPanelShortcut',
+  key: ShortcutKey,
 ) {
   switch (key) {
     case 'mainWindowShortcut':
@@ -484,7 +533,7 @@ const headerSub = computed(() =>
         <section v-else-if="activeSection === 'shortcuts'" class="settings-section">
           <div class="settings-section__intro">
             <h2>快捷键</h2>
-            <p>输入完成后失焦或按回车保存；系统级快捷键会重新注册。</p>
+            <p>聚焦快捷键控件后直接按下组合键保存；系统级快捷键会重新注册。</p>
           </div>
 
           <h3 class="settings-group">全局入口</h3>
@@ -493,57 +542,56 @@ const headerSub = computed(() =>
               <strong>主窗口</strong>
               <p>呼出或聚焦 Steno 主窗口。</p>
             </div>
-            <NInput
-              v-model:value="mainShortcut"
-              class="settings-control"
-              placeholder="Ctrl+Shift+N"
-              size="small"
-              @blur="commitShortcut('mainWindowShortcut', mainShortcut)"
-              @keydown.enter="commitShortcut('mainWindowShortcut', mainShortcut)"
-            />
+            <button
+              class="settings-control settings-shortcut-capture"
+              type="button"
+              data-testid="main-shortcut-capture"
+              @keydown="event => captureShortcut(event, 'mainWindowShortcut')"
+            >
+              {{ mainShortcut || '按下快捷键' }}
+            </button>
           </div>
           <div class="settings-row">
             <div class="settings-row__meta">
               <strong>速记浮窗</strong>
               <p>从任意应用快速打开速记输入框。</p>
             </div>
-            <NInput
-              v-model:value="quicknoteShortcut"
-              class="settings-control"
-              placeholder="Ctrl+Shift+M"
-              size="small"
-              @blur="commitShortcut('quicknoteShortcut', quicknoteShortcut)"
-              @keydown.enter="commitShortcut('quicknoteShortcut', quicknoteShortcut)"
-            />
+            <button
+              class="settings-control settings-shortcut-capture"
+              type="button"
+              data-testid="quicknote-shortcut-capture"
+              @keydown="event => captureShortcut(event, 'quicknoteShortcut')"
+            >
+              {{ quicknoteShortcut || '按下快捷键' }}
+            </button>
           </div>
           <div class="settings-row">
             <div class="settings-row__meta">
               <strong>粘贴板</strong>
               <p>呼出 Steno 主窗口并打开粘贴板历史。</p>
             </div>
-            <NInput
-              v-model:value="clipboardShortcut"
-              class="settings-control"
-              data-testid="clipboard-shortcut-input"
-              placeholder="Ctrl+Shift+V"
-              size="small"
-              @blur="commitShortcut('clipboardShortcut', clipboardShortcut)"
-              @keydown.enter="commitShortcut('clipboardShortcut', clipboardShortcut)"
-            />
+            <button
+              class="settings-control settings-shortcut-capture"
+              type="button"
+              data-testid="clipboard-shortcut-capture"
+              @keydown="event => captureShortcut(event, 'clipboardShortcut')"
+            >
+              {{ clipboardShortcut || '按下快捷键' }}
+            </button>
           </div>
           <div class="settings-row">
             <div class="settings-row__meta">
               <strong>搜索</strong>
               <p>当前为应用内预留字段，暂不注册到操作系统。</p>
             </div>
-            <NInput
-              v-model:value="searchShortcut"
-              class="settings-control"
-              placeholder="Ctrl+Shift+F"
-              size="small"
-              @blur="commitShortcut('searchShortcut', searchShortcut)"
-              @keydown.enter="commitShortcut('searchShortcut', searchShortcut)"
-            />
+            <button
+              class="settings-control settings-shortcut-capture"
+              type="button"
+              data-testid="search-shortcut-capture"
+              @keydown="event => captureShortcut(event, 'searchShortcut')"
+            >
+              {{ searchShortcut || '按下快捷键' }}
+            </button>
           </div>
         </section>
 
@@ -571,18 +619,17 @@ const headerSub = computed(() =>
           >
             <div class="settings-row__meta">
               <strong>呼出快捷键</strong>
-              <p>失焦或按回车保存；系统级快捷键会重新注册。</p>
+              <p>聚焦后直接按下组合键保存；系统级快捷键会重新注册。</p>
             </div>
-            <NInput
-              v-model:value="todoShortcut"
-              class="settings-control"
-              data-testid="todo-shortcut-input"
-              placeholder="Ctrl+Shift+T"
-              size="small"
+            <button
+              class="settings-control settings-shortcut-capture"
+              type="button"
+              data-testid="todo-shortcut-capture"
               :disabled="!settings.state.todoQuickPanelEnabled"
-              @blur="commitShortcut('todoQuickPanelShortcut', todoShortcut)"
-              @keydown.enter="commitShortcut('todoQuickPanelShortcut', todoShortcut)"
-            />
+              @keydown="event => captureShortcut(event, 'todoQuickPanelShortcut')"
+            >
+              {{ todoShortcut || '按下快捷键' }}
+            </button>
           </div>
           <div
             class="settings-row"
@@ -1135,6 +1182,40 @@ const headerSub = computed(() =>
 
 .settings-control {
   width: 220px;
+}
+
+.settings-shortcut-capture {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 1px solid var(--settings-control-border);
+  border-radius: 6px;
+  background: var(--settings-control-bg);
+  color: var(--settings-control-fg);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.settings-shortcut-capture:hover {
+  border-color: var(--settings-control-border-hover);
+}
+
+.settings-shortcut-capture:focus-visible {
+  border-color: var(--settings-control-border-focus);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--settings-control-border-focus) 24%, transparent);
+  outline: none;
+}
+
+.settings-shortcut-capture:disabled {
+  background: var(--settings-control-bg-disabled);
+  color: var(--settings-control-muted);
+  cursor: not-allowed;
 }
 
 .settings-swatches {

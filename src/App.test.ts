@@ -297,8 +297,9 @@ describe('App', () => {
 
     expect(wrapper.find('[data-testid="shell"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="main-actions"]').exists()).toBe(false);
-    expect(wrapper.get('[data-testid="shell-nav-labels"]').text()).toBe('笔记列表|画布|粘贴板|待办|统计|截图|OCR|翻译');
+    expect(wrapper.get('[data-testid="shell-nav-labels"]').text()).toBe('笔记列表|画布|粘贴板|待办|截图|OCR|翻译');
     expect(wrapper.get('[data-testid="shell-nav-labels"]').text()).not.toContain('搜索');
+    expect(wrapper.get('[data-testid="shell-nav-labels"]').text()).not.toContain('统计');
     expect(wrapper.findAll('[data-testid="main-view"]')).toHaveLength(1);
     expect(document.body.querySelector('[data-testid="settings-modal"]')).not.toBeNull();
     expect(document.body.querySelector('[data-testid="settings-view-embedded"]')).not.toBeNull();
@@ -336,7 +337,7 @@ describe('App', () => {
     expect(wrapper.find('[data-testid="placeholder-view"]').exists()).toBe(false);
   });
 
-  it('renders the stats view from the workbench navigation shell', async () => {
+  it('renders the stats view without exposing stats in the main workbench sidebar', async () => {
     uiState.mode = 'stats';
 
     const wrapper = mount(App);
@@ -345,7 +346,7 @@ describe('App', () => {
     await nextTick();
 
     expect(wrapper.find('[data-testid="shell"]').exists()).toBe(true);
-    expect(wrapper.get('[data-testid="shell-nav-labels"]').text()).toBe('笔记列表|画布|粘贴板|待办|统计|截图|OCR|翻译');
+    expect(wrapper.get('[data-testid="shell-nav-labels"]').text()).toBe('笔记列表|画布|粘贴板|待办|截图|OCR|翻译');
     expect(wrapper.find('[data-testid="stats-view"]').exists()).toBe(true);
   });
 

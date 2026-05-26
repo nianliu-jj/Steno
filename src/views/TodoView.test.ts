@@ -17,6 +17,7 @@ const createTodoIpc = vi.fn<(input: CreateTodoRequest) => Promise<Todo>>();
 const updateTodoIpc = vi.fn<(input: UpdateTodoRequest) => Promise<Todo>>();
 const completeTodoIpc = vi.fn<(id: string) => Promise<Todo>>();
 const deleteTodoIpc = vi.fn<(id: string) => Promise<void>>();
+const navigateTo = vi.fn();
 
 vi.mock('@/composables/useDb', () => ({
   useDb: () => ({
@@ -49,6 +50,12 @@ vi.mock('@/stores/settings', () => ({
         },
       ],
     },
+  }),
+}));
+
+vi.mock('@/stores/ui', () => ({
+  useUiStore: () => ({
+    navigateTo,
   }),
 }));
 
@@ -97,6 +104,7 @@ describe('TodoView', () => {
     updateTodoIpc.mockReset();
     completeTodoIpc.mockReset();
     deleteTodoIpc.mockReset();
+    navigateTo.mockReset();
     localStorage.clear();
   });
 
@@ -364,5 +372,24 @@ describe('TodoView', () => {
     expect(wrapper.find('[data-testid="count-all"]').text()).toBe('2');
     expect(wrapper.find('[data-testid="count-done"]').text()).toBe('1');
     expect(wrapper.find('[data-testid="count-inbox"]').text()).toBe('1');
+  });
+
+  it('places collapse and stats buttons in the todo sidebar footer', async () => {
+    const wrapper = mount(TodoView);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="todo-sidebar-collapse"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="todo-sidebar-stats"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="todo-view-sidebar"]').classes()).not.toContain(
+      'todo-view-sidebar--collapsed',
+    );
+
+    await wrapper.find('[data-testid="todo-sidebar-stats"]').trigger('click');
+    expect(navigateTo).toHaveBeenCalledWith('stats');
+
+    await wrapper.find('[data-testid="todo-sidebar-collapse"]').trigger('click');
+    expect(wrapper.find('[data-testid="todo-view-sidebar"]').classes()).toContain(
+      'todo-view-sidebar--collapsed',
+    );
   });
 });

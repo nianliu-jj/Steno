@@ -21,6 +21,7 @@ import type { DropdownOption } from 'naive-ui';
 
 import { useSettingsStore } from '@/stores/settings';
 import { useTodosStore } from '@/stores/todos';
+import { useUiStore } from '@/stores/ui';
 import type { Todo, TodoCategory, TodoStatus } from '@/types/steno';
 import { computeReminderTime } from '@/utils/reminders';
 
@@ -38,6 +39,7 @@ const VALID_CATEGORIES: ReadonlySet<TodoCategory> = new Set<TodoCategory>([
 
 const todos = useTodosStore();
 const settings = useSettingsStore();
+const ui = useUiStore();
 const message = useMessage();
 
 const categories: ReadonlyArray<{ key: TodoCategory; label: string }> = [
@@ -64,6 +66,7 @@ const editingId = ref<string | null>(null);
 const editingContent = ref('');
 const editInputRef = ref<HTMLInputElement | null>(null);
 const customReminderId = ref<string | null>(null);
+const todoSidebarCollapsed = ref(false);
 
 /** v-for + v-if 中的模板 ref 会被收集成数组，这里用函数式 ref 取最新挂载实例。 */
 function bindEditInputRef(el: Element | ComponentPublicInstance | null) {
@@ -86,6 +89,14 @@ const currentCategoryLabel = computed(
 
 function selectCategory(key: TodoCategory) {
   todos.setSelectedCategory(key);
+}
+
+function toggleTodoSidebar() {
+  todoSidebarCollapsed.value = !todoSidebarCollapsed.value;
+}
+
+function openTodoStats() {
+  ui.navigateTo('stats');
 }
 
 function statusLabel(status: TodoStatus): string {
@@ -305,7 +316,11 @@ watch(
 <template>
   <div class="todo-view-root" data-testid="todo-view">
     <!-- 左侧分类侧栏 -->
-    <aside class="todo-view-sidebar" data-testid="todo-view-sidebar">
+    <aside
+      class="todo-view-sidebar"
+      :class="{ 'todo-view-sidebar--collapsed': todoSidebarCollapsed }"
+      data-testid="todo-view-sidebar"
+    >
       <h2 class="sidebar-title">待办</h2>
       <ul class="category-list">
         <li
@@ -322,6 +337,32 @@ watch(
           </span>
         </li>
       </ul>
+      <div class="todo-sidebar-footer">
+        <button
+          type="button"
+          class="todo-sidebar-icon-btn"
+          data-testid="todo-sidebar-collapse"
+          :aria-label="todoSidebarCollapsed ? '展开待办侧边栏' : '折叠待办侧边栏'"
+          :title="todoSidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
+          @click="toggleTodoSidebar"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path :d="todoSidebarCollapsed ? 'M9 6l6 6-6 6' : 'M15 6 9 12l6 6'" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="todo-sidebar-icon-btn"
+          data-testid="todo-sidebar-stats"
+          aria-label="打开任务统计"
+          title="任务统计"
+          @click="openTodoStats"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-9" />
+          </svg>
+        </button>
+      </div>
     </aside>
 
     <!-- 右侧主区 -->
@@ -502,11 +543,19 @@ watch(
   width: 180px;
   flex-shrink: 0;
   border-right: 1px solid var(--app-border);
-  padding: 18px 12px;
+  padding: 18px 12px 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   background: var(--app-surface);
+  transition:
+    width 0.18s ease,
+    padding 0.18s ease;
+}
+
+.todo-view-sidebar--collapsed {
+  width: 64px;
+  padding-inline: 10px;
 }
 
 .sidebar-title {
@@ -516,6 +565,10 @@ watch(
   color: var(--app-fg);
 }
 
+.todo-view-sidebar--collapsed .sidebar-title {
+  text-align: center;
+}
+
 .category-list {
   list-style: none;
   margin: 0;
@@ -523,6 +576,7 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-height: 0;
 }
 
 .category-item {
@@ -535,6 +589,16 @@ watch(
   font-size: 13px;
   color: var(--app-muted);
   transition: background 120ms, color 120ms;
+}
+
+.todo-view-sidebar--collapsed .category-item {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.todo-view-sidebar--collapsed .category-label,
+.todo-view-sidebar--collapsed .category-count {
+  display: none;
 }
 
 .category-item:hover {
@@ -558,6 +622,49 @@ watch(
 
 .category-item.active .category-count {
   color: var(--app-accent);
+}
+
+.todo-sidebar-footer {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--app-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.todo-view-sidebar--collapsed .todo-sidebar-footer {
+  flex-direction: column;
+}
+
+.todo-sidebar-icon-btn {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--app-muted);
+  cursor: pointer;
+  transition:
+    background 120ms,
+    border-color 120ms,
+    color 120ms;
+}
+
+.todo-sidebar-icon-btn:hover,
+.todo-sidebar-icon-btn:focus-visible {
+  border-color: var(--app-border);
+  background: var(--app-surface-2);
+  color: var(--app-fg);
+  outline: none;
+}
+
+.todo-sidebar-icon-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
 .todo-view-main {
