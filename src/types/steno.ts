@@ -324,6 +324,17 @@ export interface ConvertTextToDocumentRequest {
 /** 待办状态机：新建 / 进行中 / 暂停 / 已完成。 */
 export type TodoStatus = 'todo' | 'doing' | 'paused' | 'done';
 
+/** 待办快捷提醒选项，存储在 settings.reminderQuickOptions 中。 */
+export interface ReminderOption {
+  id: string;
+  label: string;
+  type: 'relative' | 'absolute';
+  value: number;
+  unit: 'minute' | 'hour' | 'day';
+  absoluteTime?: string;
+  dayOffset?: number;
+}
+
 /**
  * 待办事项 DTO — 与后端 `todo.rs::Todo`（camelCase 序列化）一致。
  *

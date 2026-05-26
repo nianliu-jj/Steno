@@ -16,6 +16,7 @@ import { defineStore } from 'pinia';
 import { reactive, ref } from 'vue';
 
 import { useDb } from '@/composables/useDb';
+import type { ReminderOption } from '@/types/steno';
 
 /** 主题模式：亮色 / 暗色 / 跟随系统。 */
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -86,7 +87,56 @@ export interface StenoSettings {
    * 空串表示尚未记录过。
    */
   todoQuickPanelLastPos: string;
+  /** 任务编辑器中展示的快捷提醒选项。 */
+  reminderQuickOptions: ReminderOption[];
 }
+
+export const DEFAULT_REMINDER_QUICK_OPTIONS: ReminderOption[] = [
+  {
+    id: 'after-30-minutes',
+    label: '30 分钟后',
+    type: 'relative',
+    value: 30,
+    unit: 'minute',
+  },
+  {
+    id: 'after-1-hour',
+    label: '1 小时后',
+    type: 'relative',
+    value: 1,
+    unit: 'hour',
+  },
+  {
+    id: 'after-2-hours',
+    label: '2 小时后',
+    type: 'relative',
+    value: 2,
+    unit: 'hour',
+  },
+  {
+    id: 'after-1-day',
+    label: '1 天后',
+    type: 'relative',
+    value: 1,
+    unit: 'day',
+  },
+  {
+    id: 'next-week',
+    label: '下周',
+    type: 'relative',
+    value: 7,
+    unit: 'day',
+  },
+  {
+    id: 'today-16',
+    label: '今天下午 4 点',
+    type: 'absolute',
+    value: 0,
+    unit: 'minute',
+    absoluteTime: '16:00',
+    dayOffset: 0,
+  },
+];
 
 /**
  * 默认设置值。
@@ -116,7 +166,53 @@ const DEFAULTS: StenoSettings = {
   todoQuickPanelShortcut: 'Ctrl+Shift+T',
   todoQuickPanelPosition: 'bottom-right',
   todoQuickPanelLastPos: '',
+  reminderQuickOptions: DEFAULT_REMINDER_QUICK_OPTIONS,
 };
+
+function cloneReminderOptions(options: ReminderOption[]): ReminderOption[] {
+  return options.map(option => ({ ...option }));
+}
+
+function defaultValue<K extends keyof StenoSettings>(key: K): StenoSettings[K] {
+  if (key === 'reminderQuickOptions') {
+    return cloneReminderOptions(DEFAULT_REMINDER_QUICK_OPTIONS) as StenoSettings[K];
+  }
+  return DEFAULTS[key];
+}
+
+function isValidReminderOption(option: unknown): option is ReminderOption {
+  if (option === null || typeof option !== 'object') return false;
+  const item = option as ReminderOption;
+  if (typeof item.id !== 'string' || item.id.trim() === '') return false;
+  if (typeof item.label !== 'string' || item.label.trim() === '') return false;
+  if (!['relative', 'absolute'].includes(item.type)) return false;
+  if (!['minute', 'hour', 'day'].includes(item.unit)) return false;
+  if (!Number.isFinite(item.value)) return false;
+
+  if (item.type === 'relative') {
+    return item.value > 0;
+  }
+
+  return (
+    /^([01]\d|2[0-3]):[0-5]\d$/.test(item.absoluteTime ?? '') &&
+    Number.isInteger(item.dayOffset) &&
+    (item.dayOffset ?? -1) >= 0
+  );
+}
+
+function isValidReminderOptions(value: unknown): value is ReminderOption[] {
+  return Array.isArray(value) && value.every(isValidReminderOption);
+}
+
+function encode<K extends keyof StenoSettings>(key: K, value: StenoSettings[K]): string {
+  if (key === 'reminderQuickOptions') {
+    if (!isValidReminderOptions(value)) {
+      throw new Error('Invalid reminder quick option');
+    }
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
 
 /**
  * 将后端返回的 TEXT 值按字段类型还原为 TS 类型。
@@ -135,9 +231,19 @@ function decode<K extends keyof StenoSettings>(
   raw: string | null,
 ): StenoSettings[K] {
   if (raw === null || raw === undefined) {
-    return DEFAULTS[key];
+    return defaultValue(key);
   }
   switch (key) {
+    case 'reminderQuickOptions': {
+      try {
+        const parsed = JSON.parse(raw);
+        return (isValidReminderOptions(parsed)
+          ? parsed
+          : defaultValue(key)) as StenoSettings[K];
+      } catch {
+        return defaultValue(key);
+      }
+    }
     case 'floatingWidth':
     case 'floatingHeight':
     case 'blurCloseDelayMs':
@@ -147,7 +253,7 @@ function decode<K extends keyof StenoSettings>(
     case 'zenOutlineWidth': {
       const n = Number.parseInt(raw, 10);
       // 解析失败或 ≤0 时使用默认值
-      return (Number.isFinite(n) && n > 0 ? n : DEFAULTS[key]) as StenoSettings[K];
+      return (Number.isFinite(n) && n > 0 ? n : defaultValue(key)) as StenoSettings[K];
     }
     case 'mainSidebarCollapsed': {
       return (raw === 'true') as StenoSettings[K];
@@ -166,7 +272,7 @@ function decode<K extends keyof StenoSettings>(
     case 'zenOutlineOpen': {
       if (raw === 'true') return true as StenoSettings[K];
       if (raw === 'false') return false as StenoSettings[K];
-      return DEFAULTS[key];
+      return defaultValue(key);
     }
     case 'todoQuickPanelEnabled': {
       if (raw === 'true') return true as StenoSettings[K];
@@ -186,7 +292,10 @@ function decode<K extends keyof StenoSettings>(
 export const useSettingsStore = defineStore('settings', () => {
   const db = useDb();
   /** 所有设置的响应式状态（`reactive` 支持深层修改追踪）。 */
-  const state = reactive<StenoSettings>({ ...DEFAULTS });
+  const state = reactive<StenoSettings>({
+    ...DEFAULTS,
+    reminderQuickOptions: cloneReminderOptions(DEFAULT_REMINDER_QUICK_OPTIONS),
+  });
   /** 是否已完成首次加载。 */
   const loaded = ref(false);
   /** 最近一次操作失败的错误消息。 */
@@ -233,10 +342,11 @@ export const useSettingsStore = defineStore('settings', () => {
     key: K,
     value: StenoSettings[K],
   ): Promise<void> {
+    const encoded = encode(key, value);
     const prev = state[key];
     (state[key] as StenoSettings[K]) = value; // 乐观：先改本地
     try {
-      await db.setSetting(key, String(value));
+      await db.setSetting(key, encoded);
     } catch (e) {
       (state[key] as StenoSettings[K]) = prev; // 回滚
       error.value = String(e);

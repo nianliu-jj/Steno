@@ -24,12 +24,12 @@
 
 ## 3. Phase A3 — Settings 模型扩展
 
-- [ ] 3.1 在 `src/types/steno.ts` 新增 `ReminderOption` 类型（id/label/type/value/unit/absoluteTime/dayOffset）
-- [ ] 3.2 在 `src/stores/settings.ts` 的 `StenoSettings` 接口加 `reminderQuickOptions: ReminderOption[]`
-- [ ] 3.3 在 `DEFAULT_SETTINGS` 中加入 6 个默认选项（30 分钟后 / 1 小时后 / 2 小时后 / 1 天后 / 下周 / 今天下午 4 点）
-- [ ] 3.4 在 settings store 持久化序列化路径中处理数组类型（已有 JSON 序列化路径则直接通过）
-- [ ] 3.5 vitest：默认值正确填充 / 增删持久化 / 拒绝非法 `value <= 0` 选项
-- [ ] 3.6 提交：`feat(settings): 待办提醒/统计 Phase A3 — reminderQuickOptions 字段与默认 6 项`
+- [x] 3.1 在 `src/types/steno.ts` 新增 `ReminderOption` 类型（id/label/type/value/unit/absoluteTime/dayOffset）
+- [x] 3.2 在 `src/stores/settings.ts` 的 `StenoSettings` 接口加 `reminderQuickOptions: ReminderOption[]`
+- [x] 3.3 在 `DEFAULT_SETTINGS` 中加入 6 个默认选项（30 分钟后 / 1 小时后 / 2 小时后 / 1 天后 / 下周 / 今天下午 4 点）
+- [x] 3.4 在 settings store 持久化序列化路径中处理数组类型（已有 JSON 序列化路径则直接通过）
+- [x] 3.5 vitest：默认值正确填充 / 增删持久化 / 拒绝非法 `value <= 0` 选项
+- [x] 3.6 提交：`feat(settings): 待办提醒/统计 Phase A3 — reminderQuickOptions 字段与默认 6 项`
 
 ## 4. Phase A4 — 设置面板「提醒设置」UI
 
