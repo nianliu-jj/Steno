@@ -327,17 +327,22 @@ describe('SettingsView', () => {
     error.mockRestore();
   });
 
-  it('saves the clipboard shortcut and reloads global shortcuts', async () => {
+  it('captures a clipboard shortcut from keydown instead of typed text', async () => {
     const wrapper = mountSettingsView();
     await flushPromises();
 
     await wrapper.get('[data-testid="settings-tab-shortcuts"]').trigger('click');
-    const input = wrapper.get('[data-testid="clipboard-shortcut-input"] input');
-    await input.setValue('Alt+C');
-    await input.trigger('keydown.enter');
+    const capture = wrapper.get('[data-testid="clipboard-shortcut-capture"]');
+
+    expect(capture.find('input').exists()).toBe(false);
+    await capture.trigger('keydown', {
+      key: 'V',
+      ctrlKey: true,
+      shiftKey: true,
+    });
     await flushPromises();
 
-    expect(updateSetting).toHaveBeenCalledWith('clipboardShortcut', 'Alt+C');
+    expect(updateSetting).toHaveBeenCalledWith('clipboardShortcut', 'Ctrl+Shift+V');
     expect(reloadShortcuts).toHaveBeenCalledOnce();
     expect(messageSuccess).toHaveBeenCalledWith('已更新「粘贴板快捷键」');
   });
