@@ -24,6 +24,7 @@ import NoteEditorView from '@/views/NoteEditorView.vue';
 import PlaceholderView from '@/views/PlaceholderView.vue';
 import SettingsView from '@/views/SettingsView.vue';
 import TodoQuickPanel from '@/views/TodoQuickPanel.vue';
+import TodoView from '@/views/TodoView.vue';
 import ZenMode from '@/views/ZenMode.vue';
 import type { WindowMode } from '@/types/steno';
 import type { ThemeMode } from '@/stores/settings';
@@ -56,8 +57,6 @@ const shellNavItems = computed<
 
 const placeholderMeta = computed(() => {
   switch (ui.mode) {
-    case 'todo':
-      return { title: '待办', description: '功能规划中' };
     case 'screenshot':
       return { title: '截图', description: '功能规划中' };
     case 'ocr':
@@ -142,6 +141,7 @@ watch(
             <NoteEditorView v-else-if="ui.mode === 'note-editor'" />
             <CanvasView v-else-if="ui.mode === 'canvas'" />
             <ClipboardView v-else-if="ui.mode === 'clipboard'" />
+            <TodoView v-else-if="ui.mode === 'todo'" />
             <PlaceholderView
               v-else-if="placeholderMeta"
               :title="placeholderMeta.title"

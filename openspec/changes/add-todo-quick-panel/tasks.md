@@ -40,15 +40,15 @@
 
 ## 5. 主窗口待办视图替换
 
-- [ ] 5.1 在 `src/router/index.ts` 把 `todo` 路由从 `PlaceholderView` 替换为新组件 `TodoView`
-- [ ] 5.2 新建 `src/views/TodoView.vue`：
-  - 左侧：分类侧栏（今天 / 计划中 / 进行中 / 已暂停 / 已完成 / 全部 / 收件箱），各项展示计数徽章
-  - 顶部：与浮窗一致的添加输入框 + 搜索框 + 视图密度切换
+- [x] 5.1 在 `App.vue` 把 `todo` 模式从 `placeholderMeta` 中剔除，并新增 `<TodoView v-else-if="ui.mode === 'todo'" />`（shellModes 已包含 `todo`）
+- [x] 5.2 新建 `src/views/TodoView.vue`：
+  - 左侧：分类侧栏（今天 / 计划中 / 进行中 / 已暂停 / 已完成 / 收件箱 / 全部），各项展示计数徽章
+  - 顶部：标题 + 搜索框 + 添加输入框
   - 中部：任务列表，每行支持双击编辑文本、状态徽章下拉、日期按钮、删除
-- [ ] 5.3 行内编辑：使用 `<input v-if="editingId===item.id">` 切换；失焦或 Enter 保存，Esc 取消
-- [ ] 5.4 状态切换下拉：使用 `NDropdown`；日期选择使用 `NDatePicker`
-- [ ] 5.5 持久化选中分类到 `useTodosStore.selectedCategory`（mount 时恢复）
-- [ ] 5.6 编写 `src/views/TodoView.test.ts`：覆盖分类切换、行内编辑、状态下拉、跨分类计数一致
+- [x] 5.3 行内编辑：使用 `<input v-if="editingId===item.id">` 切换；失焦或 Enter 保存，Esc 取消（v-for 内 ref 用函数式 bindEditInputRef 收集）
+- [x] 5.4 状态切换下拉：使用 `NDropdown`；日期选择使用 `NDatePicker`
+- [x] 5.5 持久化选中分类到 `localStorage`（mount 时恢复，watch 写回；store.selectedCategory 已存在）
+- [x] 5.6 编写 `src/views/TodoView.test.ts`：覆盖侧栏渲染/计数、分类切换+localStorage 持久化、localStorage 恢复、添加任务、完成任务、双击行内编辑+Enter 保存、Esc 取消、搜索过滤、删除、空态、跨分类计数（11 用例全部通过）
 
 ## 6. 设置面板"待办浮窗"分组
 
