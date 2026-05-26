@@ -25,6 +25,7 @@ mod models;
 mod quicknote;
 mod shortcut;
 mod sync;
+mod todo;
 mod tray;
 mod window_manager;
 mod workspace_fs;
@@ -80,6 +81,12 @@ pub fn run() {
             commands::export_note_html,
             commands::export_note_pdf,
             commands::get_data_paths,
+            commands::list_todos,
+            commands::get_today_todos,
+            commands::create_todo,
+            commands::update_todo,
+            commands::complete_todo,
+            commands::delete_todo,
         ])
         .on_window_event(|window, event| match event {
             // 关闭按钮 = 隐藏，不真正退出。真正退出走托盘菜单"退出"项。

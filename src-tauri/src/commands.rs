@@ -23,6 +23,9 @@ use crate::models::{
     MainListContext, Note, PinnedWindowConfig, SaveDocumentEntryRequest, SaveNoteRequest,
     SaveTextEntryRequest, SearchNotesRequest, Workspace, EditorEntry,
 };
+use crate::todo::{
+    self, CreateTodoRequest, TodoChangeKind, TodoChangePayload, TodayTodosRequest, UpdateTodoRequest,
+};
 use crate::{quicknote, shortcut, window_manager};
 
 /// 把任意 Error-like 转成 String，匹配 tauri::command 的 Result<T, String> 约定。
@@ -528,4 +531,122 @@ pub fn get_data_paths(db: State<'_, Db>) -> DataPaths {
         db_path: db_path.to_string_lossy().into_owned(),
         backup_dir: backup_dir.to_string_lossy().into_owned(),
     }
+}
+
+// ----- 待办（Todo） -----------------------------------------------------
+//
+// 写操作均在 spawn_blocking 内完成 DB 调用，回到主 future 后通过
+// `app.emit` 广播 `steno:todo-changed`。`emit` 失败不阻塞业务返回。
+
+#[tauri::command]
+pub async fn list_todos(db: State<'_, Db>) -> Result<Vec<todo::Todo>, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.list_todos())
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn get_today_todos(
+    db: State<'_, Db>,
+    input: Option<TodayTodosRequest>,
+) -> Result<Vec<todo::Todo>, String> {
+    let db = db.inner().clone();
+    let include_completed = input.map(|i| i.include_completed).unwrap_or(false);
+    tauri::async_runtime::spawn_blocking(move || db.list_today_todos(include_completed))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn create_todo(
+    app: AppHandle,
+    db: State<'_, Db>,
+    input: CreateTodoRequest,
+) -> Result<todo::Todo, String> {
+    let db = db.inner().clone();
+    let saved = tauri::async_runtime::spawn_blocking(move || db.create_todo(input))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)?;
+    let _ = app.emit(
+        todo::TODO_CHANGED_EVENT,
+        TodoChangePayload {
+            kind: TodoChangeKind::Created,
+            id: saved.id.clone(),
+            todo: Some(saved.clone()),
+        },
+    );
+    Ok(saved)
+}
+
+#[tauri::command]
+pub async fn update_todo(
+    app: AppHandle,
+    db: State<'_, Db>,
+    input: UpdateTodoRequest,
+) -> Result<todo::Todo, String> {
+    let db = db.inner().clone();
+    let saved = tauri::async_runtime::spawn_blocking(move || db.update_todo(input))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)?;
+    // status 切到 done 时使用 Completed kind，便于前端按需播放完成动效。
+    let kind = if saved.status == todo::TodoStatus::Done {
+        TodoChangeKind::Completed
+    } else {
+        TodoChangeKind::Updated
+    };
+    let _ = app.emit(
+        todo::TODO_CHANGED_EVENT,
+        TodoChangePayload {
+            kind,
+            id: saved.id.clone(),
+            todo: Some(saved.clone()),
+        },
+    );
+    Ok(saved)
+}
+
+#[tauri::command]
+pub async fn complete_todo(
+    app: AppHandle,
+    db: State<'_, Db>,
+    id: String,
+) -> Result<todo::Todo, String> {
+    let db = db.inner().clone();
+    let saved = tauri::async_runtime::spawn_blocking(move || db.complete_todo(&id))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)?;
+    let _ = app.emit(
+        todo::TODO_CHANGED_EVENT,
+        TodoChangePayload {
+            kind: TodoChangeKind::Completed,
+            id: saved.id.clone(),
+            todo: Some(saved.clone()),
+        },
+    );
+    Ok(saved)
+}
+
+#[tauri::command]
+pub async fn delete_todo(app: AppHandle, db: State<'_, Db>, id: String) -> Result<(), String> {
+    let db = db.inner().clone();
+    let id_for_emit = id.clone();
+    tauri::async_runtime::spawn_blocking(move || db.delete_todo(&id))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)?;
+    let _ = app.emit(
+        todo::TODO_CHANGED_EVENT,
+        TodoChangePayload {
+            kind: TodoChangeKind::Deleted,
+            id: id_for_emit,
+            todo: None,
+        },
+    );
+    Ok(())
 }

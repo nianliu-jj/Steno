@@ -26,6 +26,7 @@ use crate::models::{
     ConvertTextToDocumentRequest, EditorEntry, EntryKind, LibraryEntry, MainListContext, Note,
     SaveDocumentEntryRequest, SaveNoteRequest, SaveTextEntryRequest, SearchNotesRequest, Workspace,
 };
+use crate::todo::{CreateTodoRequest, Todo, TodoStatus, UpdateTodoRequest};
 use crate::workspace_fs::{self, WorkspaceFsEntryKind};
 
 const INBOX_GROUP_ID: &str = "group-inbox";
@@ -235,6 +236,34 @@ impl Db {
                 ",
             )?;
             tx.pragma_update(None, "user_version", 4_i64)?;
+            tx.commit()?;
+        }
+        if version < 5 {
+            // v5：待办事项 todos 表，与 ZhiDo 字段对齐。
+            // id 用 TEXT/UUID（与既有 notes、clipboard_history 一致）；status 限定为
+            // `todo` / `doing` / `paused` / `done` 四态；is_deleted 逻辑删除保留撤销空间。
+            let tx = conn.transaction()?;
+            tx.execute_batch(
+                "
+                CREATE TABLE IF NOT EXISTS todos (
+                  id            TEXT PRIMARY KEY,
+                  content       TEXT NOT NULL,
+                  status        TEXT NOT NULL DEFAULT 'todo',
+                  created_at    TEXT NOT NULL,
+                  updated_at    TEXT NOT NULL,
+                  completed_at  TEXT,
+                  due_date      TEXT,
+                  reminder_time TEXT,
+                  list_id       TEXT NOT NULL DEFAULT 'default',
+                  is_deleted    INTEGER NOT NULL DEFAULT 0
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_todos_status ON todos(status);
+                CREATE INDEX IF NOT EXISTS idx_todos_due_date ON todos(due_date);
+                CREATE INDEX IF NOT EXISTS idx_todos_is_deleted ON todos(is_deleted);
+                ",
+            )?;
+            tx.pragma_update(None, "user_version", 5_i64)?;
             tx.commit()?;
         }
         // 幂等自检：dev 库偶尔会出现 user_version 已升到 2 但实际 ALTER 没成功
@@ -1215,6 +1244,203 @@ impl Db {
             .optional()?;
         workspace.ok_or_else(|| DbError::NotFound(id.to_string()))
     }
+
+    // ---------- Todos ----------
+    //
+    // 写操作均返回最新 Todo 快照，commands 层据此 emit 跨窗口事件。
+    // content 校验：trim 后长度 1..=500；空串与超长一律 Validation。
+
+    pub fn create_todo(&self, input: CreateTodoRequest) -> Result<Todo, DbError> {
+        let content = Self::validate_todo_content(&input.content)?;
+        let conn = self.lock()?;
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+        let list_id = input
+            .list_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or("default")
+            .to_string();
+
+        conn.execute(
+            "INSERT INTO todos
+             (id, content, status, created_at, updated_at, completed_at, due_date, reminder_time, list_id, is_deleted)
+             VALUES (?1, ?2, 'todo', ?3, ?3, NULL, ?4, ?5, ?6, 0)",
+            rusqlite::params![
+                &id,
+                &content,
+                &now,
+                input.due_date.as_deref(),
+                input.reminder_time.as_deref(),
+                &list_id,
+            ],
+        )?;
+
+        Self::find_todo(&conn, &id)
+    }
+
+    pub fn update_todo(&self, input: UpdateTodoRequest) -> Result<Todo, DbError> {
+        let conn = self.lock()?;
+        let existing = Self::find_todo(&conn, &input.id)?;
+        let now = chrono::Utc::now().to_rfc3339();
+
+        let new_content = match &input.content {
+            Some(content) => Self::validate_todo_content(content)?,
+            None => existing.content.clone(),
+        };
+
+        let new_status = input.status.unwrap_or(existing.status);
+        // 状态从非 done 切到 done 时 stamp completed_at；从 done 切回非 done 时清零。
+        let new_completed_at = match (existing.status, new_status) {
+            (TodoStatus::Done, TodoStatus::Done) => existing.completed_at.clone(),
+            (_, TodoStatus::Done) => Some(now.clone()),
+            (TodoStatus::Done, _) => None,
+            _ => existing.completed_at.clone(),
+        };
+
+        // `Option<Option<String>>`：外层 None = 不变；外层 Some(None) = 清空。
+        let new_due_date = match input.due_date {
+            Some(value) => value,
+            None => existing.due_date.clone(),
+        };
+        let new_reminder_time = match input.reminder_time {
+            Some(value) => value,
+            None => existing.reminder_time.clone(),
+        };
+        let new_list_id = input
+            .list_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or(existing.list_id.as_str())
+            .to_string();
+
+        conn.execute(
+            "UPDATE todos
+                SET content = ?1,
+                    status = ?2,
+                    updated_at = ?3,
+                    completed_at = ?4,
+                    due_date = ?5,
+                    reminder_time = ?6,
+                    list_id = ?7
+              WHERE id = ?8",
+            rusqlite::params![
+                &new_content,
+                new_status.as_str(),
+                &now,
+                new_completed_at.as_deref(),
+                new_due_date.as_deref(),
+                new_reminder_time.as_deref(),
+                &new_list_id,
+                &input.id,
+            ],
+        )?;
+
+        Self::find_todo(&conn, &input.id)
+    }
+
+    pub fn complete_todo(&self, id: &str) -> Result<Todo, DbError> {
+        let conn = self.lock()?;
+        let _ = Self::find_todo(&conn, id)?;
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "UPDATE todos
+                SET status = 'done',
+                    updated_at = ?1,
+                    completed_at = ?1
+              WHERE id = ?2",
+            rusqlite::params![&now, id],
+        )?;
+        Self::find_todo(&conn, id)
+    }
+
+    pub fn delete_todo(&self, id: &str) -> Result<(), DbError> {
+        let conn = self.lock()?;
+        let _ = Self::find_todo(&conn, id)?;
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "UPDATE todos
+                SET is_deleted = 1,
+                    updated_at = ?1
+              WHERE id = ?2",
+            rusqlite::params![&now, id],
+        )?;
+        Ok(())
+    }
+
+    pub fn list_todos(&self) -> Result<Vec<Todo>, DbError> {
+        let conn = self.lock()?;
+        let mut stmt = conn.prepare(
+            "SELECT id, content, status, created_at, updated_at, completed_at,
+                    due_date, reminder_time, list_id
+               FROM todos
+              WHERE is_deleted = 0
+              ORDER BY
+                CASE status WHEN 'done' THEN 1 ELSE 0 END,
+                COALESCE(due_date, created_at) ASC,
+                created_at ASC",
+        )?;
+        let rows = stmt.query_map([], row_to_todo)?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    /// 今日列表：
+    /// - 包含 `due_date` 落在今天的；
+    /// - 或 `due_date IS NULL` 且 `created_at` 是今天本地日的（"今天创建即今天"）；
+    /// - 默认排除已完成；`include_completed=true` 时一并返回。
+    pub fn list_today_todos(&self, include_completed: bool) -> Result<Vec<Todo>, DbError> {
+        let conn = self.lock()?;
+        let mut sql = String::from(
+            "SELECT id, content, status, created_at, updated_at, completed_at,
+                    due_date, reminder_time, list_id
+               FROM todos
+              WHERE is_deleted = 0
+                AND (
+                  (due_date IS NOT NULL AND DATE(due_date, 'localtime') = DATE('now', 'localtime'))
+                  OR (due_date IS NULL AND DATE(created_at, 'localtime') = DATE('now', 'localtime'))
+                )",
+        );
+        if !include_completed {
+            sql.push_str(" AND status != 'done'");
+        }
+        sql.push_str(" ORDER BY status = 'done' ASC, COALESCE(due_date, created_at) ASC");
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map([], row_to_todo)?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    fn find_todo(conn: &Connection, id: &str) -> Result<Todo, DbError> {
+        let todo = conn
+            .query_row(
+                "SELECT id, content, status, created_at, updated_at, completed_at,
+                        due_date, reminder_time, list_id
+                   FROM todos
+                  WHERE id = ?1 AND is_deleted = 0",
+                rusqlite::params![id],
+                row_to_todo,
+            )
+            .optional()?;
+        todo.ok_or_else(|| DbError::NotFound(id.to_string()))
+    }
+
+    fn validate_todo_content(raw: &str) -> Result<String, DbError> {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            return Err(DbError::Validation(
+                "待办内容不能为空".to_string(),
+            ));
+        }
+        // 以字符数（非字节）为准，与前端 length 一致。
+        let char_count = trimmed.chars().count();
+        if char_count > 500 {
+            return Err(DbError::Validation(format!(
+                "待办内容长度超过 500（当前 {char_count}）"
+            )));
+        }
+        Ok(trimmed.to_string())
+    }
 }
 
 fn row_to_library_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryEntry> {
@@ -1243,6 +1469,22 @@ fn row_to_workspace(row: &rusqlite::Row<'_>) -> rusqlite::Result<Workspace> {
         root_path: row.get(2)?,
         created_at: row.get(3)?,
         updated_at: row.get(4)?,
+    })
+}
+
+fn row_to_todo(row: &rusqlite::Row<'_>) -> rusqlite::Result<Todo> {
+    let status_raw: String = row.get(2)?;
+    let status = TodoStatus::parse(&status_raw).unwrap_or(TodoStatus::Todo);
+    Ok(Todo {
+        id: row.get(0)?,
+        content: row.get(1)?,
+        status,
+        created_at: row.get(3)?,
+        updated_at: row.get(4)?,
+        completed_at: row.get(5)?,
+        due_date: row.get(6)?,
+        reminder_time: row.get(7)?,
+        list_id: row.get(8)?,
     })
 }
 
@@ -1462,6 +1704,7 @@ mod tests {
         ConvertTextToDocumentRequest, EntryKind, MainListContext, SaveNoteRequest,
         SaveTextEntryRequest,
     };
+    use crate::todo::{CreateTodoRequest, TodoStatus, UpdateTodoRequest};
 
     fn fresh_db() -> Db {
         let mut conn = Connection::open_in_memory().expect("open in-memory db");
@@ -1529,7 +1772,7 @@ mod tests {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 4);
+        assert_eq!(version, 5);
     }
 
     #[test]
@@ -1616,7 +1859,7 @@ mod tests {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 4);
+        assert_eq!(version, 5);
     }
 
     // --- derive_title ---
@@ -2216,5 +2459,293 @@ mod tests {
         assert_eq!(converted.kind, EntryKind::Document);
         assert!(converted.file_path.as_ref().is_some());
         assert!(std::fs::exists(converted.file_path.as_ref().unwrap()).unwrap());
+    }
+
+    // --- todos ---
+
+    #[test]
+    fn migrate_creates_todos_table_and_indexes() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        Db::migrate(&mut conn).unwrap();
+        let mut stmt = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='todos'")
+            .unwrap();
+        let tables: Vec<String> = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(tables, vec!["todos"]);
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='todos' ORDER BY name",
+            )
+            .unwrap();
+        let indexes: Vec<String> = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert!(indexes.contains(&"idx_todos_status".to_string()));
+        assert!(indexes.contains(&"idx_todos_due_date".to_string()));
+        assert!(indexes.contains(&"idx_todos_is_deleted".to_string()));
+    }
+
+    #[test]
+    fn migrate_v5_is_idempotent() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        Db::migrate(&mut conn).unwrap();
+        Db::migrate(&mut conn).unwrap();
+        let version: i64 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 5);
+    }
+
+    #[test]
+    fn create_todo_persists_default_values() {
+        let db = fresh_db();
+        let todo = db
+            .create_todo(CreateTodoRequest {
+                content: "买牛奶".into(),
+                due_date: None,
+                reminder_time: None,
+                list_id: None,
+            })
+            .unwrap();
+        assert_eq!(todo.content, "买牛奶");
+        assert_eq!(todo.status, TodoStatus::Todo);
+        assert_eq!(todo.list_id, "default");
+        assert!(todo.completed_at.is_none());
+        assert!(!todo.id.is_empty());
+    }
+
+    #[test]
+    fn create_todo_trims_whitespace_in_content() {
+        let db = fresh_db();
+        let todo = db
+            .create_todo(CreateTodoRequest {
+                content: "   做晚饭   ".into(),
+                due_date: None,
+                reminder_time: None,
+                list_id: None,
+            })
+            .unwrap();
+        assert_eq!(todo.content, "做晚饭");
+    }
+
+    #[test]
+    fn create_todo_rejects_empty_content() {
+        let db = fresh_db();
+        let err = db
+            .create_todo(CreateTodoRequest {
+                content: "   ".into(),
+                due_date: None,
+                reminder_time: None,
+                list_id: None,
+            })
+            .unwrap_err();
+        match err {
+            DbError::Validation(_) => {}
+            other => panic!("expect Validation, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn create_todo_rejects_overlong_content() {
+        let db = fresh_db();
+        let long = "a".repeat(501);
+        let err = db
+            .create_todo(CreateTodoRequest {
+                content: long,
+                due_date: None,
+                reminder_time: None,
+                list_id: None,
+            })
+            .unwrap_err();
+        assert!(matches!(err, DbError::Validation(_)));
+    }
+
+    #[test]
+    fn update_todo_partial_fields_keeps_others_untouched() {
+        let db = fresh_db();
+        let created = db
+            .create_todo(CreateTodoRequest {
+                content: "原内容".into(),
+                due_date: None,
+                reminder_time: None,
+                list_id: Some("inbox".into()),
+            })
+            .unwrap();
+
+        let updated = db
+            .update_todo(UpdateTodoRequest {
+                id: created.id.clone(),
+                content: Some("新内容".into()),
+                status: None,
+                due_date: None,
+                reminder_time: None,
+                list_id: None,
+            })
+            .unwrap();
+        assert_eq!(updated.content, "新内容");
+        assert_eq!(updated.status, TodoStatus::Todo);
+        assert_eq!(updated.list_id, "inbox");
+    }
+
+    #[test]
+    fn complete_todo_sets_status_and_completed_at() {
+        let db = fresh_db();
+        let created = db
+            .create_todo(CreateTodoRequest {
+                content: "勾选项".into(),
+                due_date: None,
+                reminder_time: None,
+                list_id: None,
+            })
+            .unwrap();
+        let completed = db.complete_todo(&created.id).unwrap();
+        assert_eq!(completed.status, TodoStatus::Done);
+        assert!(completed.completed_at.is_some());
+    }
+
+    #[test]
+    fn update_todo_to_done_then_back_clears_completed_at() {
+        let db = fresh_db();
+        let created = db
+            .create_todo(CreateTodoRequest {
+                content: "反复任务".into(),
+                due_date: None,
+                reminder_time: None,
+                list_id: None,
+            })
+            .unwrap();
+        let done = db
+            .update_todo(UpdateTodoRequest {
+                id: created.id.clone(),
+                content: None,
+                status: Some(TodoStatus::Done),
+                due_date: None,
+                reminder_time: None,
+                list_id: None,
+            })
+            .unwrap();
+        assert!(done.completed_at.is_some());
+
+        let reopened = db
+            .update_todo(UpdateTodoRequest {
+                id: created.id.clone(),
+                content: None,
+                status: Some(TodoStatus::Todo),
+                due_date: None,
+                reminder_time: None,
+                list_id: None,
+            })
+            .unwrap();
+        assert_eq!(reopened.status, TodoStatus::Todo);
+        assert!(reopened.completed_at.is_none());
+    }
+
+    #[test]
+    fn delete_todo_hides_from_list() {
+        let db = fresh_db();
+        let created = db
+            .create_todo(CreateTodoRequest {
+                content: "要被删".into(),
+                due_date: None,
+                reminder_time: None,
+                list_id: None,
+            })
+            .unwrap();
+        db.delete_todo(&created.id).unwrap();
+        let all = db.list_todos().unwrap();
+        assert!(all.iter().all(|t| t.id != created.id));
+    }
+
+    #[test]
+    fn update_or_complete_missing_todo_returns_not_found() {
+        let db = fresh_db();
+        let err = db.complete_todo("non-existent-id").unwrap_err();
+        assert!(matches!(err, DbError::NotFound(_)));
+    }
+
+    #[test]
+    fn list_today_includes_due_date_today_and_creation_today_by_default() {
+        let db = fresh_db();
+        // 默认创建 → due_date=None，今日列表应命中
+        let created_today = db
+            .create_todo(CreateTodoRequest {
+                content: "今日新建".into(),
+                due_date: None,
+                reminder_time: None,
+                list_id: None,
+            })
+            .unwrap();
+        // 显式 due_date 设为今天本地日（用 sqlite DATE('now','localtime') 拿到一致字符串）
+        let today_iso: String = {
+            let conn = db.lock().unwrap();
+            conn.query_row(
+                "SELECT DATE('now','localtime') || 'T08:00:00+00:00'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap()
+        };
+        let due_today = db
+            .create_todo(CreateTodoRequest {
+                content: "今日截止".into(),
+                due_date: Some(today_iso),
+                reminder_time: None,
+                list_id: None,
+            })
+            .unwrap();
+
+        let today = db.list_today_todos(false).unwrap();
+        let ids: Vec<&str> = today.iter().map(|t| t.id.as_str()).collect();
+        assert!(ids.contains(&created_today.id.as_str()));
+        assert!(ids.contains(&due_today.id.as_str()));
+    }
+
+    #[test]
+    fn list_today_excludes_done_unless_include_completed() {
+        let db = fresh_db();
+        let created = db
+            .create_todo(CreateTodoRequest {
+                content: "今日已完".into(),
+                due_date: None,
+                reminder_time: None,
+                list_id: None,
+            })
+            .unwrap();
+        db.complete_todo(&created.id).unwrap();
+
+        let visible = db.list_today_todos(false).unwrap();
+        assert!(visible.iter().all(|t| t.id != created.id));
+
+        let with_done = db.list_today_todos(true).unwrap();
+        assert!(with_done.iter().any(|t| t.id == created.id));
+    }
+
+    #[test]
+    fn list_today_excludes_yesterday_created_when_no_due_date() {
+        let db = fresh_db();
+        // 直接插入一条 created_at 为"昨天 08:00 UTC"的记录，验证不命中今日。
+        let id = uuid::Uuid::new_v4().to_string();
+        {
+            let conn = db.lock().unwrap();
+            conn.execute(
+                "INSERT INTO todos (id, content, status, created_at, updated_at, completed_at,
+                                    due_date, reminder_time, list_id, is_deleted)
+                 VALUES (?1, '昨天遗留', 'todo',
+                         DATETIME('now','localtime','-1 day'),
+                         DATETIME('now','localtime','-1 day'),
+                         NULL, NULL, NULL, 'default', 0)",
+                rusqlite::params![&id],
+            )
+            .unwrap();
+        }
+        let today = db.list_today_todos(false).unwrap();
+        assert!(today.iter().all(|t| t.id != id));
     }
 }
