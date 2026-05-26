@@ -868,6 +868,15 @@ const headerSub = computed(() =>
 }
 
 .settings-panel {
+  --settings-control-bg: #ffffff;
+  --settings-control-bg-focus: #ffffff;
+  --settings-control-bg-disabled: #f3efea;
+  --settings-control-fg: #27231f;
+  --settings-control-muted: #6f655d;
+  --settings-control-placeholder: #8f8378;
+  --settings-control-border: rgba(93, 78, 65, 0.34);
+  --settings-control-border-hover: rgba(168, 95, 50, 0.68);
+  --settings-control-border-focus: #38d8a2;
   width: min(920px, calc(100vw - 32px));
   height: min(660px, calc(100vh - 48px));
   display: grid;
@@ -882,6 +891,15 @@ const headerSub = computed(() =>
 
 :global(.dark) .settings-panel,
 .settings-shell:not(.settings-shell--embedded) .settings-panel {
+  --settings-control-bg: var(--app-surface-2);
+  --settings-control-bg-focus: var(--app-surface-2);
+  --settings-control-bg-disabled: var(--app-surface);
+  --settings-control-fg: var(--app-fg);
+  --settings-control-muted: var(--app-muted);
+  --settings-control-placeholder: var(--app-faint);
+  --settings-control-border: var(--app-border);
+  --settings-control-border-hover: var(--app-accent);
+  --settings-control-border-focus: var(--app-accent);
   background: #202025;
   color: #eee9e2;
   border-color: rgba(255, 255, 255, 0.1);
@@ -1287,54 +1305,67 @@ const headerSub = computed(() =>
   }
 }
 
-/* ===== 暗色模式下 naive-ui 控件对比度强化 =====
-   .settings-panel 在 dark 下背景 #202025，naive-ui 默认控件颜色偏弱看不清。
-   下面通过 naive-ui 暴露的内部 CSS vars 覆盖，提升 input/select/switch/button 的
-   对比度（背景更深、边框更明显、文字更亮、disabled 文字不至于隐没）。 */
-:global(.dark) .settings-panel :deep(.n-input),
-:global(.dark) .settings-panel :deep(.n-base-selection) {
-  --n-color: var(--app-surface-2);
-  --n-color-focus: var(--app-surface-2);
-  --n-color-disabled: var(--app-surface);
-  --n-text-color: var(--app-fg);
-  --n-text-color-disabled: var(--app-muted);
-  --n-placeholder-color: var(--app-faint);
-  --n-placeholder-color-disabled: var(--app-faint);
-  --n-border: 1px solid var(--app-border);
-  --n-border-hover: 1px solid var(--app-accent);
-  --n-border-focus: 1px solid var(--app-accent);
-  --n-border-disabled: 1px solid var(--app-border);
+/* ===== 设置面板 naive-ui 控件对比度强化 =====
+   设置页会在独立窗口、主窗口内嵌弹层以及亮/暗主题间切换。这里给面板内
+   input/select/number/button 明确文字、边框和占位符颜色，避免继承到低对比度主题值。 */
+.settings-panel :deep(.n-input),
+.settings-panel :deep(.n-base-selection) {
+  --n-color: var(--settings-control-bg);
+  --n-color-focus: var(--settings-control-bg-focus);
+  --n-color-active: var(--settings-control-bg-focus);
+  --n-color-disabled: var(--settings-control-bg-disabled);
+  --n-text-color: var(--settings-control-fg);
+  --n-text-color-disabled: var(--settings-control-muted);
+  --n-placeholder-color: var(--settings-control-placeholder);
+  --n-placeholder-color-disabled: var(--settings-control-placeholder);
+  --n-caret-color: var(--settings-control-border-focus);
+  --n-border: 1px solid var(--settings-control-border);
+  --n-border-hover: 1px solid var(--settings-control-border-hover);
+  --n-border-active: 1px solid var(--settings-control-border-focus);
+  --n-border-focus: 1px solid var(--settings-control-border-focus);
+  --n-border-disabled: 1px solid var(--settings-control-border);
+  --n-box-shadow-focus: 0 0 0 2px color-mix(in oklch, var(--settings-control-border-focus) 24%, transparent);
 }
 
-:global(.dark) .settings-panel :deep(.n-base-selection-label),
-:global(.dark) .settings-panel :deep(.n-base-selection-input) {
-  color: var(--app-fg);
+.settings-panel :deep(.n-base-selection) {
+  --n-arrow-color: var(--settings-control-muted);
+  --n-placeholder-color: var(--settings-control-placeholder);
 }
 
-:global(.dark) .settings-panel :deep(.n-button) {
-  --n-text-color: var(--app-fg);
-  --n-text-color-hover: var(--app-accent);
-  --n-text-color-pressed: var(--app-accent);
-  --n-text-color-focus: var(--app-fg);
-  --n-text-color-disabled: var(--app-muted);
-  --n-border: 1px solid var(--app-border);
-  --n-border-hover: 1px solid var(--app-accent);
-  --n-border-focus: 1px solid var(--app-accent);
-  --n-border-disabled: 1px dashed var(--app-border);
+.settings-panel :deep(.n-input__input-el),
+.settings-panel :deep(.n-input__textarea-el),
+.settings-panel :deep(.n-base-selection-label),
+.settings-panel :deep(.n-base-selection-input),
+.settings-panel :deep(.n-base-selection-input__content),
+.settings-panel :deep(.n-input-number .n-input__input-el),
+.settings-panel :deep(.n-input-number-suffix),
+.settings-panel :deep(.n-input-number-button) {
+  color: var(--settings-control-fg);
+}
+
+.settings-panel :deep(.n-input__placeholder),
+.settings-panel :deep(.n-base-selection-placeholder) {
+  color: var(--settings-control-placeholder);
+}
+
+.settings-panel :deep(.n-button) {
+  --n-text-color: var(--settings-control-fg);
+  --n-text-color-hover: var(--settings-control-border-hover);
+  --n-text-color-pressed: var(--settings-control-border-hover);
+  --n-text-color-focus: var(--settings-control-fg);
+  --n-text-color-disabled: var(--settings-control-muted);
+  --n-border: 1px solid var(--settings-control-border);
+  --n-border-hover: 1px solid var(--settings-control-border-hover);
+  --n-border-focus: 1px solid var(--settings-control-border-focus);
+  --n-border-disabled: 1px dashed var(--settings-control-border);
   --n-color-disabled: transparent;
 }
 
-:global(.dark) .settings-panel :deep(.n-switch) {
-  --n-rail-color: var(--app-border);
-  --n-rail-color-disabled: var(--app-surface);
-  --n-button-color: var(--app-fg);
-  --n-button-color-disabled: var(--app-muted);
-  --n-loading-color: var(--app-accent);
-}
-
-/* NInputNumber 内的加减按钮以及数字本身在 dark 下文字偏暗，需明确文字色 */
-:global(.dark) .settings-panel :deep(.n-input-number .n-input__input-el),
-:global(.dark) .settings-panel :deep(.n-input-number-suffix) {
-  color: var(--app-fg);
+.settings-panel :deep(.n-switch) {
+  --n-rail-color: var(--settings-control-border);
+  --n-rail-color-disabled: var(--settings-control-bg-disabled);
+  --n-button-color: var(--settings-control-fg);
+  --n-button-color-disabled: var(--settings-control-muted);
+  --n-loading-color: var(--settings-control-border-focus);
 }
 </style>
