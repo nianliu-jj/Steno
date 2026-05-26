@@ -2751,7 +2751,9 @@ mod tests {
     #[test]
     fn list_today_excludes_yesterday_created_when_no_due_date() {
         let db = fresh_db();
-        // 直接插入一条 created_at 为"昨天 08:00 UTC"的记录，验证不命中今日。
+        // 直接插入一条 created_at 为"昨天 UTC"的记录（与 create_todo 一样写 UTC，
+        // 否则 SQLite 在 list_today 查询时会对 localtime 字符串再做一次 localtime 转换，
+        // 让昨晚 22:00 本地时间的记录在今晨被错认成今日，从而误命中）。
         let id = uuid::Uuid::new_v4().to_string();
         {
             let conn = db.lock().unwrap();
@@ -2759,8 +2761,8 @@ mod tests {
                 "INSERT INTO todos (id, content, status, created_at, updated_at, completed_at,
                                     due_date, reminder_time, list_id, is_deleted)
                  VALUES (?1, '昨天遗留', 'todo',
-                         DATETIME('now','localtime','-1 day'),
-                         DATETIME('now','localtime','-1 day'),
+                         DATETIME('now','-1 day'),
+                         DATETIME('now','-1 day'),
                          NULL, NULL, NULL, 'default', 0)",
                 rusqlite::params![&id],
             )

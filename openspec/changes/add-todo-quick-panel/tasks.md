@@ -71,8 +71,8 @@
 
 ## 8. 文档与归档
 
-- [ ] 8.1 运行 `pnpm typecheck` 确保 TypeScript 通过
-- [ ] 8.2 运行 `pnpm test` 确保所有单测通过（含新增的 todos store / TodoView / TodoQuickPanel 测试）
-- [ ] 8.3 运行 `cargo test --manifest-path src-tauri/Cargo.toml` 通过 Rust 单测
-- [ ] 8.4 更新主 README 或 PROJECT_SUMMARY（若存在）中"功能列表"段落，标注待办浮窗已支持
-- [ ] 8.5 按 OpenSpec 流程执行 `openspec validate --change add-todo-quick-panel`，无错误后准备归档
+- [x] 8.1 运行 `pnpm typecheck` 确保 TypeScript 通过
+- [x] 8.2 运行 `pnpm test` 确保所有单测通过（132 passed | 11 skipped，含新增的 todos store / TodoView / TodoQuickPanel / settings 测试）
+- [x] 8.3 运行 `cargo test --manifest-path src-tauri/Cargo.toml` 通过 Rust 单测（92 passed；修复 list_today 测试中 SQLite 双重 localtime 转换的时区 bug）
+- [x] 8.4 更新主 README 中"简介"与"特性"段落，标注待办浮窗（含全局快捷键 Ctrl+Shift+T、跨窗口同步、主窗口分类管理）
+- [x] 8.5 按 OpenSpec 流程执行 `openspec validate add-todo-quick-panel`，结果 valid
