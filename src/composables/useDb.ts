@@ -267,6 +267,10 @@ export function useDb() {
     return invoke<ClipboardEntry>('pin_clipboard_entry', { id });
   }
 
+  function unpinClipboardEntry(id: string) {
+    return invoke<ClipboardEntry>('unpin_clipboard_entry', { id });
+  }
+
   function countClipboardEntries(args?: {
     contentType?: string | null;
     query?: string | null;
@@ -460,6 +464,7 @@ export function useDb() {
     copyClipboardEntry,
     updateClipboardEntry,
     pinClipboardEntry,
+    unpinClipboardEntry,
     countClipboardEntries,
     listTodos,
     getTodayTodos,

@@ -136,6 +136,12 @@ export const useClipboardStore = defineStore('clipboard', () => {
     return entry;
   }
 
+  async function unpinEntry(id: string) {
+    const entry = await db.unpinClipboardEntry(id);
+    upsertLocal(entry);
+    return entry;
+  }
+
   watch([query, typeFilter], () => {
     page.value = 1;
   });
@@ -162,5 +168,6 @@ export const useClipboardStore = defineStore('clipboard', () => {
     clearEntries,
     updateEntry,
     pinEntry,
+    unpinEntry,
   };
 });

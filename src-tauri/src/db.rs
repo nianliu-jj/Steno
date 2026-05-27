@@ -1394,6 +1394,15 @@ impl Db {
         Self::find_clipboard_entry(&conn, id)
     }
 
+    pub fn unpin_clipboard_entry(&self, id: &str) -> Result<ClipboardEntry, DbError> {
+        let conn = self.lock()?;
+        conn.execute(
+            "UPDATE clipboard_history SET pinned_at = NULL WHERE id = ?1",
+            rusqlite::params![id],
+        )?;
+        Self::find_clipboard_entry(&conn, id)
+    }
+
     pub fn count_clipboard_entries(
         &self,
         content_type: Option<String>,

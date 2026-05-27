@@ -130,7 +130,11 @@ async function handleOpen(entry: ClipboardEntry) {
 
 async function handlePin(entry: ClipboardEntry) {
   try {
-    await store.pinEntry(entry.id);
+    if (isPinned(entry)) {
+      await store.unpinEntry(entry.id);
+    } else {
+      await store.pinEntry(entry.id);
+    }
   } catch {
     // 静默
   }
@@ -298,13 +302,19 @@ async function handleDoubleClick(entry: ClipboardEntry) {
             </button>
             <button
               class="clipboard-icon-button"
+              :class="{ 'clipboard-icon-button--active': isPinned(entry) }"
               type="button"
               :data-testid="`clipboard-pin-${entry.id}`"
-              aria-label="置顶"
-              title="置顶"
+              :aria-label="isPinned(entry) ? '取消置顶' : '置顶'"
+              :title="isPinned(entry) ? '取消置顶' : '置顶'"
               @click.stop="handlePin(entry)"
             >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
+              <!-- 取消置顶：填充星号 -->
+              <svg v-if="isPinned(entry)" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 2l2 7h7l-5.5 4 2 7L12 16l-5.5 4 2-7L3 9h7z" fill="currentColor" stroke="none" />
+              </svg>
+              <!-- 置顶：描边星号 -->
+              <svg v-else viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 2l2 7h7l-5.5 4 2 7L12 16l-5.5 4 2-7L3 9h7z" />
               </svg>
             </button>
@@ -660,6 +670,12 @@ async function handleDoubleClick(entry: ClipboardEntry) {
 .clipboard-icon-button--danger:focus-visible {
   border-color: #d03050;
   color: #d03050;
+}
+
+.clipboard-icon-button--active {
+  border-color: var(--app-accent);
+  color: var(--app-accent);
+  background: var(--app-accent-soft);
 }
 
 .clipboard-icon-button svg {

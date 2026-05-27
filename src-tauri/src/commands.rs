@@ -380,6 +380,21 @@ pub async fn pin_clipboard_entry(
 }
 
 #[tauri::command]
+pub async fn unpin_clipboard_entry(
+    app: AppHandle,
+    db: State<'_, Db>,
+    id: String,
+) -> Result<ClipboardEntry, String> {
+    let db = db.inner().clone();
+    let entry = tauri::async_runtime::spawn_blocking(move || db.unpin_clipboard_entry(&id))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)?;
+    let _ = app.emit(clipboard::CLIPBOARD_UPDATED_EVENT, entry.clone());
+    Ok(entry)
+}
+
+#[tauri::command]
 pub async fn count_clipboard_entries(
     db: State<'_, Db>,
     content_type: Option<String>,

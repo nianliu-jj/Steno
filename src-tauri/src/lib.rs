@@ -73,6 +73,7 @@ pub fn run() {
             commands::copy_clipboard_entry,
             commands::update_clipboard_entry,
             commands::pin_clipboard_entry,
+            commands::unpin_clipboard_entry,
             commands::count_clipboard_entries,
             commands::open_sticky_note_window,
             commands::close_sticky_note_window,
