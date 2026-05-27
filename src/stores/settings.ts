@@ -16,6 +16,7 @@ import { defineStore } from 'pinia';
 import { reactive, ref } from 'vue';
 
 import { useDb } from '@/composables/useDb';
+import { type Locale, isValidLocale } from '@/i18n/types';
 import type { ReminderOption } from '@/types/steno';
 
 /** 主题模式：亮色 / 暗色 / 跟随系统。 */
@@ -89,6 +90,8 @@ export interface StenoSettings {
   todoQuickPanelLastPos: string;
   /** 任务编辑器中展示的快捷提醒选项。 */
   reminderQuickOptions: ReminderOption[];
+  /** 界面语言。 */
+  locale: Locale;
 }
 
 export const DEFAULT_REMINDER_QUICK_OPTIONS: ReminderOption[] = [
@@ -167,6 +170,7 @@ const DEFAULTS: StenoSettings = {
   todoQuickPanelPosition: 'bottom-right',
   todoQuickPanelLastPos: '',
   reminderQuickOptions: DEFAULT_REMINDER_QUICK_OPTIONS,
+  locale: 'zh-CN',
 };
 
 function cloneReminderOptions(options: ReminderOption[]): ReminderOption[] {
@@ -283,6 +287,9 @@ function decode<K extends keyof StenoSettings>(
       return (['bottom-right', 'cursor', 'last'].includes(raw)
         ? raw
         : DEFAULTS.todoQuickPanelPosition) as StenoSettings[K];
+    }
+    case 'locale': {
+      return (isValidLocale(raw) ? raw : DEFAULTS.locale) as StenoSettings[K];
     }
     default:
       return raw as StenoSettings[K];

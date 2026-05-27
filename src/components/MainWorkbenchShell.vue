@@ -31,8 +31,6 @@ const win = useWindow();
 const ui = useUiStore();
 const settings = useSettingsStore();
 const compactBreakpoint = 720;
-const languageIndex = ref(0);
-const languages = ['ZH', 'EN', 'JA'];
 const compactViewport = ref(
   typeof window !== 'undefined' ? window.innerWidth < compactBreakpoint : false,
 );
@@ -102,30 +100,6 @@ const featureEntries = computed<FeatureEntry[]>(() => [
     keywords: 'stats statistics chart 统计 趋势 图表 活跃度',
     iconPath: iconPathFor('stats'),
     run: () => ui.navigateTo('stats'),
-  },
-  {
-    key: 'nav-screenshot',
-    label: '截图',
-    description: '区域截图与标注（规划中）',
-    keywords: 'screenshot 截图 capture screen',
-    iconPath: iconPathFor('screenshot'),
-    run: () => ui.navigateTo('screenshot'),
-  },
-  {
-    key: 'nav-ocr',
-    label: 'OCR',
-    description: '图片文字识别（规划中）',
-    keywords: 'ocr 识别 文字识别 image text',
-    iconPath: iconPathFor('ocr'),
-    run: () => ui.navigateTo('ocr'),
-  },
-  {
-    key: 'nav-translate',
-    label: '翻译',
-    description: '划词与文本翻译（规划中）',
-    keywords: 'translate 翻译 translation',
-    iconPath: iconPathFor('translate'),
-    run: () => ui.navigateTo('translate'),
   },
   {
     key: 'action-new-note',
@@ -202,10 +176,6 @@ function onNavigate(key: WindowMode) {
 
 function onOpenSettings() {
   ui.navigateTo('settings');
-}
-
-function onCycleLanguage() {
-  languageIndex.value = (languageIndex.value + 1) % languages.length;
 }
 
 function onToggleRail() {
@@ -481,6 +451,7 @@ function iconPathFor(key: WindowMode) {
               type="button"
               :aria-current="item.active ? 'page' : undefined"
               :data-nav="item.key"
+              :title="item.label"
               @click="onNavigate(item.key)"
             >
               <svg
@@ -516,20 +487,10 @@ function iconPathFor(key: WindowMode) {
             <button
               class="rail-foot-btn"
               type="button"
-              data-testid="rail-language"
-              aria-label="切换语言"
-              title="语言"
-              @click="onCycleLanguage"
-            >
-              <span class="lang-badge">{{ languages[languageIndex] }}</span>
-            </button>
-            <button
-              class="rail-foot-btn"
-              type="button"
               data-testid="rail-collapse"
               :aria-expanded="effectiveRailState === 'expanded'"
               :aria-label="effectiveRailState === 'expanded' ? '折叠侧边栏' : '展开侧边栏'"
-              title="折叠侧边栏"
+              :title="effectiveRailState === 'expanded' ? '折叠侧边栏' : '展开侧边栏'"
               @click="onToggleRail"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -971,14 +932,6 @@ function iconPathFor(key: WindowMode) {
 .rail-foot-btn svg {
   width: 16px;
   height: 16px;
-}
-
-.lang-badge {
-  font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .workbench-root[data-rail="collapsed"] .rail-footer {

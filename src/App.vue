@@ -6,7 +6,7 @@
 // Naive UI 的 useMessage，因此根节点需要套 NMessageProvider。页面型 mode
 // 在 main 窗口里通过 `steno:navigate` 事件切换；floating / sticky 仍由独立
 // 窗口 label 初始化。
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, watch } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, provide, watch } from 'vue';
 import { NConfigProvider, NMessageProvider, NModal, darkTheme } from 'naive-ui';
 import { useDark } from '@vueuse/core';
 
@@ -15,13 +15,13 @@ import { useUiStore } from '@/stores/ui';
 import { useSettingsStore } from '@/stores/settings';
 import { useTodosStore } from '@/stores/todos';
 import { getAppThemeVars } from '@/theme';
+import { createI18n, I18N_KEY } from '@/i18n';
 import FloatingEditor from '@/components/FloatingEditor.vue';
 import MainWorkbenchShell from '@/components/MainWorkbenchShell.vue';
 import CanvasView from '@/views/CanvasView.vue';
 import ClipboardView from '@/views/ClipboardView.vue';
 import MainView from '@/views/MainView.vue';
 import NoteEditorView from '@/views/NoteEditorView.vue';
-import PlaceholderView from '@/views/PlaceholderView.vue';
 import SettingsView from '@/views/SettingsView.vue';
 import TodoQuickPanel from '@/views/TodoQuickPanel.vue';
 import TodoView from '@/views/TodoView.vue';
@@ -37,6 +37,11 @@ const StatsView = defineAsyncComponent(() =>
   import('@/views/StatsView.vue').then(module => module.default),
 );
 
+// i18n
+const i18n = createI18n('zh-CN');
+const { t, state: i18nState } = i18n;
+provide(I18N_KEY, i18n);
+
 const isDark = useDark();
 
 const naiveTheme = computed(() => (isDark.value ? darkTheme : null));
@@ -49,27 +54,11 @@ let themeModeDuringLoad: ThemeMode | null = null;
 const shellNavItems = computed<
   { key: WindowMode; label: string; active: boolean }[]
 >(() => [
-  { key: 'main', label: '笔记列表', active: ui.mode === 'main' },
-  { key: 'canvas', label: '画布', active: ui.mode === 'canvas' },
-  { key: 'clipboard', label: '粘贴板', active: ui.mode === 'clipboard' },
-  { key: 'todo', label: '待办', active: ui.mode === 'todo' },
-  { key: 'screenshot', label: '截图', active: ui.mode === 'screenshot' },
-  { key: 'ocr', label: 'OCR', active: ui.mode === 'ocr' },
-  { key: 'translate', label: '翻译', active: ui.mode === 'translate' },
+  { key: 'main', label: t('nav.notes'), active: ui.mode === 'main' },
+  { key: 'canvas', label: t('nav.canvas'), active: ui.mode === 'canvas' },
+  { key: 'clipboard', label: t('nav.clipboard'), active: ui.mode === 'clipboard' },
+  { key: 'todo', label: t('nav.todo'), active: ui.mode === 'todo' },
 ]);
-
-const placeholderMeta = computed(() => {
-  switch (ui.mode) {
-    case 'screenshot':
-      return { title: '截图', description: '功能规划中' };
-    case 'ocr':
-      return { title: 'OCR', description: '功能规划中' };
-    case 'translate':
-      return { title: '翻译', description: '功能规划中' };
-    default:
-      return null;
-  }
-});
 
 const shellModes = new Set<WindowMode>([
   'main',
@@ -78,9 +67,6 @@ const shellModes = new Set<WindowMode>([
   'clipboard',
   'todo',
   'stats',
-  'screenshot',
-  'ocr',
-  'translate',
 ]);
 
 // 启动加载 settings（Pinia store 自行缓存）。失败不阻塞 UI，错误会进 store.error。
@@ -108,6 +94,8 @@ onMounted(() => {
       settings.state.themeMode = themeModeDuringLoad;
       themeModeDuringLoad = null;
     }
+    // 同步语言设置到 i18n
+    i18nState.locale = settings.state.locale;
   });
 
   void todos.startEventListeners();
@@ -147,11 +135,6 @@ watch(
             <ClipboardView v-else-if="ui.mode === 'clipboard'" />
             <TodoView v-else-if="ui.mode === 'todo'" />
             <StatsView v-else-if="ui.mode === 'stats'" />
-            <PlaceholderView
-              v-else-if="placeholderMeta"
-              :title="placeholderMeta.title"
-              :description="placeholderMeta.description"
-            />
           </MainWorkbenchShell>
           <NModal
             :show="ui.settingsOpen"

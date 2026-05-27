@@ -45,6 +45,8 @@ import {
 } from '@/stores/settings';
 import type { ReminderOption } from '@/types/steno';
 import { useUiStore } from '@/stores/ui';
+import { useI18n } from '@/i18n';
+import { LOCALE_OPTIONS, type Locale } from '@/i18n/types';
 
 const props = withDefaults(defineProps<{ embedded?: boolean }>(), {
   embedded: false,
@@ -80,7 +82,19 @@ const settings = useSettingsStore();
 const ui = useUiStore();
 const message = useMessage();
 const { emitThemeModeChanged } = useAppEvents();
+const i18n = useI18n();
 const activeSection = ref<SettingsSection>('general');
+
+const localeOptions = LOCALE_OPTIONS.map(opt => ({ label: opt.label, value: opt.value }));
+
+async function onLocaleChange(value: Locale) {
+  try {
+    await settings.update('locale', value);
+    i18n.state.locale = value;
+  } catch (e) {
+    message.error(`语言保存失败：${String(e)}`);
+  }
+}
 
 async function onThemeChange(value: ThemeMode) {
   try {
@@ -467,6 +481,21 @@ const headerSub = computed(() =>
               :step="100"
               size="small"
               @update:value="value => onUpdateNumber('blurCloseDelayMs', value)"
+            />
+          </div>
+
+          <h3 class="settings-group">语言</h3>
+          <div class="settings-row">
+            <div class="settings-row__meta">
+              <strong>界面语言</strong>
+              <p>切换应用界面的显示语言，更改后立即生效。</p>
+            </div>
+            <NSelect
+              class="settings-control"
+              size="small"
+              :value="settings.state.locale"
+              :options="localeOptions"
+              @update:value="value => onLocaleChange(value as Locale)"
             />
           </div>
         </section>
