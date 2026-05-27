@@ -62,6 +62,6 @@ pub fn toggle(app: &AppHandle) {
             let _ = w.hide();
         }
         // 全局快捷键唤起：默认按"继续上一份草稿"打开。
-        _ => show(app, false, None),
+        _ => show(app, false, None, None),
     }
 }
