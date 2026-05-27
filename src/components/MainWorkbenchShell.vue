@@ -7,6 +7,8 @@ import { useWindow } from '@/composables/useWindow';
 import { useUiStore } from '@/stores/ui';
 import type { WindowMode } from '@/types/steno';
 
+const isMac = navigator.platform.startsWith('Mac');
+
 interface NavItem {
   key: WindowMode;
   label: string;
@@ -160,10 +162,6 @@ function onToggleMaximize() {
 
 function onClose() {
   void win.closeCurrent();
-}
-
-function onBack() {
-  ui.navigateToMain();
 }
 
 function onNavigate(key: WindowMode) {
@@ -323,17 +321,29 @@ function iconPathFor(key: WindowMode) {
     :data-rail="effectiveRailState"
   >
     <header class="workbench-titlebar topbar" data-tauri-drag-region="true">
+      <!-- macOS 交通灯 -->
+      <div
+        v-if="isMac"
+        class="macos-traffic-lights"
+        data-tauri-drag-region="true"
+      >
+        <button class="traffic-light tl-close" type="button" aria-label="关闭" @click.stop="onClose">
+          <svg viewBox="0 0 12 12"><path d="M3.5 3.5l5 5M8.5 3.5l-5 5" stroke="currentColor" stroke-width="1.2" fill="none" /></svg>
+        </button>
+        <button class="traffic-light tl-minimize" type="button" aria-label="最小化" @click.stop="onMinimize">
+          <svg viewBox="0 0 12 12"><path d="M2.5 6h7" stroke="currentColor" stroke-width="1.2" fill="none" /></svg>
+        </button>
+        <button class="traffic-light tl-maximize" type="button" aria-label="最大化" @click.stop="onToggleMaximize">
+          <svg viewBox="0 0 12 12"><path d="M3 3h6v6H3z" stroke="currentColor" stroke-width="1.2" fill="none" /></svg>
+        </button>
+      </div>
+
       <div class="topbar-brand" data-tauri-drag-region="true">
         <div class="brand-mark">S</div>
         <span class="brand-name">Steno</span>
       </div>
 
       <div class="topbar-center" data-tauri-drag-region="true">
-        <button class="back-btn" type="button" aria-label="返回" @click.stop="onBack">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="m15 6-6 6 6 6" />
-          </svg>
-        </button>
         <div
           class="feature-search-wrap"
           data-testid="feature-search-wrap"
@@ -402,6 +412,7 @@ function iconPathFor(key: WindowMode) {
       </div>
 
       <div
+        v-if="!isMac"
         class="workbench-window-controls window-controls"
         data-tauri-drag-region="false"
         data-no-drag="true"
@@ -548,7 +559,7 @@ function iconPathFor(key: WindowMode) {
 
 .workbench-titlebar {
   display: grid;
-  grid-template-columns: var(--rail-w) 1fr auto;
+  grid-template-columns: auto var(--rail-w) 1fr auto;
   align-items: center;
   min-height: 44px;
   border-bottom: 1px solid var(--border);
@@ -558,6 +569,50 @@ function iconPathFor(key: WindowMode) {
   transition: grid-template-columns 0.22s ease;
 }
 
+/* macOS 交通灯 */
+.macos-traffic-lights {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 100%;
+}
+
+.traffic-light {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  position: relative;
+}
+
+.traffic-light svg {
+  width: 8px;
+  height: 8px;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+
+.macos-traffic-lights:hover .traffic-light svg {
+  opacity: 1;
+}
+
+.tl-close {
+  background: oklch(65% 0.2 25);
+}
+
+.tl-minimize {
+  background: oklch(80% 0.15 85);
+}
+
+.tl-maximize {
+  background: oklch(78% 0.16 145);
+}
+
 .topbar-brand {
   display: flex;
   align-items: center;
@@ -565,7 +620,6 @@ function iconPathFor(key: WindowMode) {
   height: 100%;
   min-width: 0;
   padding: 0 14px;
-  border-right: 1px solid var(--border);
   user-select: none;
   -webkit-user-select: none;
 }
@@ -607,27 +661,6 @@ function iconPathFor(key: WindowMode) {
   padding: 0 14px;
   user-select: none;
   -webkit-user-select: none;
-}
-
-.back-btn {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  border: none;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  transition:
-    background 0.15s,
-    color 0.15s;
-}
-
-.back-btn:hover {
-  background: var(--bg);
-  color: var(--fg);
 }
 
 .topbar svg {

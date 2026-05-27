@@ -24,6 +24,7 @@ import { useMarkdown } from '@/composables/useMarkdown';
 import { useWindow } from '@/composables/useWindow';
 import { useNotesStore } from '@/stores/notes';
 import { useSettingsStore } from '@/stores/settings';
+import { useClipboardStore } from '@/stores/clipboard';
 import type { Note, SaveNoteRequest } from '@/types/steno';
 
 const props = withDefaults(defineProps<{
@@ -35,6 +36,7 @@ const props = withDefaults(defineProps<{
 const db = useDb();
 const notes = useNotesStore();
 const settings = useSettingsStore();
+const clipboard = useClipboardStore();
 const win = useWindow();
 const appEvents = useAppEvents();
 const message = useMessage();
@@ -50,6 +52,8 @@ const title = ref('');
 const content = ref('');
 const tagsInput = ref('');
 const isClipboardView = ref(false);
+const clipboardEntryId = ref<string | null>(null);
+const clipboardDirty = ref(false);
 const loaded = ref(!isSticky.value);
 
 const titleEditing = ref(false);
@@ -114,6 +118,46 @@ watch([title, content, tagsInput], () => {
     tags: tagsArray.value,
     isDraft: true,
   });
+});
+
+// ----- 粘贴板编辑自动保存 -----------------------------------------------
+
+let clipboardSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleClipboardSave() {
+  if (!clipboardEntryId.value) return;
+  clipboardDirty.value = true;
+  if (clipboardSaveTimer) clearTimeout(clipboardSaveTimer);
+  clipboardSaveTimer = setTimeout(async () => {
+    if (!clipboardEntryId.value || !clipboardDirty.value) return;
+    clipboardDirty.value = false;
+    try {
+      await clipboard.updateEntry(clipboardEntryId.value, content.value);
+    } catch {
+      // 静默
+    }
+  }, 800);
+}
+
+async function flushClipboardSave() {
+  if (clipboardSaveTimer) {
+    clearTimeout(clipboardSaveTimer);
+    clipboardSaveTimer = null;
+  }
+  if (!clipboardEntryId.value || !clipboardDirty.value) return;
+  clipboardDirty.value = false;
+  try {
+    await clipboard.updateEntry(clipboardEntryId.value, content.value);
+  } catch {
+    // 静默
+  }
+}
+
+watch(content, () => {
+  if (!loaded.value) return;
+  if (clipboardEntryId.value) {
+    scheduleClipboardSave();
+  }
 });
 
 const statusText = computed(() => {
@@ -211,6 +255,8 @@ function resetState() {
   content.value = '';
   tagsInput.value = '';
   isClipboardView.value = false;
+  clipboardEntryId.value = null;
+  clipboardDirty.value = false;
   titleEditing.value = false;
   tagsEditing.value = false;
 }
@@ -236,8 +282,9 @@ async function dismissSticky() {
 }
 
 async function dismissQuicknote() {
-  // 粘贴板上下文：直接关闭，不创建草稿笔记。
+  // 粘贴板上下文：保存修改后关闭，不创建草稿笔记。
   if (isClipboardView.value) {
+    await flushClipboardSave();
     await win.hideCurrent();
     resetState();
     return;
@@ -365,6 +412,7 @@ onMounted(async () => {
       noteId: string | null;
       initialContent?: string | null;
       clipboardContext?: boolean | null;
+      clipboardEntryId?: string | null;
     }>(
       'quicknote:open',
       async ({ payload }) => {
@@ -372,8 +420,8 @@ onMounted(async () => {
         if (payload.initialContent) {
           resetState();
           content.value = payload.initialContent;
-          // 粘贴板上下文：关闭时不保存草稿。
           isClipboardView.value = !!payload.clipboardContext;
+          clipboardEntryId.value = payload.clipboardEntryId ?? null;
           return;
         }
         isClipboardView.value = false;

@@ -26,6 +26,9 @@ pub struct QuicknoteOpenPayload {
     /// 粘贴板上下文。为 `true` 时，关闭浮窗不创建草稿笔记。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub clipboard_context: Option<bool>,
+    /// 粘贴板条目 ID。有值时编辑内容会自动保存回该条目。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clipboard_entry_id: Option<String>,
 }
 
 pub fn show(
@@ -34,6 +37,7 @@ pub fn show(
     note_id: Option<String>,
     initial_content: Option<String>,
     clipboard_context: Option<bool>,
+    clipboard_entry_id: Option<String>,
 ) {
     if let Some(w) = app.get_webview_window(QUICKNOTE_LABEL) {
         let _ = w.unminimize();
@@ -46,6 +50,7 @@ pub fn show(
                 note_id,
                 initial_content,
                 clipboard_context,
+                clipboard_entry_id,
             },
         );
     }
@@ -67,6 +72,6 @@ pub fn toggle(app: &AppHandle) {
             let _ = w.hide();
         }
         // 全局快捷键唤起：默认按"继续上一份草稿"打开。
-        _ => show(app, false, None, None, None),
+        _ => show(app, false, None, None, None, None),
     }
 }

@@ -111,7 +111,7 @@ async function handleOpen(entry: ClipboardEntry) {
       case 'text':
       case 'rich_text':
       case 'code':
-        await win.openQuicknote({ fresh: true, initialContent: entry.content, clipboardContext: true });
+        await win.openQuicknote({ fresh: true, initialContent: entry.content, clipboardContext: true, clipboardEntryId: entry.id });
         break;
       case 'url':
         await win.openUrl(entry.content);
