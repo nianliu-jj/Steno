@@ -517,6 +517,7 @@ impl Db {
             ("todoQuickPanelEnabled", "true"),
             ("todoQuickPanelShortcut", "Ctrl+Shift+T"),
             ("todoQuickPanelPosition", "bottom-right"),
+            ("windowBorderRadius", "12"),
         ];
         let now = chrono::Utc::now().to_rfc3339();
         for (k, v) in defaults {

@@ -263,11 +263,14 @@ function decode<K extends keyof StenoSettings>(
     case 'backupEveryChanges':
     case 'mainSidebarWidth':
     case 'noteEditorOutlineWidth':
-    case 'zenOutlineWidth':
-    case 'windowBorderRadius': {
+    case 'zenOutlineWidth': {
       const n = Number.parseInt(raw, 10);
       // 解析失败或 ≤0 时使用默认值
       return (Number.isFinite(n) && n > 0 ? n : defaultValue(key)) as StenoSettings[K];
+    }
+    case 'windowBorderRadius': {
+      const n = Number.parseInt(raw, 10);
+      return (Number.isFinite(n) && n >= 0 && n <= 24 ? n : defaultValue(key)) as StenoSettings[K];
     }
     case 'mainSidebarCollapsed': {
       return (raw === 'true') as StenoSettings[K];

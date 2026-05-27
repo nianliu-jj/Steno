@@ -568,6 +568,22 @@ const headerSub = computed(() =>
               </div>
             </div>
 
+            <h3 class="settings-group">窗口</h3>
+            <div class="settings-row">
+              <div class="settings-row__meta">
+                <strong>窗口圆角</strong>
+                <p>主窗口边角的圆角半径，0 为直角。</p>
+              </div>
+              <NInputNumber
+                :value="settings.state.windowBorderRadius"
+                :min="0"
+                :max="24"
+                :step="1"
+                size="small"
+                @update:value="value => onUpdateNumber('windowBorderRadius', value)"
+              />
+            </div>
+
             <h3 class="settings-group">编辑器</h3>
             <div class="settings-row">
               <div class="settings-row__meta">

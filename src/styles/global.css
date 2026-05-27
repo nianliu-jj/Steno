@@ -13,6 +13,11 @@ body,
   padding: 0;
 }
 
+#app {
+  border-radius: var(--app-window-radius, 12px);
+  overflow: hidden;
+}
+
 body {
   font-family:
     -apple-system,
