@@ -82,9 +82,9 @@ const DARK_THEME_VARS: AppThemeVars = {
   '--app-fg': 'oklch(93% 0.012 78)',
   '--app-muted': 'oklch(72% 0.014 74)',
   '--app-faint': 'oklch(55% 0.012 72)',
-  '--app-border': 'oklch(35% 0.012 70)',
-  '--app-accent': 'oklch(68% 0.13 42)',
-  '--app-accent-soft': 'oklch(32% 0.04 42)',
+  '--app-border': 'oklch(38% 0.014 70)',
+  '--app-accent': 'oklch(72% 0.15 42)',
+  '--app-accent-soft': 'oklch(34% 0.05 42)',
 };
 
 /**

@@ -927,7 +927,7 @@ const headerSub = computed(() =>
   width: 100vw;
   height: 100vh;
   padding: 0;
-  background: var(--bg, #15151a);
+  background: var(--app-bg);
   display: grid;
   place-items: stretch;
 }
@@ -950,7 +950,7 @@ const headerSub = computed(() =>
   --settings-control-fg: #27231f;
   --settings-control-muted: #6f655d;
   --settings-control-placeholder: #8f8378;
-  --settings-control-border: rgba(93, 78, 65, 0.34);
+  --settings-control-border: rgba(93, 78, 65, 0.55);
   --settings-control-border-hover: rgba(168, 95, 50, 0.68);
   --settings-control-border-focus: #38d8a2;
   width: min(920px, calc(100vw - 32px));
@@ -973,11 +973,11 @@ const headerSub = computed(() =>
   --settings-control-fg: var(--app-fg);
   --settings-control-muted: var(--app-muted);
   --settings-control-placeholder: var(--app-faint);
-  --settings-control-border: var(--app-border);
+  --settings-control-border: oklch(45% 0.014 70);
   --settings-control-border-hover: var(--app-accent);
   --settings-control-border-focus: var(--app-accent);
-  background: #202025;
-  color: #eee9e2;
+  background: var(--app-surface);
+  color: var(--app-fg);
   border-color: rgba(255, 255, 255, 0.1);
 }
 
@@ -999,10 +999,23 @@ const headerSub = computed(() =>
   border-color: rgba(128, 117, 105, 0.22);
 }
 
+:global(.dark) .settings-panel__header,
+:global(.dark) .settings-panel__footer,
+.settings-shell:not(.settings-shell--embedded) .settings-panel__header,
+.settings-shell:not(.settings-shell--embedded) .settings-panel__footer {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
 .settings-panel__header {
   min-width: 0;
   padding: 0 14px 0 18px;
   border-bottom: 1px solid rgba(128, 117, 105, 0.22);
+}
+
+:global(.dark) .settings-panel__header,
+.settings-shell:not(.settings-shell--embedded) .settings-panel__header {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
 .settings-brand {
@@ -1012,6 +1025,11 @@ const headerSub = computed(() =>
   min-width: 150px;
   padding-right: 12px;
   border-right: 1px solid rgba(128, 117, 105, 0.22);
+}
+
+:global(.dark) .settings-brand,
+.settings-shell:not(.settings-shell--embedded) .settings-brand {
+  border-right-color: rgba(255, 255, 255, 0.08);
 }
 
 .settings-brand__mark {
@@ -1131,6 +1149,11 @@ const headerSub = computed(() =>
   border-bottom: 1px solid rgba(128, 117, 105, 0.22);
 }
 
+:global(.dark) .settings-section__intro,
+.settings-shell:not(.settings-shell--embedded) .settings-section__intro {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
 .settings-section__intro h2 {
   font-size: 18px;
   font-weight: 650;
@@ -1166,6 +1189,12 @@ const headerSub = computed(() =>
   text-transform: uppercase;
 }
 
+:global(.dark) .settings-group,
+.settings-shell:not(.settings-shell--embedded) .settings-group {
+  color: var(--app-accent);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
 .settings-group:first-of-type {
   margin-top: 0;
 }
@@ -1180,6 +1209,11 @@ const headerSub = computed(() =>
 
 .settings-row + .settings-row {
   border-top: 1px solid rgba(128, 117, 105, 0.16);
+}
+
+:global(.dark) .settings-row + .settings-row,
+.settings-shell:not(.settings-shell--embedded) .settings-row + .settings-row {
+  border-top-color: rgba(255, 255, 255, 0.06);
 }
 
 .settings-row--disabled {
@@ -1261,6 +1295,11 @@ const headerSub = computed(() =>
   background: var(--swatch);
 }
 
+:global(.dark) .settings-swatches span,
+.settings-shell:not(.settings-shell--embedded) .settings-swatches span {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
 .reminder-options {
   display: grid;
   gap: 10px;
@@ -1312,6 +1351,12 @@ const headerSub = computed(() =>
   background: rgba(128, 117, 105, 0.07);
 }
 
+:global(.dark) .settings-path-row,
+.settings-shell:not(.settings-shell--embedded) .settings-path-row {
+  border-color: var(--app-border);
+  background: var(--app-surface);
+}
+
 .settings-path-label {
   color: #6f655d;
   font-size: 12px;
@@ -1342,6 +1387,12 @@ const headerSub = computed(() =>
   background: rgba(128, 117, 105, 0.07);
 }
 
+:global(.dark) .settings-about-card,
+.settings-shell:not(.settings-shell--embedded) .settings-about-card {
+  border-color: var(--app-border);
+  background: var(--app-surface);
+}
+
 .settings-about-card span,
 .settings-about-card small {
   color: #756b63;
@@ -1355,6 +1406,11 @@ const headerSub = computed(() =>
 .settings-panel__footer {
   padding: 0 18px;
   border-top: 1px solid rgba(128, 117, 105, 0.22);
+}
+
+:global(.dark) .settings-panel__footer,
+.settings-shell:not(.settings-shell--embedded) .settings-panel__footer {
+  border-top-color: rgba(255, 255, 255, 0.08);
 }
 
 .settings-save-hint {
@@ -1437,9 +1493,36 @@ const headerSub = computed(() =>
   --n-box-shadow-focus: 0 0 0 2px color-mix(in oklch, var(--settings-control-border-focus) 24%, transparent);
 }
 
+/* 输入框边框常显：强制 Naive UI 的 border 渲染层始终可见 */
+.settings-panel :deep(.n-input .n-input__border),
+.settings-panel :deep(.n-input .n-input__state-border),
+.settings-panel :deep(.n-base-selection .n-base-selection__border),
+.settings-panel :deep(.n-base-selection .n-base-selection__state-border) {
+  border-color: var(--settings-control-border) !important;
+}
+
+.settings-panel :deep(.n-input:hover .n-input__border),
+.settings-panel :deep(.n-input:hover .n-input__state-border),
+.settings-panel :deep(.n-base-selection:hover .n-base-selection__border),
+.settings-panel :deep(.n-base-selection:hover .n-base-selection__state-border) {
+  border-color: var(--settings-control-border-hover) !important;
+}
+
+.settings-panel :deep(.n-input:focus-within .n-input__border),
+.settings-panel :deep(.n-input:focus-within .n-input__state-border),
+.settings-panel :deep(.n-base-selection:focus-within .n-base-selection__border),
+.settings-panel :deep(.n-base-selection:focus-within .n-base-selection__state-border) {
+  border-color: var(--settings-control-border-focus) !important;
+}
+
+/* 选择器箭头：提高对比度 */
 .settings-panel :deep(.n-base-selection) {
-  --n-arrow-color: var(--settings-control-muted);
+  --n-arrow-color: var(--settings-control-fg);
   --n-placeholder-color: var(--settings-control-placeholder);
+}
+
+.settings-panel :deep(.n-base-selection .n-base-suffix) {
+  color: var(--settings-control-fg);
 }
 
 .settings-panel :deep(.n-input__input-el),
@@ -1451,6 +1534,28 @@ const headerSub = computed(() =>
 .settings-panel :deep(.n-input-number-suffix),
 .settings-panel :deep(.n-input-number-button) {
   color: var(--settings-control-fg);
+}
+
+/* 数字输入框 +/- 按钮对比度强化 */
+.settings-panel :deep(.n-input-number) {
+  --n-button-color: var(--settings-control-bg);
+  --n-button-icon-color: var(--settings-control-muted);
+  --n-button-icon-color-hover: var(--settings-control-fg);
+}
+
+.settings-panel :deep(.n-input-number .n-input-number-suffix) {
+  color: var(--settings-control-fg);
+}
+
+/* 数字输入框边框常显 */
+.settings-panel :deep(.n-input-number .n-input__border),
+.settings-panel :deep(.n-input-number .n-input__state-border) {
+  border-color: var(--settings-control-border) !important;
+}
+
+.settings-panel :deep(.n-input-number:hover .n-input__border),
+.settings-panel :deep(.n-input-number:hover .n-input__state-border) {
+  border-color: var(--settings-control-border-hover) !important;
 }
 
 .settings-panel :deep(.n-input__placeholder),
