@@ -875,12 +875,11 @@ watch(
 }
 
 .todo-row-content {
-  display: inline-block;
+  display: block;
   font-size: 14px;
   color: var(--app-fg);
   cursor: text;
   user-select: text;
-  max-width: 480px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
