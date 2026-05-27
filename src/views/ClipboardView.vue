@@ -71,6 +71,10 @@ function isModified(entry: ClipboardEntry): boolean {
   return entry.createdAt !== entry.updatedAt;
 }
 
+function isPinned(entry: ClipboardEntry): boolean {
+  return !!entry.pinnedAt;
+}
+
 function previewText(entry: ClipboardEntry): string {
   return entry.preview || entry.content;
 }
@@ -107,7 +111,7 @@ async function handleOpen(entry: ClipboardEntry) {
       case 'text':
       case 'rich_text':
       case 'code':
-        await win.openQuicknote({ fresh: true });
+        await win.openQuicknote({ fresh: true, initialContent: entry.content });
         break;
       case 'url':
         await win.openUrl(entry.content);
@@ -183,6 +187,7 @@ async function handleDoubleClick(entry: ClipboardEntry) {
         v-for="entry in store.pagedEntries"
         :key="entry.id"
         class="clipboard-card"
+        :class="{ 'clipboard-card--pinned': isPinned(entry) }"
         :data-type="entry.contentType"
         :data-testid="`clipboard-card-${entry.id}`"
         @dblclick="handleDoubleClick(entry)"
@@ -270,6 +275,7 @@ async function handleDoubleClick(entry: ClipboardEntry) {
         <footer class="clipboard-card__footer" :data-testid="`clipboard-card-footer-${entry.id}`">
           <div class="clipboard-card__footer-left">
             <time class="clipboard-time">{{ formatTime(entry.updatedAt) }}</time>
+            <span v-if="isPinned(entry)" class="clipboard-pinned">已置顶</span>
             <span v-if="isModified(entry)" class="clipboard-modified">已修改</span>
           </div>
           <div
@@ -484,6 +490,11 @@ async function handleDoubleClick(entry: ClipboardEntry) {
   border-color: var(--app-accent);
 }
 
+.clipboard-card--pinned {
+  border-width: 2px;
+  border-color: var(--app-fg);
+}
+
 /* 上：头部栏 */
 .clipboard-card__header {
   display: flex;
@@ -601,6 +612,16 @@ async function handleDoubleClick(entry: ClipboardEntry) {
   padding: 1px 5px;
   border-radius: 4px;
   background: var(--app-accent-soft);
+}
+
+.clipboard-pinned {
+  color: var(--app-fg);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--app-surface-2);
+  border: 1px solid var(--app-border);
 }
 
 .clipboard-card__footer-actions {

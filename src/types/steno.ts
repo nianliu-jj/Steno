@@ -169,6 +169,7 @@ export interface ClipboardEntry {
   createdAt: string;
   updatedAt: string;
   sizeBytes: number;
+  pinnedAt?: string | null;
 }
 
 // ----- 前端独有：窗口模式（不进 Rust） -----------------------------------

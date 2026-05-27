@@ -428,8 +428,9 @@ pub fn open_quicknote_window(
     app: AppHandle,
     fresh: Option<bool>,
     note_id: Option<String>,
+    initial_content: Option<String>,
 ) -> Result<(), String> {
-    quicknote::show(&app, fresh.unwrap_or(false), note_id);
+    quicknote::show(&app, fresh.unwrap_or(false), note_id, initial_content);
     Ok(())
 }
 

@@ -25,11 +25,13 @@ export function useWindow() {
    *
    * @param opts.fresh - `true` = 强制空白浮窗（"新建速记"按钮）
    * @param opts.noteId - 指定 hydrate 的草稿 UUID（列表卡片入口）
+   * @param opts.initialContent - 直接传入的初始内容，填充到编辑器中
    */
-  function openQuicknote(opts?: { fresh?: boolean; noteId?: string | null }) {
+  function openQuicknote(opts?: { fresh?: boolean; noteId?: string | null; initialContent?: string | null }) {
     return invoke<void>('open_quicknote_window', {
       fresh: opts?.fresh ?? false,
       noteId: opts?.noteId ?? null,
+      initialContent: opts?.initialContent ?? null,
     });
   }
 

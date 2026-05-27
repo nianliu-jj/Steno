@@ -20,16 +20,28 @@ pub struct QuicknoteOpenPayload {
     /// 指定 hydrate 哪份草稿。`None` 时由前端调 `get_latest_draft`
     /// 取最新一份草稿（快捷键续写场景）；`fresh=true` 时忽略。
     pub note_id: Option<String>,
+    /// 直接传入的初始内容。当有值时，前端直接填充编辑器，无需查数据库。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_content: Option<String>,
 }
 
-pub fn show(app: &AppHandle, fresh: bool, note_id: Option<String>) {
+pub fn show(
+    app: &AppHandle,
+    fresh: bool,
+    note_id: Option<String>,
+    initial_content: Option<String>,
+) {
     if let Some(w) = app.get_webview_window(QUICKNOTE_LABEL) {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
         let _ = w.emit(
             QUICKNOTE_OPEN_EVENT,
-            QuicknoteOpenPayload { fresh, note_id },
+            QuicknoteOpenPayload {
+                fresh,
+                note_id,
+                initial_content,
+            },
         );
     }
 }

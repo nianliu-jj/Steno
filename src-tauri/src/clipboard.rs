@@ -28,6 +28,8 @@ pub struct ClipboardEntry {
     pub created_at: String,
     pub updated_at: String,
     pub size_bytes: i64,
+    #[serde(default)]
+    pub pinned_at: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -352,9 +352,19 @@ onMounted(async () => {
   if (!isSticky.value) {
     // 浮窗单例：每次 show 都从后端收到 `quicknote:open` 事件，按 fresh/noteId
     // 决定空白 / 续写最近草稿 / 按指定 id hydrate。
-    unlistenOpen = await listen<{ fresh: boolean; noteId: string | null }>(
+    unlistenOpen = await listen<{
+      fresh: boolean;
+      noteId: string | null;
+      initialContent?: string | null;
+    }>(
       'quicknote:open',
       async ({ payload }) => {
+        // 如果有直接传入的初始内容，优先使用它。
+        if (payload.initialContent) {
+          resetState();
+          content.value = payload.initialContent;
+          return;
+        }
         if (payload.fresh) {
           // "新建速记"按钮入口：清空 UI 进入空白态；
           // 后续 autosave 触发时由后端分配新 UUID，写入一份新的独立草稿。

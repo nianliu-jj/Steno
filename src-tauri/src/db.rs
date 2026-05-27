@@ -305,6 +305,16 @@ impl Db {
             tx.pragma_update(None, "user_version", 6_i64)?;
             tx.commit()?;
         }
+        if version < 7 {
+            // v7：clipboard_history 表新增 pinned_at 列（置顶时间戳，用于排序和标识置顶状态）。
+            if !Self::clipboard_has_column(conn, "pinned_at")? {
+                conn.execute(
+                    "ALTER TABLE clipboard_history ADD COLUMN pinned_at TEXT",
+                    [],
+                )?;
+            }
+            conn.pragma_update(None, "user_version", 7_i64)?;
+        }
         // 幂等自检：dev 库偶尔会出现 user_version 已升到 2 但实际 ALTER 没成功
         // 的不一致状态（多进程访问、上次 migration 异常等），每次启动再确认一次。
         Self::ensure_is_draft_column(conn)?;
@@ -323,6 +333,15 @@ impl Db {
     /// 检查 `todos` 表是否已存在指定列。v6 ALTER 之前用于幂等保护。
     fn todos_has_column(conn: &Connection, column: &str) -> Result<bool, DbError> {
         let mut stmt = conn.prepare("PRAGMA table_info(todos)")?;
+        let exists = stmt
+            .query_map([], |row| row.get::<_, String>(1))?
+            .filter_map(Result::ok)
+            .any(|name| name == column);
+        Ok(exists)
+    }
+
+    fn clipboard_has_column(conn: &Connection, column: &str) -> Result<bool, DbError> {
+        let mut stmt = conn.prepare("PRAGMA table_info(clipboard_history)")?;
         let exists = stmt
             .query_map([], |row| row.get::<_, String>(1))?
             .filter_map(Result::ok)
@@ -387,7 +406,8 @@ impl Db {
                     content_hash TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
-                    size_bytes INTEGER NOT NULL DEFAULT 0
+                    size_bytes INTEGER NOT NULL DEFAULT 0,
+                    pinned_at TEXT
                 )",
             ),
             (
@@ -1291,7 +1311,7 @@ impl Db {
     ) -> Result<Vec<ClipboardEntry>, DbError> {
         let conn = self.lock()?;
         let mut sql = String::from(
-            "SELECT id, content_type, content, html_content, preview, created_at, updated_at, size_bytes
+            "SELECT id, content_type, content, html_content, preview, created_at, updated_at, size_bytes, pinned_at
              FROM clipboard_history
              WHERE 1 = 1",
         );
@@ -1313,7 +1333,7 @@ impl Db {
             }
         }
 
-        sql.push_str(" ORDER BY updated_at DESC LIMIT ?");
+        sql.push_str(" ORDER BY pinned_at DESC, updated_at DESC LIMIT ?");
         values.push(limit.max(1).to_string());
 
         let mut stmt = conn.prepare(&sql)?;
@@ -1368,7 +1388,7 @@ impl Db {
         let conn = self.lock()?;
         let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
-            "UPDATE clipboard_history SET updated_at = ?1 WHERE id = ?2",
+            "UPDATE clipboard_history SET pinned_at = ?1 WHERE id = ?2",
             rusqlite::params![&now, id],
         )?;
         Self::find_clipboard_entry(&conn, id)
@@ -1450,7 +1470,7 @@ impl Db {
     fn find_clipboard_entry(conn: &Connection, id: &str) -> Result<ClipboardEntry, DbError> {
         let entry = conn
             .query_row(
-                "SELECT id, content_type, content, html_content, preview, created_at, updated_at, size_bytes
+                "SELECT id, content_type, content, html_content, preview, created_at, updated_at, size_bytes, pinned_at
                  FROM clipboard_history WHERE id = ?1",
                 rusqlite::params![id],
                 row_to_clipboard_entry,
@@ -1974,6 +1994,7 @@ fn row_to_clipboard_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<Clipboard
         created_at: row.get(5)?,
         updated_at: row.get(6)?,
         size_bytes: row.get(7)?,
+        pinned_at: row.get(8)?,
     })
 }
 
