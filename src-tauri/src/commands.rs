@@ -444,8 +444,9 @@ pub fn open_quicknote_window(
     fresh: Option<bool>,
     note_id: Option<String>,
     initial_content: Option<String>,
+    clipboard_context: Option<bool>,
 ) -> Result<(), String> {
-    quicknote::show(&app, fresh.unwrap_or(false), note_id, initial_content);
+    quicknote::show(&app, fresh.unwrap_or(false), note_id, initial_content, clipboard_context);
     Ok(())
 }
 

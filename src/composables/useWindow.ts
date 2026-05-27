@@ -26,12 +26,14 @@ export function useWindow() {
    * @param opts.fresh - `true` = 强制空白浮窗（"新建速记"按钮）
    * @param opts.noteId - 指定 hydrate 的草稿 UUID（列表卡片入口）
    * @param opts.initialContent - 直接传入的初始内容，填充到编辑器中
+   * @param opts.clipboardContext - `true` 时关闭浮窗不创建草稿笔记
    */
-  function openQuicknote(opts?: { fresh?: boolean; noteId?: string | null; initialContent?: string | null }) {
+  function openQuicknote(opts?: { fresh?: boolean; noteId?: string | null; initialContent?: string | null; clipboardContext?: boolean | null }) {
     return invoke<void>('open_quicknote_window', {
       fresh: opts?.fresh ?? false,
       noteId: opts?.noteId ?? null,
       initialContent: opts?.initialContent ?? null,
+      clipboardContext: opts?.clipboardContext ?? null,
     });
   }
 

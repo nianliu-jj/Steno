@@ -49,6 +49,7 @@ const currentNoteId = ref<string | null>(props.noteId ?? null);
 const title = ref('');
 const content = ref('');
 const tagsInput = ref('');
+const isClipboardView = ref(false);
 const loaded = ref(!isSticky.value);
 
 const titleEditing = ref(false);
@@ -209,6 +210,7 @@ function resetState() {
   title.value = '';
   content.value = '';
   tagsInput.value = '';
+  isClipboardView.value = false;
   titleEditing.value = false;
   tagsEditing.value = false;
 }
@@ -234,6 +236,12 @@ async function dismissSticky() {
 }
 
 async function dismissQuicknote() {
+  // 粘贴板上下文：直接关闭，不创建草稿笔记。
+  if (isClipboardView.value) {
+    await win.hideCurrent();
+    resetState();
+    return;
+  }
   // 草稿持久化策略：
   // - 内存白板（currentNoteId 为 null 且 isEmpty）：什么都没有，直接 hide，不动 db；
   // - 用户主动清空当前正在编辑的草稿（currentNoteId 已落地且 isEmpty）：顺手把
@@ -356,6 +364,7 @@ onMounted(async () => {
       fresh: boolean;
       noteId: string | null;
       initialContent?: string | null;
+      clipboardContext?: boolean | null;
     }>(
       'quicknote:open',
       async ({ payload }) => {
@@ -363,8 +372,11 @@ onMounted(async () => {
         if (payload.initialContent) {
           resetState();
           content.value = payload.initialContent;
+          // 粘贴板上下文：关闭时不保存草稿。
+          isClipboardView.value = !!payload.clipboardContext;
           return;
         }
+        isClipboardView.value = false;
         if (payload.fresh) {
           // "新建速记"按钮入口：清空 UI 进入空白态；
           // 后续 autosave 触发时由后端分配新 UUID，写入一份新的独立草稿。

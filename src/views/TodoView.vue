@@ -91,6 +91,7 @@ const currentCategoryLabel = computed(
 );
 
 function selectCategory(key: TodoCategory) {
+  showStats.value = false;
   todos.setSelectedCategory(key);
 }
 
@@ -390,14 +391,21 @@ watch(
       <template v-if="showStats">
         <div class="todo-stats-embed">
           <div class="todo-stats-header">
-            <h3 class="toolbar-title">统计</h3>
+            <div class="todo-stats-header-left">
+              <h3 class="toolbar-title">统计</h3>
+              <span class="todo-stats-desc">查看待办完成活跃度与每日状态趋势</span>
+            </div>
             <button
               type="button"
-              class="todo-stats-close"
+              class="todo-stats-back"
               data-testid="todo-stats-close"
+              aria-label="返回"
+              title="返回"
               @click="showStats = false"
             >
-              返回任务列表
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m15 6-6 6 6 6" />
+              </svg>
             </button>
           </div>
           <StatsView />
@@ -1041,19 +1049,37 @@ watch(
   margin-bottom: 12px;
 }
 
-.todo-stats-close {
-  padding: 6px 14px;
-  border-radius: 8px;
+.todo-stats-header-left {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.todo-stats-desc {
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.todo-stats-back {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
   border: 1px solid var(--app-border);
+  border-radius: 8px;
   background: var(--app-surface);
   color: var(--app-muted);
-  font-size: 13px;
   cursor: pointer;
   transition: border-color 120ms, color 120ms;
 }
 
-.todo-stats-close:hover {
+.todo-stats-back:hover {
   border-color: var(--app-accent);
   color: var(--app-accent);
+}
+
+.todo-stats-back svg {
+  width: 18px;
+  height: 18px;
 }
 </style>

@@ -110,6 +110,10 @@ pub fn run() {
             _ => {}
         })
         .setup(|app| {
+            // macOS：隐藏 Dock 图标，仅保留任务栏托盘。
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             // SQLite 句柄进 Tauri State，供后续 commands 通过
             // `tauri::State<'_, db::Db>` 取用。
             let database = db::Db::init()?;

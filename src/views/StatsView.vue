@@ -280,13 +280,12 @@ function parseDate(value: string): Date {
   <div class="stats-view">
     <header class="stats-header">
       <div>
-        <h1>统计</h1>
-        <p>查看待办完成活跃度与每日状态趋势</p>
+        <h1>任务活跃度</h1>
       </div>
     </header>
 
     <section class="stats-grid">
-      <NCard class="stats-card" title="任务活跃度">
+      <NCard class="stats-card" title="完成热力图">
         <template #header-extra>
           <NSelect
             v-model:value="activityRange"
