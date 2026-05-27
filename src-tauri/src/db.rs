@@ -95,6 +95,7 @@ impl Db {
         let mut conn = Connection::open(&db_path)?;
         conn.execute_batch("PRAGMA foreign_keys = ON;")?;
         Self::migrate(&mut conn)?;
+        Self::ensure_all_tables(&conn)?;
         Self::ensure_default_settings(&conn)?;
         Self::ensure_default_group(&conn)?;
         Ok(Self {
@@ -341,6 +342,131 @@ impl Db {
             "CREATE INDEX IF NOT EXISTS idx_notes_is_draft ON notes(is_draft)",
             [],
         )?;
+        Ok(())
+    }
+
+    /// 启动时检查所有必需的数据表是否存在，缺失则自动创建并记录日志。
+    ///
+    /// 迁移过程中如果 user_version 被异常提升（多进程竞争、手动修改等），
+    /// 某些表可能从未被创建。本方法作为兜底保障，确保数据库结构完整。
+    fn ensure_all_tables(conn: &Connection) -> Result<(), DbError> {
+        let expected: &[(&str, &str)] = &[
+            (
+                "notes",
+                "CREATE TABLE IF NOT EXISTS notes (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    html_content TEXT NOT NULL,
+                    tags TEXT NOT NULL DEFAULT '[]',
+                    is_pinned INTEGER NOT NULL DEFAULT 0,
+                    pinned_window_config TEXT,
+                    canvas_position TEXT,
+                    is_draft INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    word_count INTEGER NOT NULL DEFAULT 0
+                )",
+            ),
+            (
+                "settings",
+                "CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )",
+            ),
+            (
+                "clipboard_history",
+                "CREATE TABLE IF NOT EXISTS clipboard_history (
+                    id TEXT PRIMARY KEY,
+                    content_type TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    html_content TEXT,
+                    preview TEXT NOT NULL,
+                    content_hash TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    size_bytes INTEGER NOT NULL DEFAULT 0
+                )",
+            ),
+            (
+                "workspaces",
+                "CREATE TABLE IF NOT EXISTS workspaces (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    root_path TEXT NOT NULL UNIQUE,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )",
+            ),
+            (
+                "library_entries",
+                "CREATE TABLE IF NOT EXISTS library_entries (
+                    id TEXT PRIMARY KEY,
+                    kind TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    preview_text TEXT NOT NULL DEFAULT '',
+                    body_markdown TEXT,
+                    tags TEXT NOT NULL DEFAULT '[]',
+                    workspace_id TEXT,
+                    parent_id TEXT,
+                    group_id TEXT,
+                    file_path TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    word_count INTEGER NOT NULL DEFAULT 0,
+                    byte_size INTEGER NOT NULL DEFAULT 0
+                )",
+            ),
+            (
+                "todos",
+                "CREATE TABLE IF NOT EXISTS todos (
+                    id             TEXT PRIMARY KEY,
+                    content        TEXT NOT NULL,
+                    status         TEXT NOT NULL DEFAULT 'todo',
+                    created_at     TEXT NOT NULL,
+                    updated_at     TEXT NOT NULL,
+                    completed_at   TEXT,
+                    due_date       TEXT,
+                    reminder_time  TEXT,
+                    reminder_fired INTEGER NOT NULL DEFAULT 0,
+                    started_at     TEXT,
+                    list_id        TEXT NOT NULL DEFAULT 'default',
+                    is_deleted     INTEGER NOT NULL DEFAULT 0
+                )",
+            ),
+        ];
+
+        for (table_name, create_sql) in expected {
+            let exists: bool = conn.query_row(
+                "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name=?1",
+                [table_name],
+                |row| row.get(0),
+            )?;
+            if !exists {
+                eprintln!(
+                    "[db] 启动自检：数据表 '{}' 不存在，正在自动创建…",
+                    table_name
+                );
+                conn.execute_batch(create_sql)?;
+                eprintln!("[db] 数据表 '{}' 创建成功", table_name);
+            }
+        }
+
+        // 确保 clipboard_history 的索引存在
+        conn.execute_batch(
+            "
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_clipboard_history_hash
+                ON clipboard_history(content_type, content_hash);
+            CREATE INDEX IF NOT EXISTS idx_clipboard_history_updated_at
+                ON clipboard_history(updated_at);
+            CREATE INDEX IF NOT EXISTS idx_clipboard_history_type
+                ON clipboard_history(content_type);
+            ",
+        )?;
+
+        eprintln!("[db] 启动自检完成，所有必需数据表就绪");
         Ok(())
     }
 
