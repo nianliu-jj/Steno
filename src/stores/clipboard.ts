@@ -1,8 +1,9 @@
 import { listen } from '@tauri-apps/api/event';
 import { defineStore } from 'pinia';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { useDb } from '@/composables/useDb';
+import { useSettingsStore } from '@/stores/settings';
 import type { ClipboardContentType, ClipboardEntry } from '@/types/steno';
 
 const UPDATED_EVENT = 'steno:clipboard-updated';
@@ -11,6 +12,7 @@ const CLEARED_EVENT = 'steno:clipboard-cleared';
 
 export const useClipboardStore = defineStore('clipboard', () => {
   const db = useDb();
+  const settings = useSettingsStore();
   const entries = ref<ClipboardEntry[]>([]);
   const loading = ref(false);
   const error = ref<string | null>(null);
@@ -18,6 +20,8 @@ export const useClipboardStore = defineStore('clipboard', () => {
   const typeFilter = ref<ClipboardContentType | null>(null);
   const listenersStarted = ref(false);
   const unlisteners: Array<() => void> = [];
+  const page = ref(1);
+  const totalCount = ref(0);
 
   const filteredEntries = computed(() => {
     const term = query.value.trim().toLowerCase();
@@ -28,15 +32,40 @@ export const useClipboardStore = defineStore('clipboard', () => {
     });
   });
 
+  const pageSize = computed(() => settings.state.clipboardPageSize);
+
+  const pagedEntries = computed(() => {
+    const start = (page.value - 1) * pageSize.value;
+    return filteredEntries.value.slice(start, start + pageSize.value);
+  });
+
+  const totalPages = computed(() =>
+    Math.max(1, Math.ceil(filteredEntries.value.length / pageSize.value)),
+  );
+
+  function setPage(newPage: number) {
+    page.value = Math.max(1, Math.min(newPage, totalPages.value));
+  }
+
+  function setPageSize(size: number) {
+    settings.state.clipboardPageSize = size;
+    page.value = 1;
+  }
+
   async function load() {
     loading.value = true;
     error.value = null;
     try {
-      entries.value = await db.listClipboardEntries({
-        limit: 200,
+      const all = await db.listClipboardEntries({
+        limit: 500,
         contentType: typeFilter.value,
         query: query.value,
       });
+      entries.value = all;
+      totalCount.value = all.length;
+      if (page.value > totalPages.value) {
+        page.value = totalPages.value;
+      }
     } catch (e) {
       error.value = String(e);
       entries.value = [];
@@ -46,7 +75,7 @@ export const useClipboardStore = defineStore('clipboard', () => {
   }
 
   function upsertLocal(entry: ClipboardEntry) {
-    entries.value = [entry, ...entries.value.filter(item => item.id !== entry.id)].slice(0, 200);
+    entries.value = [entry, ...entries.value.filter(item => item.id !== entry.id)].slice(0, 500);
   }
 
   async function startEventListeners() {
@@ -95,6 +124,22 @@ export const useClipboardStore = defineStore('clipboard', () => {
     entries.value = [];
   }
 
+  async function updateEntry(id: string, content: string, htmlContent?: string | null) {
+    const entry = await db.updateClipboardEntry({ id, content, htmlContent });
+    upsertLocal(entry);
+    return entry;
+  }
+
+  async function pinEntry(id: string) {
+    const entry = await db.pinClipboardEntry(id);
+    upsertLocal(entry);
+    return entry;
+  }
+
+  watch([query, typeFilter], () => {
+    page.value = 1;
+  });
+
   return {
     entries,
     loading,
@@ -102,11 +147,20 @@ export const useClipboardStore = defineStore('clipboard', () => {
     query,
     typeFilter,
     filteredEntries,
+    pagedEntries,
+    page,
+    pageSize,
+    totalPages,
+    totalCount,
     load,
+    setPage,
+    setPageSize,
     startEventListeners,
     stopEventListeners,
     copyEntry,
     deleteEntry,
     clearEntries,
+    updateEntry,
+    pinEntry,
   };
 });

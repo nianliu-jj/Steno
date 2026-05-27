@@ -345,6 +345,53 @@ pub async fn copy_clipboard_entry(db: State<'_, Db>, id: String) -> Result<(), S
     .map_err(to_msg)?
 }
 
+#[tauri::command]
+pub async fn update_clipboard_entry(
+    app: AppHandle,
+    db: State<'_, Db>,
+    id: String,
+    content: String,
+    html_content: Option<String>,
+) -> Result<ClipboardEntry, String> {
+    let db = db.inner().clone();
+    let entry = tauri::async_runtime::spawn_blocking(move || {
+        db.update_clipboard_entry_content(&id, &content, html_content.as_deref())
+    })
+    .await
+    .map_err(to_msg)?
+    .map_err(to_msg)?;
+    let _ = app.emit(clipboard::CLIPBOARD_UPDATED_EVENT, entry.clone());
+    Ok(entry)
+}
+
+#[tauri::command]
+pub async fn pin_clipboard_entry(
+    app: AppHandle,
+    db: State<'_, Db>,
+    id: String,
+) -> Result<ClipboardEntry, String> {
+    let db = db.inner().clone();
+    let entry = tauri::async_runtime::spawn_blocking(move || db.pin_clipboard_entry(&id))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)?;
+    let _ = app.emit(clipboard::CLIPBOARD_UPDATED_EVENT, entry.clone());
+    Ok(entry)
+}
+
+#[tauri::command]
+pub async fn count_clipboard_entries(
+    db: State<'_, Db>,
+    content_type: Option<String>,
+    query: Option<String>,
+) -> Result<i64, String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || db.count_clipboard_entries(content_type, query))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)
+}
+
 // ----- 窗口管理 commands（Plan Task 3 Step 2 暴露给前端） ---------------
 
 #[tauri::command]
@@ -439,6 +486,28 @@ fn platform_open_command(path: &PathBuf) -> Command {
         command.arg(path);
         command
     }
+}
+
+#[tauri::command]
+pub async fn open_url(url: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        #[cfg(target_os = "macos")]
+        {
+            Command::new("open").arg(&url).status()
+        }
+        #[cfg(target_os = "windows")]
+        {
+            Command::new("cmd").args(["/C", "start", &url]).status()
+        }
+        #[cfg(target_os = "linux")]
+        {
+            Command::new("xdg-open").arg(&url).status()
+        }
+    })
+    .await
+    .map_err(to_msg)?
+    .map_err(to_msg)?;
+    Ok(())
 }
 
 // ----- 快捷键 ----------------------------------------------------------

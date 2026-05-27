@@ -251,6 +251,32 @@ export function useDb() {
     return invoke<void>('copy_clipboard_entry', { id });
   }
 
+  function updateClipboardEntry(args: {
+    id: string;
+    content: string;
+    htmlContent?: string | null;
+  }) {
+    return invoke<ClipboardEntry>('update_clipboard_entry', {
+      id: args.id,
+      content: args.content,
+      htmlContent: args.htmlContent ?? null,
+    });
+  }
+
+  function pinClipboardEntry(id: string) {
+    return invoke<ClipboardEntry>('pin_clipboard_entry', { id });
+  }
+
+  function countClipboardEntries(args?: {
+    contentType?: string | null;
+    query?: string | null;
+  }) {
+    return invoke<number>('count_clipboard_entries', {
+      contentType: args?.contentType ?? null,
+      query: args?.query ?? null,
+    });
+  }
+
   // ----- todos ---------------------------------------------------------
 
   /** 列出全部未删除待办（按状态 + 截止日 + 创建时间排序）。 */
@@ -432,6 +458,9 @@ export function useDb() {
     deleteClipboardEntry,
     clearClipboardEntries,
     copyClipboardEntry,
+    updateClipboardEntry,
+    pinClipboardEntry,
+    countClipboardEntries,
     listTodos,
     getTodayTodos,
     createTodo,

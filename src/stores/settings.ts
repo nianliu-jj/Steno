@@ -44,6 +44,8 @@ export interface StenoSettings {
   quicknoteShortcut: string;
   /** 粘贴板浮窗 / 页面入口的全局快捷键。 */
   clipboardShortcut: string;
+  /** 粘贴板列表每页显示条数。 */
+  clipboardPageSize: number;
   /** 全局搜索的快捷键。 */
   searchShortcut: string;
   /** 速记浮窗默认宽度（px）。 */
@@ -152,6 +154,7 @@ const DEFAULTS: StenoSettings = {
   mainWindowShortcut: 'Ctrl+Shift+N',
   quicknoteShortcut: 'Ctrl+Shift+M',
   clipboardShortcut: 'Ctrl+Shift+V',
+  clipboardPageSize: 20,
   searchShortcut: 'Ctrl+Shift+F',
   floatingWidth: 400,
   floatingHeight: 300,

@@ -2,10 +2,14 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { useClipboardStore } from '@/stores/clipboard';
+import { useWindow } from '@/composables/useWindow';
 import type { ClipboardContentType, ClipboardEntry } from '@/types/steno';
 
 const store = useClipboardStore();
+const win = useWindow();
 const pendingDeleteId = ref<string | null>(null);
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 const filters: Array<{ label: string; value: ClipboardContentType | null; testid: string }> = [
   { label: '全部', value: null, testid: 'all' },
@@ -17,7 +21,9 @@ const filters: Array<{ label: string; value: ClipboardContentType | null; testid
   { label: '富文本', value: 'rich_text', testid: 'rich_text' },
 ];
 
-const countLabel = computed(() => `${store.filteredEntries.length} 条`);
+const countLabel = computed(
+  () => `共 ${store.filteredEntries.length} 条`,
+);
 
 onMounted(() => {
   void store.startEventListeners();
@@ -30,18 +36,23 @@ onBeforeUnmount(() => {
 
 function typeLabel(type: ClipboardContentType) {
   switch (type) {
-    case 'url':
-      return '链接';
-    case 'code':
-      return '代码';
-    case 'image':
-      return '图片';
-    case 'file':
-      return '文件';
-    case 'rich_text':
-      return '富文本';
-    case 'text':
-      return '文本';
+    case 'url': return '链接';
+    case 'code': return '代码';
+    case 'image': return '图片';
+    case 'file': return '文件';
+    case 'rich_text': return '富文本';
+    case 'text': return '文本';
+  }
+}
+
+function contentSource(entry: ClipboardEntry): string {
+  switch (entry.contentType) {
+    case 'url': return '网页';
+    case 'code': return '代码编辑器';
+    case 'image': return '截图/图片';
+    case 'file': return '文件管理器';
+    case 'rich_text': return '富文本';
+    case 'text': return '文本';
   }
 }
 
@@ -56,8 +67,19 @@ function formatTime(value: string) {
   });
 }
 
-function previewLines(entry: ClipboardEntry) {
+function isModified(entry: ClipboardEntry): boolean {
+  return entry.createdAt !== entry.updatedAt;
+}
+
+function previewText(entry: ClipboardEntry): string {
   return entry.preview || entry.content;
+}
+
+function fileName(entry: ClipboardEntry): string {
+  const path = entry.content;
+  const sep = path.lastIndexOf('/');
+  const sep2 = path.lastIndexOf('\\');
+  return path.slice(Math.max(sep, sep2) + 1);
 }
 
 function setFilter(value: ClipboardContentType | null) {
@@ -77,6 +99,41 @@ async function confirmDelete(id: string) {
   if (pendingDeleteId.value === id) {
     pendingDeleteId.value = null;
   }
+}
+
+async function handleOpen(entry: ClipboardEntry) {
+  try {
+    switch (entry.contentType) {
+      case 'text':
+      case 'rich_text':
+      case 'code':
+        await win.openQuicknote({ fresh: true });
+        break;
+      case 'url':
+        await win.openUrl(entry.content);
+        break;
+      case 'image':
+        await win.openUrl(entry.content);
+        break;
+      case 'file':
+        await win.openPathInFileManager(entry.content);
+        break;
+    }
+  } catch {
+    // 静默处理：目标应用可能未安装
+  }
+}
+
+async function handlePin(entry: ClipboardEntry) {
+  try {
+    await store.pinEntry(entry.id);
+  } catch {
+    // 静默
+  }
+}
+
+async function handleDoubleClick(entry: ClipboardEntry) {
+  await store.copyEntry(entry.id);
 }
 </script>
 
@@ -123,17 +180,20 @@ async function confirmDelete(id: string) {
 
     <div v-else class="clipboard-list">
       <article
-        v-for="entry in store.filteredEntries"
+        v-for="entry in store.pagedEntries"
         :key="entry.id"
         class="clipboard-card"
         :data-type="entry.contentType"
         :data-testid="`clipboard-card-${entry.id}`"
+        @dblclick="handleDoubleClick(entry)"
       >
+        <!-- 上：卡片头部栏 -->
         <header class="clipboard-card__header" :data-testid="`clipboard-card-header-${entry.id}`">
           <div class="clipboard-card__type">
             <span class="clipboard-type">{{ typeLabel(entry.contentType) }}</span>
+            <span class="clipboard-source">{{ contentSource(entry) }}</span>
           </div>
-          <div class="clipboard-card__delete">
+          <div class="clipboard-card__header-actions">
             <template v-if="pendingDeleteId === entry.id">
               <span class="clipboard-confirm-text">确认删除？</span>
               <button
@@ -142,7 +202,7 @@ async function confirmDelete(id: string) {
                 :data-testid="`clipboard-delete-confirm-${entry.id}`"
                 aria-label="确认删除"
                 title="确认删除"
-                @click="confirmDelete(entry.id)"
+                @click.stop="confirmDelete(entry.id)"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M20 6 9 17l-5-5" />
@@ -154,7 +214,7 @@ async function confirmDelete(id: string) {
                 :data-testid="`clipboard-delete-cancel-${entry.id}`"
                 aria-label="取消删除"
                 title="取消删除"
-                @click="cancelDelete"
+                @click.stop="cancelDelete"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M18 6 6 18M6 6l12 12" />
@@ -168,7 +228,7 @@ async function confirmDelete(id: string) {
               :data-testid="`clipboard-delete-${entry.id}`"
               aria-label="删除"
               title="删除"
-              @click="requestDelete(entry.id)"
+              @click.stop="requestDelete(entry.id)"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M3 6h18" />
@@ -180,18 +240,38 @@ async function confirmDelete(id: string) {
           </div>
         </header>
 
+        <!-- 中：卡片内容区 -->
         <div class="clipboard-card__content">
-          <img
-            v-if="entry.contentType === 'image'"
-            class="clipboard-image"
-            :src="entry.content"
-            alt="剪贴板图片预览"
-          >
-          <pre v-else class="clipboard-preview">{{ previewLines(entry) }}</pre>
+          <template v-if="entry.contentType === 'image'">
+            <img
+              class="clipboard-image"
+              :src="entry.content"
+              alt="剪贴板图片预览"
+            >
+          </template>
+          <template v-else-if="entry.contentType === 'file'">
+            <div class="clipboard-file">
+              <svg class="clipboard-file__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              <span class="clipboard-file__name" :title="entry.content">{{ fileName(entry) }}</span>
+            </div>
+          </template>
+          <template v-else>
+            <pre
+              class="clipboard-preview"
+              :class="{ 'clipboard-preview--code': entry.contentType === 'code' }"
+            >{{ previewText(entry) }}</pre>
+          </template>
         </div>
 
+        <!-- 下：卡片底部栏 -->
         <footer class="clipboard-card__footer" :data-testid="`clipboard-card-footer-${entry.id}`">
-          <time class="clipboard-time">{{ formatTime(entry.updatedAt) }}</time>
+          <div class="clipboard-card__footer-left">
+            <time class="clipboard-time">{{ formatTime(entry.updatedAt) }}</time>
+            <span v-if="isModified(entry)" class="clipboard-modified">已修改</span>
+          </div>
           <div
             class="clipboard-card__footer-actions"
             :data-testid="`clipboard-card-footer-actions-${entry.id}`"
@@ -199,10 +279,36 @@ async function confirmDelete(id: string) {
             <button
               class="clipboard-icon-button"
               type="button"
+              :data-testid="`clipboard-open-${entry.id}`"
+              aria-label="打开"
+              title="打开"
+              @click.stop="handleOpen(entry)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </button>
+            <button
+              class="clipboard-icon-button"
+              type="button"
+              :data-testid="`clipboard-pin-${entry.id}`"
+              aria-label="置顶"
+              title="置顶"
+              @click.stop="handlePin(entry)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 2l2 7h7l-5.5 4 2 7L12 16l-5.5 4 2-7L3 9h7z" />
+              </svg>
+            </button>
+            <button
+              class="clipboard-icon-button"
+              type="button"
               :data-testid="`clipboard-copy-${entry.id}`"
               aria-label="复制"
               title="复制"
-              @click="store.copyEntry(entry.id)"
+              @click.stop="store.copyEntry(entry.id)"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M8 8h11v11H8z" />
@@ -213,6 +319,47 @@ async function confirmDelete(id: string) {
         </footer>
       </article>
     </div>
+
+    <!-- 分页栏 -->
+    <footer v-if="store.filteredEntries.length > 0" class="clipboard-pagination">
+      <div class="clipboard-pagination__info">
+        <span>{{ store.filteredEntries.length }} 条记录</span>
+        <label class="clipboard-page-size">
+          每页
+          <select
+            :value="store.pageSize"
+            data-testid="clipboard-page-size"
+            @change="store.setPageSize(Number(($event.target as HTMLSelectElement).value))"
+          >
+            <option v-for="size in PAGE_SIZE_OPTIONS" :key="size" :value="size">
+              {{ size }}
+            </option>
+          </select>
+          条
+        </label>
+      </div>
+      <div class="clipboard-pagination__controls">
+        <button
+          class="clipboard-page-btn"
+          type="button"
+          :disabled="store.page <= 1"
+          data-testid="clipboard-page-prev"
+          @click="store.setPage(store.page - 1)"
+        >
+          ‹
+        </button>
+        <span class="clipboard-page-info">{{ store.page }} / {{ store.totalPages }}</span>
+        <button
+          class="clipboard-page-btn"
+          type="button"
+          :disabled="store.page >= store.totalPages"
+          data-testid="clipboard-page-next"
+          @click="store.setPage(store.page + 1)"
+        >
+          ›
+        </button>
+      </div>
+    </footer>
   </section>
 </template>
 
@@ -313,83 +460,172 @@ async function confirmDelete(id: string) {
 
 .clipboard-list {
   min-height: 0;
+  flex: 1;
   display: grid;
   gap: 8px;
   overflow: auto;
 }
 
+/* ===== 卡片布局 ===== */
 .clipboard-card {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 10px;
-  padding: 12px 14px;
+  grid-template-rows: auto 1fr auto;
+  gap: 6px;
+  padding: 10px 14px;
   border: 1px solid var(--app-border);
   border-radius: 8px;
   background: var(--app-surface);
+  cursor: default;
+  user-select: text;
+  transition: border-color 120ms;
 }
 
-.clipboard-card__header,
-.clipboard-card__footer {
-  min-height: 32px;
+.clipboard-card:hover {
+  border-color: var(--app-accent);
+}
+
+/* 上：头部栏 */
+.clipboard-card__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
 }
 
-.clipboard-card__type,
-.clipboard-card__delete,
-.clipboard-card__footer-actions {
+.clipboard-card__type {
   display: flex;
   align-items: center;
-  gap: 6px;
-}
-
-.clipboard-card__content {
+  gap: 8px;
   min-width: 0;
 }
 
 .clipboard-type {
   color: var(--app-accent);
   font-weight: 650;
-  font-size: 13px;
+  font-size: 12px;
+  flex-shrink: 0;
 }
 
-.clipboard-time,
-.clipboard-confirm-text {
-  color: var(--app-muted);
-  font-size: 12px;
+.clipboard-source {
+  color: var(--app-faint);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clipboard-card__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* 中：内容区 */
+.clipboard-card__content {
+  min-width: 0;
+  min-height: 0;
 }
 
 .clipboard-preview {
-  min-height: 34px;
-  max-height: 118px;
   margin: 0;
+  padding: 4px 0;
   overflow: hidden;
   color: var(--app-fg);
   font: 13px/1.5 ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-height: 1.5em;
+}
+
+.clipboard-preview--code {
+  white-space: pre;
+  max-height: 4.5em;
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 .clipboard-image {
   width: min(220px, 100%);
-  max-height: 140px;
+  max-height: 120px;
   object-fit: contain;
   border-radius: 6px;
   background: var(--app-bg);
 }
 
+.clipboard-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clipboard-file__icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--app-muted);
+}
+
+.clipboard-file__name {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 下：底部栏 */
+.clipboard-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.clipboard-card__footer-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clipboard-time {
+  color: var(--app-muted);
+  font-size: 11px;
+}
+
+.clipboard-modified {
+  color: var(--app-accent);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--app-accent-soft);
+}
+
+.clipboard-card__footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.clipboard-confirm-text {
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+/* 图标按钮 */
 .clipboard-icon-button {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   display: inline-grid;
   place-items: center;
   border: 1px solid var(--app-border);
-  border-radius: 7px;
+  border-radius: 6px;
   background: var(--app-bg);
   color: var(--app-muted);
   cursor: pointer;
+  transition: border-color 120ms, color 120ms;
 }
 
 .clipboard-icon-button:hover,
@@ -406,20 +642,91 @@ async function confirmDelete(id: string) {
 }
 
 .clipboard-icon-button svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.8;
+  stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
+/* 分页栏 */
+.clipboard-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0 4px;
+  border-top: 1px solid var(--app-border);
+  margin-top: auto;
+}
+
+.clipboard-pagination__info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.clipboard-page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.clipboard-page-size select {
+  padding: 2px 6px;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-surface);
+  color: var(--app-fg);
+  font-size: 12px;
+  outline: none;
+}
+
+.clipboard-pagination__controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.clipboard-page-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface);
+  color: var(--app-fg);
+  font-size: 16px;
+  cursor: pointer;
+  transition: border-color 120ms;
+}
+
+.clipboard-page-btn:hover:not(:disabled) {
+  border-color: var(--app-accent);
+  color: var(--app-accent);
+}
+
+.clipboard-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.clipboard-page-info {
+  font-size: 12px;
+  color: var(--app-muted);
+  min-width: 50px;
+  text-align: center;
+}
+
 @media (max-width: 720px) {
-  .clipboard-toolbar,
-  .clipboard-card {
-    grid-template-columns: 1fr;
-    display: grid;
+  .clipboard-toolbar {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .clipboard-search {

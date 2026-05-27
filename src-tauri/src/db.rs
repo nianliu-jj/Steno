@@ -1348,6 +1348,65 @@ impl Db {
         Ok(())
     }
 
+    pub fn update_clipboard_entry_content(
+        &self,
+        id: &str,
+        content: &str,
+        html_content: Option<&str>,
+    ) -> Result<ClipboardEntry, DbError> {
+        let conn = self.lock()?;
+        let now = chrono::Utc::now().to_rfc3339();
+        let preview: String = content.chars().take(120).collect();
+        conn.execute(
+            "UPDATE clipboard_history SET content = ?1, html_content = ?2, preview = ?3, updated_at = ?4, size_bytes = ?5 WHERE id = ?6",
+            rusqlite::params![content, html_content, &preview, &now, content.len() as i64, id],
+        )?;
+        Self::find_clipboard_entry(&conn, id)
+    }
+
+    pub fn pin_clipboard_entry(&self, id: &str) -> Result<ClipboardEntry, DbError> {
+        let conn = self.lock()?;
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "UPDATE clipboard_history SET updated_at = ?1 WHERE id = ?2",
+            rusqlite::params![&now, id],
+        )?;
+        Self::find_clipboard_entry(&conn, id)
+    }
+
+    pub fn count_clipboard_entries(
+        &self,
+        content_type: Option<String>,
+        query: Option<String>,
+    ) -> Result<i64, DbError> {
+        let conn = self.lock()?;
+        let mut sql = String::from("SELECT COUNT(*) FROM clipboard_history WHERE 1 = 1");
+        let mut values: Vec<String> = Vec::new();
+
+        if let Some(content_type) = content_type.map(|value| value.trim().to_string()) {
+            if !content_type.is_empty() {
+                sql.push_str(" AND content_type = ?");
+                values.push(content_type);
+            }
+        }
+
+        if let Some(query) = query.map(|value| value.trim().to_string()) {
+            if !query.is_empty() {
+                sql.push_str(" AND (content LIKE ? OR preview LIKE ?)");
+                let like = format!("%{query}%");
+                values.push(like.clone());
+                values.push(like);
+            }
+        }
+
+        let count: i64 = conn.query_row(
+            &sql,
+            rusqlite::params_from_iter(values.iter()),
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
     // ----- 设置 key-value -----------------------------------------------
 
     pub fn get_setting(&self, key: &str) -> Result<Option<String>, DbError> {
