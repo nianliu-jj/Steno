@@ -510,8 +510,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     登录 Windows 后自动启动 Steno，便于保留托盘与全局快捷键。
@@ -530,8 +530,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     新打开速记浮窗时使用的默认宽度。
@@ -553,8 +553,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     新打开速记浮窗时使用的默认高度。
@@ -576,8 +576,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     速记浮窗失去焦点后等待关闭的毫秒数。
@@ -599,8 +599,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     速记浮窗打开时的定位策略。
@@ -623,8 +623,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     切换应用界面的显示语言，更改后立即生效。
@@ -653,8 +653,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     跟随系统会响应操作系统浅色或深色模式。
@@ -678,8 +678,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     原型中的强调色选择已预留，当前版本不写入设置。
@@ -701,8 +701,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     主窗口边角的圆角半径，0 为直角。
@@ -726,8 +726,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     控制 Markdown 编辑器默认展示方式。
@@ -748,8 +748,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     新便签纸张颜色将在后续版本接入画布卡片。
@@ -772,8 +772,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     呼出或聚焦 Steno 主窗口。
@@ -797,8 +797,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     从任意应用快速打开速记输入框。
@@ -822,8 +822,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     呼出 Steno 主窗口并打开粘贴板历史。
@@ -847,8 +847,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     当前为应用内预留字段，暂不注册到操作系统。
@@ -880,8 +880,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     关闭后系统级快捷键会注销，浮窗不可呼出。
@@ -903,8 +903,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     聚焦后直接按下组合键保存；系统级快捷键会重新注册。
@@ -932,8 +932,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     选择浮窗在屏幕上的初始位置策略。
@@ -1070,8 +1070,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     SQLCipher 加密入口规划中，当前版本不会修改数据库结构。
@@ -1086,8 +1086,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     信用卡号、Token、私钥等模式过滤需要后端规则支持。
@@ -1102,8 +1102,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     密码管理器和指定应用排除名单将在权限层接入。
@@ -1146,8 +1146,8 @@ const headerSub = computed(() =>
                   <NTooltip trigger="hover">
                     <template #trigger>
                       <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4M12 8h.01"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
                       </svg>
                     </template>
                     达到阈值后打包本地 Markdown 与索引。
