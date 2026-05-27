@@ -320,7 +320,11 @@ function iconPathFor(key: WindowMode) {
     :data-compact="compactViewport"
     :data-rail="effectiveRailState"
   >
-    <header class="workbench-titlebar topbar" data-tauri-drag-region="true">
+    <header
+      class="workbench-titlebar topbar"
+      :class="{ 'workbench-titlebar--mac': isMac }"
+      data-tauri-drag-region="true"
+    >
       <!-- macOS 交通灯 -->
       <div
         v-if="isMac"
@@ -559,7 +563,7 @@ function iconPathFor(key: WindowMode) {
 
 .workbench-titlebar {
   display: grid;
-  grid-template-columns: auto var(--rail-w) 1fr auto;
+  grid-template-columns: var(--rail-w) minmax(0, 1fr) auto;
   align-items: center;
   min-height: 44px;
   border-bottom: 1px solid var(--border);
@@ -567,6 +571,10 @@ function iconPathFor(key: WindowMode) {
   user-select: none;
   -webkit-user-select: none;
   transition: grid-template-columns 0.22s ease;
+}
+
+.workbench-titlebar--mac {
+  grid-template-columns: auto var(--rail-w) minmax(0, 1fr);
 }
 
 /* macOS 交通灯 */
@@ -654,6 +662,7 @@ function iconPathFor(key: WindowMode) {
 .topbar-center {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   height: 100%;
   flex: 1;
@@ -710,7 +719,8 @@ function iconPathFor(key: WindowMode) {
 
 .feature-search-wrap {
   position: relative;
-  flex: 1;
+  flex: 0 1 640px;
+  width: min(640px, 100%);
   max-width: 640px;
   min-width: 0;
   display: flex;
@@ -808,6 +818,7 @@ function iconPathFor(key: WindowMode) {
 }
 
 .workbench-window-controls {
+  justify-self: end;
   display: flex;
   align-items: center;
   gap: 2px;

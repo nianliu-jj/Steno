@@ -116,6 +116,14 @@ describe('MainWorkbenchShell', () => {
     expect(closeCurrent).toHaveBeenCalledOnce();
   });
 
+  it('keeps Windows titlebar controls on the right and centers the feature search', () => {
+    expect(MainWorkbenchShellSource).toContain(
+      'grid-template-columns: var(--rail-w) minmax(0, 1fr) auto;',
+    );
+    expect(MainWorkbenchShellSource).toContain('justify-content: center;');
+    expect(MainWorkbenchShellSource).toContain('justify-self: end;');
+  });
+
   it('renders v2 titlebar controls and excludes interactive controls from drag', async () => {
     const wrapper = mount(MainWorkbenchShell, {
       props: {
@@ -125,16 +133,14 @@ describe('MainWorkbenchShell', () => {
 
     expect(wrapper.find('.brand-mark').text()).toBe('S');
     expect(wrapper.find('.brand-name').text()).toBe('Steno');
-    expect(wrapper.find('.back-btn').attributes('aria-label')).toBe('返回');
+    expect(wrapper.find('.back-btn').exists()).toBe(false);
     expect(wrapper.find('[data-testid="feature-search-input"]').attributes('placeholder')).toBe(
       '搜索功能、设置…',
     );
     expect(wrapper.find('.kbd').exists()).toBe(false);
     expect(wrapper.findAll('.wc-btn')).toHaveLength(3);
 
-    await wrapper.find('.back-btn').trigger('click');
-
-    expect(navigateToMain).toHaveBeenCalledOnce();
+    expect(navigateToMain).not.toHaveBeenCalled();
     expect(navigateTo).not.toHaveBeenCalled();
     expect(startDragCurrent).not.toHaveBeenCalled();
   });
@@ -214,19 +220,16 @@ describe('MainWorkbenchShell', () => {
     expect(wrapper.get('[data-nav="main"] .rail-label').text()).toBe('笔记列表');
     expect(wrapper.get('[data-nav="main"] .rail-count').text()).toBe('24');
     expect(wrapper.get('[data-testid="rail-settings"]').attributes('aria-label')).toBe('打开设置');
-    expect(wrapper.get('[data-testid="rail-language"] .lang-badge').text()).toBe('ZH');
     expect(wrapper.get('[data-testid="rail-collapse"]').attributes('aria-expanded')).toBe('true');
 
     await wrapper.get('[data-nav="canvas"]').trigger('click');
     await wrapper.get('[data-nav="stats"]').trigger('click');
     await wrapper.get('[data-testid="rail-settings"]').trigger('click');
-    await wrapper.get('[data-testid="rail-language"]').trigger('click');
     await wrapper.get('[data-testid="rail-collapse"]').trigger('click');
 
     expect(navigateTo).toHaveBeenNthCalledWith(1, 'canvas');
     expect(navigateTo).toHaveBeenNthCalledWith(2, 'stats');
     expect(navigateTo).toHaveBeenNthCalledWith(3, 'settings');
-    expect(wrapper.get('[data-testid="rail-language"] .lang-badge').text()).toBe('EN');
     expect(wrapper.get('.workbench-root').attributes('data-rail')).toBe('collapsed');
     expect(wrapper.get('[data-testid="rail-collapse"]').attributes('aria-expanded')).toBe('false');
 

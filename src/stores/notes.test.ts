@@ -78,4 +78,42 @@ describe('notes store', () => {
 
     expect(store.pinned).toEqual([]);
   });
+
+  it('keeps unsaved drafts before saved notes after a draft is promoted externally', () => {
+    const store = useNotesStore();
+    store.notes = [
+      makeNote({
+        id: 'draft-newer',
+        title: '仍未保存',
+        isDraft: true,
+        updatedAt: '2026-05-15T07:30:00.000Z',
+      }),
+      makeNote({
+        id: 'draft-promoted',
+        title: '准备保存',
+        isDraft: true,
+        updatedAt: '2026-05-15T07:20:00.000Z',
+      }),
+      makeNote({
+        id: 'saved-old',
+        title: '旧正式笔记',
+        isDraft: false,
+        updatedAt: '2026-05-15T07:10:00.000Z',
+      }),
+    ];
+
+    store.syncExternalNote(makeNote({
+      id: 'saved-new',
+      title: '刚保存的正式笔记',
+      isDraft: false,
+      updatedAt: '2026-05-15T07:40:00.000Z',
+    }));
+    store.purgeLocal('draft-promoted');
+
+    expect(store.notes.map(note => note.id)).toEqual([
+      'draft-newer',
+      'saved-new',
+      'saved-old',
+    ]);
+  });
 });

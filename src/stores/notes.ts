@@ -176,19 +176,31 @@ export const useNotesStore = defineStore('notes', () => {
     pinned.value = pinned.value.filter(n => n.id !== id);
   }
 
+  /** 笔记列表排序：未保存草稿优先，其余按更新时间倒序。 */
+  function compareNotesForList(a: Note, b: Note): number {
+    const draftDelta = Number(b.isDraft) - Number(a.isDraft);
+    if (draftDelta !== 0) return draftDelta;
+
+    const updatedDelta = Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
+    if (updatedDelta !== 0) return updatedDelta;
+
+    return b.id.localeCompare(a.id);
+  }
+
   /**
-   * 本地 upsert — 存在则替换，不存在则插入到列表头部。
+   * 本地 upsert — 存在则替换，不存在则插入，随后恢复列表排序。
    *
-   * `unshift` 而非 `push` 是因为更新后的笔记通常是"最新编辑的"，
-   * 放在列表顶部符合用户预期。
+   * 这让右键保存草稿、自动保存、跨窗口同步等入口都遵守
+   * `isDraft DESC, updatedAt DESC` 的列表契约。
    */
   function upsertLocal(note: Note) {
     const i = notes.value.findIndex(n => n.id === note.id);
     if (i >= 0) {
       notes.value[i] = note;
     } else {
-      notes.value.unshift(note);
+      notes.value.push(note);
     }
+    notes.value = [...notes.value].sort(compareNotesForList);
   }
 
   /** 本地 upsert 到置顶列表（`push` 因为置顶列表不强调顺序）。 */
