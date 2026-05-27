@@ -1888,11 +1888,6 @@ const headerSub = computed(() =>
     border-right: 0;
   }
 
-  .settings-tabs {
-    order: 3;
-    width: 100%;
-  }
-
   .settings-row,
   .settings-path-row,
   .reminder-option-row {

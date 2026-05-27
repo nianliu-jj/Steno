@@ -563,9 +563,8 @@ async function handleDoubleClick(entry: ClipboardEntry) {
 }
 
 .clipboard-preview--code {
-  white-space: pre;
-  max-height: 4.5em;
   white-space: pre-wrap;
+  max-height: 4.5em;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
