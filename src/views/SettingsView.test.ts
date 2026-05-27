@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { flushPromises, mount } from '@vue/test-utils';
-import { NConfigProvider, NMessageProvider, NPopconfirm, NRadioGroup } from 'naive-ui';
+import { NConfigProvider, NMessageProvider, NPopconfirm, NRadioGroup, NSwitch } from 'naive-ui';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, h } from 'vue';
@@ -37,6 +37,7 @@ const { defaultReminderQuickOptions, settingsState } = vi.hoisted(() => {
       quicknoteShortcut: 'Ctrl+Shift+M',
       clipboardShortcut: 'Ctrl+Shift+V',
       searchShortcut: 'Ctrl+Shift+F',
+      launchAtStartup: false,
       floatingWidth: 420,
       floatingHeight: 300,
       blurCloseDelayMs: 200,
@@ -59,6 +60,7 @@ const getDataPaths = vi.fn(() =>
   }),
 );
 const reloadShortcuts = vi.fn(() => Promise.resolve());
+const setLaunchAtStartup = vi.fn(() => Promise.resolve());
 const updateSetting = vi.fn(() => Promise.resolve());
 const loadSettings = vi.fn(() => Promise.resolve());
 const navigateToMain = vi.fn();
@@ -83,6 +85,7 @@ vi.mock('@/composables/useDb', () => ({
   useDb: () => ({
     getDataPaths,
     reloadShortcuts,
+    setLaunchAtStartup,
   }),
 }));
 
@@ -109,6 +112,14 @@ vi.mock('@/composables/useAppEvents', () => ({
     emitNoteSaved: vi.fn(),
     listenThemeModeChanged: vi.fn(),
     listenNoteSaved: vi.fn(),
+  }),
+}));
+
+vi.mock('@/i18n', () => ({
+  useI18n: () => ({
+    state: {
+      locale: 'zh-CN',
+    },
   }),
 }));
 
@@ -143,6 +154,7 @@ describe('SettingsView', () => {
     setActivePinia(createPinia());
     getDataPaths.mockClear();
     reloadShortcuts.mockClear();
+    setLaunchAtStartup.mockClear();
     updateSetting.mockClear();
     loadSettings.mockClear();
     navigateToMain.mockClear();
@@ -160,17 +172,14 @@ describe('SettingsView', () => {
     expect(wrapper.get('.settings-brand__mark').text()).toBe('S');
     expect(wrapper.get('#settingsTitle').text()).toBe('设置');
     expect(wrapper.text()).toContain('所有更改自动保存');
-    expect(wrapper.get('.settings-tabs').text()).toContain('常规');
-    expect(wrapper.get('.settings-tabs').text()).toContain('外观');
-    expect(wrapper.get('.settings-tabs').text()).toContain('快捷键');
-    expect(wrapper.get('.settings-tabs').text()).toContain('提醒设置');
-    expect(wrapper.get('.settings-tabs').text()).toContain('隐私安全');
-    expect(wrapper.get('.settings-tabs').text()).toContain('存储');
-    expect(wrapper.get('.settings-tabs').text()).toContain('关于');
+    expect(wrapper.get('.settings-sidebar').text()).toContain('常规');
+    expect(wrapper.get('.settings-sidebar').text()).toContain('外观');
+    expect(wrapper.get('.settings-sidebar').text()).toContain('快捷键');
+    expect(wrapper.get('.settings-sidebar').text()).toContain('提醒设置');
+    expect(wrapper.get('.settings-sidebar').text()).toContain('隐私安全');
+    expect(wrapper.get('.settings-sidebar').text()).toContain('存储');
+    expect(wrapper.get('.settings-sidebar').text()).toContain('关于');
     expect(wrapper.find('button[aria-label="关闭设置"]').exists()).toBe(true);
-    expect(wrapper.get('.settings-panel__footer').text()).toContain('取消');
-    expect(wrapper.get('.settings-panel__footer').text()).toContain('重置');
-    expect(wrapper.get('.settings-panel__footer').text()).toContain('确认');
     expect(wrapper.get('.settings-save-hint').text()).toContain('所有更改自动保存到本地');
   });
 
@@ -178,7 +187,7 @@ describe('SettingsView', () => {
     const wrapper = mountSettingsView();
     await flushPromises();
 
-    const tabText = wrapper.get('.settings-tabs').text();
+    const tabText = wrapper.get('.settings-sidebar').text();
     expect(tabText.indexOf('待办浮窗')).toBeLessThan(tabText.indexOf('提醒设置'));
     expect(tabText.indexOf('提醒设置')).toBeLessThan(tabText.indexOf('隐私安全'));
 
@@ -268,17 +277,15 @@ describe('SettingsView', () => {
     error.mockRestore();
   });
 
-  it('emits close in embedded mode from the header close button, cancel, and confirm', async () => {
+  it('emits close in embedded mode from the header close button', async () => {
     const wrapper = mountSettingsView({ embedded: true });
     await flushPromises();
 
     const view = wrapper.findComponent(SettingsView);
 
     await wrapper.get('button[aria-label="关闭设置"]').trigger('click');
-    await wrapper.get('.settings-panel__footer button:first-child').trigger('click');
-    await wrapper.get('.settings-panel__footer button:last-child').trigger('click');
 
-    expect(view.emitted('close')).toHaveLength(3);
+    expect(view.emitted('close')).toHaveLength(1);
     expect(navigateToMain).not.toHaveBeenCalled();
   });
 
@@ -327,7 +334,20 @@ describe('SettingsView', () => {
     error.mockRestore();
   });
 
-  it('captures a clipboard shortcut from keydown instead of typed text', async () => {
+  it('persists launch at startup from the general section', async () => {
+    const wrapper = mountSettingsView();
+    await flushPromises();
+
+    const startupSwitch = wrapper.findComponent(NSwitch);
+    startupSwitch.vm.$emit('update:value', true);
+    await flushPromises();
+
+    expect(updateSetting).toHaveBeenCalledWith('launchAtStartup', true);
+    expect(setLaunchAtStartup).toHaveBeenCalledWith(true);
+    expect(messageSuccess).toHaveBeenCalledWith('已开启开机自启动');
+  });
+
+  it('opens a shortcut dialog on double click and captures a clipboard shortcut there', async () => {
     const wrapper = mountSettingsView();
     await flushPromises();
 
@@ -335,7 +355,10 @@ describe('SettingsView', () => {
     const capture = wrapper.get('[data-testid="clipboard-shortcut-capture"]');
 
     expect(capture.find('input').exists()).toBe(false);
-    await capture.trigger('keydown', {
+    await capture.trigger('dblclick');
+    expect(wrapper.get('[data-testid="shortcut-capture-dialog"]').text()).toContain('更换快捷键');
+
+    await wrapper.get('[data-testid="shortcut-capture-dialog"]').trigger('keydown', {
       key: 'B',
       ctrlKey: true,
       shiftKey: true,
@@ -347,10 +370,31 @@ describe('SettingsView', () => {
     expect(messageSuccess).toHaveBeenCalledWith('已更新「粘贴板快捷键」');
   });
 
+  it('does not save shortcuts with more than three pressed keys', async () => {
+    const wrapper = mountSettingsView();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="settings-tab-shortcuts"]').trigger('click');
+    await wrapper.get('[data-testid="main-shortcut-capture"]').trigger('dblclick');
+
+    await wrapper.get('[data-testid="shortcut-capture-dialog"]').trigger('keydown', {
+      key: 'B',
+      ctrlKey: true,
+      altKey: true,
+      shiftKey: true,
+    });
+    await flushPromises();
+
+    expect(updateSetting).not.toHaveBeenCalledWith('mainWindowShortcut', 'Ctrl+Alt+Shift+B');
+    expect(reloadShortcuts).not.toHaveBeenCalled();
+    expect(messageInfo).toHaveBeenCalledWith('快捷键最多支持 3 个按键');
+    expect(wrapper.find('[data-testid="shortcut-capture-dialog"]').exists()).toBe(true);
+  });
+
   it('keeps the v2 panel sizing, dark theme hook, and narrow-screen responsive rules', () => {
-    expect(SettingsViewSource).toContain('width: min(920px, calc(100vw - 32px));');
+    expect(SettingsViewSource).toContain('width: min(1060px, calc(100vw - 32px));');
     expect(SettingsViewSource).toContain('height: min(660px, calc(100vh - 48px));');
     expect(SettingsViewSource).toContain(':global(.dark) .settings-panel');
-    expect(SettingsViewSource).toContain('@media (max-width: 720px)');
+    expect(SettingsViewSource).toContain('@media (max-width: 800px)');
   });
 });

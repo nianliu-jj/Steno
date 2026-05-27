@@ -46,6 +46,8 @@ export interface StenoSettings {
   clipboardShortcut: string;
   /** 粘贴板列表每页显示条数。 */
   clipboardPageSize: number;
+  /** 是否随系统开机自启动。 */
+  launchAtStartup: boolean;
   /** 速记浮窗弹出位置策略。 */
   quicknotePopupPosition: 'cursor' | 'center' | 'last';
   /** 全局搜索的快捷键。 */
@@ -159,6 +161,7 @@ const DEFAULTS: StenoSettings = {
   quicknoteShortcut: 'Ctrl+Shift+M',
   clipboardShortcut: 'Ctrl+Shift+V',
   clipboardPageSize: 20,
+  launchAtStartup: false,
   quicknotePopupPosition: 'cursor',
   searchShortcut: 'Ctrl+Shift+F',
   floatingWidth: 400,
@@ -274,6 +277,11 @@ function decode<K extends keyof StenoSettings>(
     }
     case 'mainSidebarCollapsed': {
       return (raw === 'true') as StenoSettings[K];
+    }
+    case 'launchAtStartup': {
+      if (raw === 'true') return true as StenoSettings[K];
+      if (raw === 'false') return false as StenoSettings[K];
+      return DEFAULTS[key];
     }
     case 'themeMode': {
       return (['light', 'dark', 'system'].includes(raw)

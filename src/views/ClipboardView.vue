@@ -141,7 +141,7 @@ async function handlePin(entry: ClipboardEntry) {
 }
 
 async function handleDoubleClick(entry: ClipboardEntry) {
-  await store.copyEntry(entry.id);
+  await store.pasteEntry(entry.id);
 }
 </script>
 
@@ -194,7 +194,6 @@ async function handleDoubleClick(entry: ClipboardEntry) {
         :class="{ 'clipboard-card--pinned': isPinned(entry) }"
         :data-type="entry.contentType"
         :data-testid="`clipboard-card-${entry.id}`"
-        @dblclick="handleDoubleClick(entry)"
       >
         <!-- 上：卡片头部栏 -->
         <header class="clipboard-card__header" :data-testid="`clipboard-card-header-${entry.id}`">
@@ -250,7 +249,11 @@ async function handleDoubleClick(entry: ClipboardEntry) {
         </header>
 
         <!-- 中：卡片内容区 -->
-        <div class="clipboard-card__content">
+        <div
+          class="clipboard-card__content"
+          :data-testid="`clipboard-card-content-${entry.id}`"
+          @dblclick.stop="handleDoubleClick(entry)"
+        >
           <template v-if="entry.contentType === 'image'">
             <img
               class="clipboard-image"

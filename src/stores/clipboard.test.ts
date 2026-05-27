@@ -17,6 +17,7 @@ const listClipboardEntries = vi.fn<
 const deleteClipboardEntry = vi.fn<(id: string) => Promise<void>>();
 const clearClipboardEntries = vi.fn<() => Promise<void>>();
 const copyClipboardEntry = vi.fn<(id: string) => Promise<void>>();
+const pasteClipboardEntry = vi.fn<(id: string) => Promise<void>>();
 
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(async (event: string, handler: (event: { payload: unknown }) => void) => {
@@ -31,6 +32,7 @@ vi.mock('@/composables/useDb', () => ({
     deleteClipboardEntry,
     clearClipboardEntries,
     copyClipboardEntry,
+    pasteClipboardEntry,
   }),
 }));
 
@@ -64,10 +66,12 @@ describe('clipboard store', () => {
     deleteClipboardEntry.mockReset();
     clearClipboardEntries.mockReset();
     copyClipboardEntry.mockReset();
+    pasteClipboardEntry.mockReset();
     listClipboardEntries.mockResolvedValue([textEntry, urlEntry]);
     deleteClipboardEntry.mockResolvedValue();
     clearClipboardEntries.mockResolvedValue();
     copyClipboardEntry.mockResolvedValue();
+    pasteClipboardEntry.mockResolvedValue();
   });
 
   it('loads clipboard entries from the db adapter', async () => {
@@ -75,7 +79,7 @@ describe('clipboard store', () => {
     await store.load();
 
     expect(listClipboardEntries).toHaveBeenCalledWith({
-      limit: 200,
+      limit: 500,
       contentType: null,
       query: '',
     });
@@ -108,15 +112,17 @@ describe('clipboard store', () => {
     expect(store.entries).toEqual([]);
   });
 
-  it('delegates copy delete and clear operations', async () => {
+  it('delegates copy paste delete and clear operations', async () => {
     const store = useClipboardStore();
     await store.load();
 
     await store.copyEntry('1');
+    await store.pasteEntry('1');
     await store.deleteEntry('1');
     await store.clearEntries();
 
     expect(copyClipboardEntry).toHaveBeenCalledWith('1');
+    expect(pasteClipboardEntry).toHaveBeenCalledWith('1');
     expect(deleteClipboardEntry).toHaveBeenCalledWith('1');
     expect(clearClipboardEntries).toHaveBeenCalledOnce();
     expect(store.entries).toEqual([]);

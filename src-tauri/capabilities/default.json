@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Default capability for Steno desktop windows. Allows core APIs, event APIs, opener APIs and borderless-window dragging for the main shell, quicknote (floating capture) window and sticky notes.",
-  "windows": ["main", "quicknote", "sticky-*"],
+  "windows": ["main", "quicknote", "todo-panel", "sticky-*"],
   "permissions": [
     "core:default",
     "core:window:default",
@@ -17,6 +17,7 @@
     "core:window:allow-set-focus",
     "core:window:allow-set-size",
     "core:window:allow-set-position",
+    "core:window:allow-set-always-on-top",
     "core:event:default",
     "dialog:allow-open",
     "opener:default",

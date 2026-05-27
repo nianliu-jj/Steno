@@ -121,6 +121,10 @@ export const useClipboardStore = defineStore('clipboard', () => {
     await db.copyClipboardEntry(id);
   }
 
+  async function pasteEntry(id: string) {
+    await db.pasteClipboardEntry(id);
+  }
+
   async function deleteEntry(id: string) {
     await db.deleteClipboardEntry(id);
     entries.value = entries.value.filter(entry => entry.id !== id);
@@ -171,6 +175,7 @@ export const useClipboardStore = defineStore('clipboard', () => {
     startEventListeners,
     stopEventListeners,
     copyEntry,
+    pasteEntry,
     deleteEntry,
     clearEntries,
     updateEntry,

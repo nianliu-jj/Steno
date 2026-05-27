@@ -307,7 +307,12 @@ impl Db {
         }
         if version < 7 {
             // v7：clipboard_history 表新增 pinned_at 列（置顶时间戳，用于排序和标识置顶状态）。
-            if !Self::clipboard_has_column(conn, "pinned_at")? {
+            let clipboard_exists: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='clipboard_history'",
+                [],
+                |row| row.get(0),
+            )?;
+            if clipboard_exists > 0 && !Self::clipboard_has_column(conn, "pinned_at")? {
                 conn.execute(
                     "ALTER TABLE clipboard_history ADD COLUMN pinned_at TEXT",
                     [],
@@ -502,6 +507,7 @@ impl Db {
             ("quicknoteShortcut", "Ctrl+Shift+M"),
             ("clipboardShortcut", "Ctrl+Shift+V"),
             ("searchShortcut", "Ctrl+Shift+F"),
+            ("launchAtStartup", "false"),
             ("floatingWidth", "400"),
             ("floatingHeight", "300"),
             ("blurCloseDelayMs", "800"),
@@ -2253,7 +2259,7 @@ mod tests {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 6);
+        assert_eq!(version, 7);
     }
 
     #[test]
@@ -2340,7 +2346,7 @@ mod tests {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 6);
+        assert_eq!(version, 7);
     }
 
     // --- derive_title ---
@@ -3086,11 +3092,11 @@ mod tests {
         assert_eq!(rf, 0);
         assert_eq!(sa, None);
 
-        // user_version 已升到 6。
+        // user_version 已升到当前版本。
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 6);
+        assert_eq!(version, 7);
     }
 
     #[test]

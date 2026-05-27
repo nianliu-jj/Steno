@@ -251,6 +251,10 @@ export function useDb() {
     return invoke<void>('copy_clipboard_entry', { id });
   }
 
+  function pasteClipboardEntry(id: string) {
+    return invoke<void>('paste_clipboard_entry', { id });
+  }
+
   function updateClipboardEntry(args: {
     id: string;
     content: string;
@@ -375,6 +379,14 @@ export function useDb() {
     return invoke<void>('set_setting', { key, value });
   }
 
+  function setLaunchAtStartup(enabled: boolean) {
+    return invoke<void>('set_launch_at_startup', { enabled });
+  }
+
+  function isLaunchAtStartupEnabled() {
+    return invoke<boolean>('is_launch_at_startup_enabled');
+  }
+
   // ----- 全局快捷键 ----------------------------------------------------
 
   /**
@@ -462,6 +474,7 @@ export function useDb() {
     deleteClipboardEntry,
     clearClipboardEntries,
     copyClipboardEntry,
+    pasteClipboardEntry,
     updateClipboardEntry,
     pinClipboardEntry,
     unpinClipboardEntry,
@@ -480,6 +493,8 @@ export function useDb() {
     toggleTodoPanel,
     getSetting,
     setSetting,
+    setLaunchAtStartup,
+    isLaunchAtStartupEnabled,
     reloadShortcuts,
     exportNoteMarkdown,
     exportNoteHtml,

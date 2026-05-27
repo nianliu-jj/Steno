@@ -71,6 +71,7 @@ pub fn run() {
             commands::delete_clipboard_entry,
             commands::clear_clipboard_entries,
             commands::copy_clipboard_entry,
+            commands::paste_clipboard_entry,
             commands::update_clipboard_entry,
             commands::pin_clipboard_entry,
             commands::unpin_clipboard_entry,
@@ -100,6 +101,8 @@ pub fn run() {
             commands::show_todo_panel,
             commands::hide_todo_panel,
             commands::toggle_todo_panel,
+            commands::set_launch_at_startup,
+            commands::is_launch_at_startup_enabled,
         ])
         .on_window_event(|window, event| match event {
             // 关闭按钮 = 隐藏，不真正退出。真正退出走托盘菜单"退出"项。

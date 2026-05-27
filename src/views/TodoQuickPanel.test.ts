@@ -4,9 +4,10 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { CreateTodoRequest, Todo, UpdateTodoRequest } from '@/types/steno';
+import type { ClipboardEntry, CreateTodoRequest, Todo, UpdateTodoRequest } from '@/types/steno';
 import { useTodosStore } from '@/stores/todos';
 import TodoQuickPanel from './TodoQuickPanel.vue';
+import TodoQuickPanelSource from './TodoQuickPanel.vue?raw';
 
 // ---- mocks ----
 
@@ -18,6 +19,10 @@ const completeTodoIpc = vi.fn<(id: string) => Promise<Todo>>();
 const deleteTodoIpc = vi.fn<(id: string) => Promise<void>>();
 const hideTodoPanel = vi.fn<() => Promise<void>>();
 const setSetting = vi.fn<(key: string, value: string) => Promise<void>>();
+const listClipboardEntries = vi.fn<() => Promise<ClipboardEntry[]>>();
+const pasteClipboardEntry = vi.fn<(id: string) => Promise<void>>();
+const setAlwaysOnTop = vi.fn<(alwaysOnTop: boolean) => Promise<void>>();
+let focusChangedHandler: ((event: { payload: boolean }) => void) | null = null;
 
 vi.mock('@/composables/useDb', () => ({
   useDb: () => ({
@@ -29,6 +34,8 @@ vi.mock('@/composables/useDb', () => ({
     deleteTodo: deleteTodoIpc,
     hideTodoPanel,
     setSetting,
+    listClipboardEntries,
+    pasteClipboardEntry,
   }),
 }));
 
@@ -46,6 +53,13 @@ vi.mock('@tauri-apps/api/core', () => ({
 vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: () => ({
     outerPosition: async () => ({ x: 0, y: 0 }),
+    setAlwaysOnTop,
+    onFocusChanged: async (handler: (event: { payload: boolean }) => void) => {
+      focusChangedHandler = handler;
+      return () => {
+        focusChangedHandler = null;
+      };
+    },
   }),
 }));
 
@@ -85,6 +99,21 @@ function makeTodo(overrides: Partial<Todo> = {}): Todo {
   };
 }
 
+function makeClipboardEntry(overrides: Partial<ClipboardEntry> = {}): ClipboardEntry {
+  return {
+    id: 'clip-1',
+    contentType: 'text',
+    content: '剪贴板内容',
+    htmlContent: null,
+    preview: '剪贴板内容',
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    sizeBytes: 15,
+    pinnedAt: null,
+    ...overrides,
+  };
+}
+
 describe('TodoQuickPanel', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -96,6 +125,10 @@ describe('TodoQuickPanel', () => {
     deleteTodoIpc.mockReset();
     hideTodoPanel.mockReset().mockResolvedValue();
     setSetting.mockReset().mockResolvedValue();
+    listClipboardEntries.mockReset().mockResolvedValue([]);
+    pasteClipboardEntry.mockReset().mockResolvedValue();
+    setAlwaysOnTop.mockReset().mockResolvedValue();
+    focusChangedHandler = null;
   });
 
   it('renders empty state when no todos', async () => {
@@ -213,5 +246,51 @@ describe('TodoQuickPanel', () => {
 
     expect(wrapper.text()).toContain('远程新增');
     expect(wrapper.text()).toContain('共 1 个任务');
+  });
+
+  it('switches to clipboard tab and pastes an entry from the content area', async () => {
+    listClipboardEntries.mockResolvedValueOnce([
+      makeClipboardEntry({ id: 'clip-a', content: '从浮窗粘贴' }),
+    ]);
+
+    const wrapper = mount(TodoQuickPanel);
+    await flushPromises();
+
+    await wrapper.get('[data-testid="todo-panel-tab-clipboard"]').trigger('click');
+
+    expect(wrapper.get('[data-testid="todo-panel-clipboard-list"]').text()).toContain('从浮窗粘贴');
+
+    await wrapper.get('[data-testid="todo-panel-clipboard-content-clip-a"]').trigger('dblclick');
+    await flushPromises();
+
+    expect(pasteClipboardEntry).toHaveBeenCalledWith('clip-a');
+  });
+
+  it('toggles pinned state and only auto closes on blur while unpinned', async () => {
+    const wrapper = mount(TodoQuickPanel);
+    await flushPromises();
+
+    expect(setAlwaysOnTop).toHaveBeenCalledWith(false);
+
+    await wrapper.get('[data-testid="todo-panel-pin"]').trigger('click');
+    await flushPromises();
+
+    expect(setAlwaysOnTop).toHaveBeenLastCalledWith(true);
+    focusChangedHandler?.({ payload: false });
+    await flushPromises();
+    expect(hideTodoPanel).not.toHaveBeenCalled();
+
+    await wrapper.get('[data-testid="todo-panel-pin"]').trigger('click');
+    await flushPromises();
+
+    expect(setAlwaysOnTop).toHaveBeenLastCalledWith(false);
+    focusChangedHandler?.({ payload: false });
+    await flushPromises();
+    expect(hideTodoPanel).toHaveBeenCalledOnce();
+  });
+
+  it('clips the transparent todo panel window to a smooth rounded rectangle', () => {
+    expect(TodoQuickPanelSource).toContain('clip-path: inset(0 round 18px);');
+    expect(TodoQuickPanelSource).toContain('background-clip: padding-box;');
   });
 });

@@ -16,6 +16,7 @@ const listClipboardEntries = vi.fn<() => Promise<ClipboardEntry[]>>(async () => 
 const deleteClipboardEntry = vi.fn(async () => {});
 const clearClipboardEntries = vi.fn(async () => {});
 const copyClipboardEntry = vi.fn(async () => {});
+const pasteClipboardEntry = vi.fn(async () => {});
 
 vi.mock('@/composables/useDb', () => ({
   useDb: () => ({
@@ -23,6 +24,7 @@ vi.mock('@/composables/useDb', () => ({
     deleteClipboardEntry,
     clearClipboardEntries,
     copyClipboardEntry,
+    pasteClipboardEntry,
   }),
 }));
 
@@ -31,6 +33,7 @@ describe('ClipboardView', () => {
     setActivePinia(createPinia());
     listClipboardEntries.mockResolvedValue([]);
     copyClipboardEntry.mockClear();
+    pasteClipboardEntry.mockClear();
   });
 
   it('renders an empty state when there is no clipboard history', async () => {
@@ -127,5 +130,30 @@ describe('ClipboardView', () => {
     expect(store.typeFilter).toBe('code');
     expect(wrapper.text()).toContain('const a = 1;');
     expect(wrapper.text()).not.toContain('hello');
+  });
+
+  it('pastes an entry when double clicking the clipboard content area only', async () => {
+    listClipboardEntries.mockResolvedValueOnce([
+      {
+        id: '1',
+        contentType: 'text',
+        content: 'hello',
+        htmlContent: null,
+        preview: 'hello',
+        createdAt: '2026-05-25T00:00:00Z',
+        updatedAt: '2026-05-25T00:00:00Z',
+        sizeBytes: 5,
+      },
+    ]);
+
+    const wrapper = mount(ClipboardView);
+    await vi.dynamicImportSettled();
+
+    await wrapper.get('[data-testid="clipboard-card-header-1"]').trigger('dblclick');
+    expect(pasteClipboardEntry).not.toHaveBeenCalled();
+
+    await wrapper.get('[data-testid="clipboard-card-content-1"]').trigger('dblclick');
+    expect(pasteClipboardEntry).toHaveBeenCalledWith('1');
+    expect(copyClipboardEntry).not.toHaveBeenCalledWith('1');
   });
 });

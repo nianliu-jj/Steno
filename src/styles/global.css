@@ -15,7 +15,11 @@ body,
 
 #app {
   border-radius: var(--app-window-radius, 12px);
+  background: var(--app-bg, #1f1f24);
+  background-clip: padding-box;
+  clip-path: inset(0 round var(--app-window-radius, 12px));
   overflow: hidden;
+  isolation: isolate;
 }
 
 body {

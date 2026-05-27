@@ -346,6 +346,20 @@ pub async fn copy_clipboard_entry(db: State<'_, Db>, id: String) -> Result<(), S
 }
 
 #[tauri::command]
+pub async fn paste_clipboard_entry(db: State<'_, Db>, id: String) -> Result<(), String> {
+    let db = db.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        let entry = db
+            .get_clipboard_entry(&id)
+            .map_err(to_msg)?
+            .ok_or_else(|| format!("剪贴板条目不存在：{id}"))?;
+        clipboard::paste_entry_to_active_cursor(&entry)
+    })
+    .await
+    .map_err(to_msg)?
+}
+
+#[tauri::command]
 pub async fn update_clipboard_entry(
     app: AppHandle,
     db: State<'_, Db>,
@@ -817,4 +831,76 @@ pub fn hide_todo_panel(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn toggle_todo_panel(app: AppHandle, db: State<'_, Db>) -> Result<(), String> {
     window_manager::toggle_todo_panel(&app, db.inner()).map_err(to_msg)
+}
+
+// ----- 开机自启动 ------------------------------------------------------
+
+const AUTOSTART_APP_NAME: &str = "Steno";
+
+#[tauri::command]
+pub fn set_launch_at_startup(enabled: bool) -> Result<(), String> {
+    set_launch_at_startup_impl(enabled)
+}
+
+#[tauri::command]
+pub fn is_launch_at_startup_enabled() -> Result<bool, String> {
+    is_launch_at_startup_enabled_impl()
+}
+
+#[cfg(target_os = "windows")]
+fn set_launch_at_startup_impl(enabled: bool) -> Result<(), String> {
+    const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+    if enabled {
+        let exe = std::env::current_exe().map_err(to_msg)?;
+        let value = format!("\"{}\"", exe.display());
+        let status = Command::new("reg")
+            .args([
+                "add",
+                RUN_KEY,
+                "/v",
+                AUTOSTART_APP_NAME,
+                "/t",
+                "REG_SZ",
+                "/d",
+                &value,
+                "/f",
+            ])
+            .status()
+            .map_err(to_msg)?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!("写入开机自启动注册表失败：{status}"))
+        }
+    } else {
+        let status = Command::new("reg")
+            .args(["delete", RUN_KEY, "/v", AUTOSTART_APP_NAME, "/f"])
+            .status()
+            .map_err(to_msg)?;
+        if status.success() || !is_launch_at_startup_enabled_impl()? {
+            Ok(())
+        } else {
+            Err(format!("删除开机自启动注册表失败：{status}"))
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn is_launch_at_startup_enabled_impl() -> Result<bool, String> {
+    const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+    let status = Command::new("reg")
+        .args(["query", RUN_KEY, "/v", AUTOSTART_APP_NAME])
+        .status()
+        .map_err(to_msg)?;
+    Ok(status.success())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn set_launch_at_startup_impl(_enabled: bool) -> Result<(), String> {
+    Err("开机自启动当前仅支持 Windows".to_string())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn is_launch_at_startup_enabled_impl() -> Result<bool, String> {
+    Ok(false)
 }

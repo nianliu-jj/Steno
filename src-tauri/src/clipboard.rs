@@ -2,6 +2,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::io::Cursor;
 use std::path::Path;
+use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
@@ -125,6 +126,54 @@ pub fn write_entry_to_system_clipboard(entry: &ClipboardEntry) -> Result<(), Str
     clipboard
         .set_text(entry.content.clone())
         .map_err(|e| e.to_string())
+}
+
+pub fn paste_entry_to_active_cursor(entry: &ClipboardEntry) -> Result<(), String> {
+    write_entry_to_system_clipboard(entry)?;
+    trigger_system_paste()
+}
+
+#[cfg(target_os = "windows")]
+fn trigger_system_paste() -> Result<(), String> {
+    let script = "$wshell = New-Object -ComObject WScript.Shell; Start-Sleep -Milliseconds 120; $wshell.SendKeys('^v')";
+    let status = Command::new("powershell")
+        .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", script])
+        .status()
+        .map_err(|e| e.to_string())?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("触发粘贴快捷键失败：{status}"))
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn trigger_system_paste() -> Result<(), String> {
+    let status = Command::new("osascript")
+        .args([
+            "-e",
+            "tell application \"System Events\" to keystroke \"v\" using command down",
+        ])
+        .status()
+        .map_err(|e| e.to_string())?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("触发粘贴快捷键失败：{status}"))
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn trigger_system_paste() -> Result<(), String> {
+    let status = Command::new("xdotool")
+        .args(["key", "ctrl+v"])
+        .status()
+        .map_err(|e| e.to_string())?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("触发粘贴快捷键失败：{status}"))
+    }
 }
 
 pub fn should_process_hash(last_hash: Option<&str>, next_hash: &str) -> bool {

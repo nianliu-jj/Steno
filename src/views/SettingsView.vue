@@ -19,7 +19,7 @@
  * - `close` — 关闭设置面板（仅 embedded 模式）
  */
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import {
   NButton,
   NInput,
@@ -31,6 +31,7 @@ import {
   NSpace,
   NSwitch,
   NText,
+  NTooltip,
   useMessage,
 } from 'naive-ui';
 
@@ -66,15 +67,15 @@ type SettingsSection =
   | 'storage'
   | 'about';
 
-const sections: { key: SettingsSection; label: string; eyebrow: string }[] = [
-  { key: 'general', label: '常规', eyebrow: '启动与速记' },
-  { key: 'appearance', label: '外观', eyebrow: '主题与编辑' },
-  { key: 'shortcuts', label: '快捷键', eyebrow: '全局入口' },
-  { key: 'todo', label: '待办浮窗', eyebrow: '快捷与位置' },
-  { key: 'reminders', label: '提醒设置', eyebrow: '快捷选项' },
-  { key: 'privacy', label: '隐私安全', eyebrow: '本地优先' },
-  { key: 'storage', label: '存储', eyebrow: '路径与备份' },
-  { key: 'about', label: '关于', eyebrow: '版本信息' },
+const sections: { key: SettingsSection; label: string }[] = [
+  { key: 'general', label: '常规' },
+  { key: 'appearance', label: '外观' },
+  { key: 'shortcuts', label: '快捷键' },
+  { key: 'todo', label: '待办浮窗' },
+  { key: 'reminders', label: '提醒设置' },
+  { key: 'privacy', label: '隐私安全' },
+  { key: 'storage', label: '存储' },
+  { key: 'about', label: '关于' },
 ];
 
 const db = useDb();
@@ -116,6 +117,8 @@ const quicknoteShortcut = ref('');
 const clipboardShortcut = ref('');
 const searchShortcut = ref('');
 const todoShortcut = ref('');
+const shortcutDialogKey = ref<ShortcutKey | null>(null);
+const shortcutDialogRef = ref<HTMLElement | null>(null);
 
 type ShortcutKey =
   | 'mainWindowShortcut'
@@ -131,6 +134,13 @@ function syncShortcutLocals() {
   searchShortcut.value = settings.state.searchShortcut;
   todoShortcut.value = settings.state.todoQuickPanelShortcut;
 }
+
+const shortcutDialogLabel = computed(() =>
+  shortcutDialogKey.value ? labelOf(shortcutDialogKey.value) : '',
+);
+const shortcutDialogCurrent = computed(() =>
+  shortcutDialogKey.value ? shortcutRefOf(shortcutDialogKey.value).value : '',
+);
 
 async function commitShortcut(
   key: ShortcutKey,
@@ -195,19 +205,38 @@ function normalizeShortcutKey(event: KeyboardEvent) {
   return event.key;
 }
 
-function captureShortcut(event: KeyboardEvent, key: ShortcutKey) {
+function openShortcutDialog(key: ShortcutKey) {
+  shortcutDialogKey.value = key;
+  void nextTick(() => shortcutDialogRef.value?.focus());
+}
+
+function closeShortcutDialog() {
+  shortcutDialogKey.value = null;
+}
+
+function captureShortcut(event: KeyboardEvent) {
   event.preventDefault();
   event.stopPropagation();
   if (event.key === 'Escape') {
-    (event.currentTarget as HTMLElement | null)?.blur();
+    closeShortcutDialog();
     return;
   }
+
+  const key = shortcutDialogKey.value;
+  if (!key) return;
+
   const next = formatShortcutKey(event);
   if (!next) {
     message.info('请同时按下 Ctrl / Alt / Shift / Meta 与一个按键');
     return;
   }
+  if (next.split('+').length > 3) {
+    message.info('快捷键最多支持 3 个按键');
+    return;
+  }
+
   shortcutRefOf(key).value = next;
+  closeShortcutDialog();
   void commitShortcut(key, next);
 }
 
@@ -273,6 +302,23 @@ async function onPopupPositionChange(_key: 'quicknotePopupPosition', value: stri
     await settings.update('quicknotePopupPosition', value as 'cursor' | 'center' | 'last');
   } catch (e) {
     message.error(`保存失败：${String(e)}`);
+  }
+}
+
+async function onLaunchAtStartupChange(value: boolean) {
+  const previous = settings.state.launchAtStartup;
+  try {
+    await settings.update('launchAtStartup', value);
+    await db.setLaunchAtStartup(value);
+    message.success(value ? '已开启开机自启动' : '已关闭开机自启动');
+  } catch (e) {
+    try {
+      await settings.update('launchAtStartup', previous);
+      await db.setLaunchAtStartup(previous);
+    } catch {
+      // 保留原始错误提示，回滚失败不覆盖用户最需要看到的信息。
+    }
+    message.error(`开机自启动保存失败：${String(e)}`);
   }
 }
 
@@ -448,7 +494,6 @@ const headerSub = computed(() =>
             @click="activeSection = section.key"
           >
             <span>{{ section.label }}</span>
-            <small>{{ section.eyebrow }}</small>
           </button>
         </nav>
 
@@ -456,14 +501,42 @@ const headerSub = computed(() =>
           <section v-if="activeSection === 'general'" class="settings-section">
             <div class="settings-section__intro">
               <h2>常规</h2>
-              <p>启动与速记相关行为，决定 Steno 如何驻留在桌面工作流中。</p>
             </div>
 
             <h3 class="settings-group">启动与速记</h3>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>速记浮窗宽度</strong>
-                <p>新打开速记浮窗时使用的默认宽度。</p>
+                <strong>开机自启动
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    登录 Windows 后自动启动 Steno，便于保留托盘与全局快捷键。
+                  </NTooltip>
+                </strong>
+              </div>
+              <NSwitch
+                data-testid="launch-at-startup-switch"
+                :value="settings.state.launchAtStartup"
+                @update:value="onLaunchAtStartupChange"
+              />
+            </div>
+            <div class="settings-row">
+              <div class="settings-row__meta">
+                <strong>速记浮窗宽度
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    新打开速记浮窗时使用的默认宽度。
+                  </NTooltip>
+                </strong>
               </div>
               <NInputNumber
                 :value="settings.state.floatingWidth"
@@ -476,8 +549,17 @@ const headerSub = computed(() =>
             </div>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>速记浮窗高度</strong>
-                <p>新打开速记浮窗时使用的默认高度。</p>
+                <strong>速记浮窗高度
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    新打开速记浮窗时使用的默认高度。
+                  </NTooltip>
+                </strong>
               </div>
               <NInputNumber
                 :value="settings.state.floatingHeight"
@@ -490,8 +572,17 @@ const headerSub = computed(() =>
             </div>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>失焦关闭延迟</strong>
-                <p>速记浮窗失去焦点后等待关闭的毫秒数。</p>
+                <strong>失焦关闭延迟
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    速记浮窗失去焦点后等待关闭的毫秒数。
+                  </NTooltip>
+                </strong>
               </div>
               <NInputNumber
                 :value="settings.state.blurCloseDelayMs"
@@ -504,8 +595,17 @@ const headerSub = computed(() =>
             </div>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>弹出位置</strong>
-                <p>速记浮窗打开时的定位策略。</p>
+                <strong>弹出位置
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    速记浮窗打开时的定位策略。
+                  </NTooltip>
+                </strong>
               </div>
               <NSelect
                 :value="settings.state.quicknotePopupPosition"
@@ -519,8 +619,17 @@ const headerSub = computed(() =>
             <h3 class="settings-group">语言</h3>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>界面语言</strong>
-                <p>切换应用界面的显示语言，更改后立即生效。</p>
+                <strong>界面语言
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    切换应用界面的显示语言，更改后立即生效。
+                  </NTooltip>
+                </strong>
               </div>
               <NSelect
                 class="settings-control"
@@ -535,14 +644,22 @@ const headerSub = computed(() =>
           <section v-else-if="activeSection === 'appearance'" class="settings-section">
             <div class="settings-section__intro">
               <h2>外观</h2>
-              <p>主题、编辑器模式和未来纸张偏好集中在这里管理。</p>
             </div>
 
             <h3 class="settings-group">主题</h3>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>颜色模式</strong>
-                <p>跟随系统会响应操作系统浅色或深色模式。</p>
+                <strong>颜色模式
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    跟随系统会响应操作系统浅色或深色模式。
+                  </NTooltip>
+                </strong>
               </div>
               <NRadioGroup
                 :value="settings.state.themeMode"
@@ -557,8 +674,17 @@ const headerSub = computed(() =>
             </div>
             <div class="settings-row settings-row--disabled">
               <div class="settings-row__meta">
-                <strong>主题强调色</strong>
-                <p>原型中的强调色选择已预留，当前版本不写入设置。</p>
+                <strong>主题强调色
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    原型中的强调色选择已预留，当前版本不写入设置。
+                  </NTooltip>
+                </strong>
               </div>
               <div class="settings-swatches" aria-label="规划中的主题强调色">
                 <span style="--swatch: #b45f2a"></span>
@@ -571,8 +697,17 @@ const headerSub = computed(() =>
             <h3 class="settings-group">窗口</h3>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>窗口圆角</strong>
-                <p>主窗口边角的圆角半径，0 为直角。</p>
+                <strong>窗口圆角
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    主窗口边角的圆角半径，0 为直角。
+                  </NTooltip>
+                </strong>
               </div>
               <NInputNumber
                 :value="settings.state.windowBorderRadius"
@@ -587,8 +722,17 @@ const headerSub = computed(() =>
             <h3 class="settings-group">编辑器</h3>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>编辑器模式</strong>
-                <p>控制 Markdown 编辑器默认展示方式。</p>
+                <strong>编辑器模式
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    控制 Markdown 编辑器默认展示方式。
+                  </NTooltip>
+                </strong>
               </div>
               <NSelect
                 class="settings-control"
@@ -600,8 +744,17 @@ const headerSub = computed(() =>
             </div>
             <div class="settings-row settings-row--disabled">
               <div class="settings-row__meta">
-                <strong>便签默认底色</strong>
-                <p>新便签纸张颜色将在后续版本接入画布卡片。</p>
+                <strong>便签默认底色
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    新便签纸张颜色将在后续版本接入画布卡片。
+                  </NTooltip>
+                </strong>
               </div>
               <NButton size="tiny" disabled>规划中</NButton>
             </div>
@@ -610,62 +763,105 @@ const headerSub = computed(() =>
           <section v-else-if="activeSection === 'shortcuts'" class="settings-section">
             <div class="settings-section__intro">
               <h2>快捷键</h2>
-              <p>聚焦快捷键控件后直接按下组合键保存；系统级快捷键会重新注册。</p>
             </div>
 
             <h3 class="settings-group">全局入口</h3>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>主窗口</strong>
-                <p>呼出或聚焦 Steno 主窗口。</p>
+                <strong>主窗口
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    呼出或聚焦 Steno 主窗口。
+                  </NTooltip>
+                </strong>
               </div>
               <button
                 class="settings-control settings-shortcut-capture"
                 type="button"
                 data-testid="main-shortcut-capture"
-                @keydown="event => captureShortcut(event, 'mainWindowShortcut')"
+                aria-haspopup="dialog"
+                title="双击更换快捷键"
+                @dblclick="openShortcutDialog('mainWindowShortcut')"
               >
                 {{ mainShortcut || '按下快捷键' }}
               </button>
             </div>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>速记浮窗</strong>
-                <p>从任意应用快速打开速记输入框。</p>
+                <strong>速记浮窗
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    从任意应用快速打开速记输入框。
+                  </NTooltip>
+                </strong>
               </div>
               <button
                 class="settings-control settings-shortcut-capture"
                 type="button"
                 data-testid="quicknote-shortcut-capture"
-                @keydown="event => captureShortcut(event, 'quicknoteShortcut')"
+                aria-haspopup="dialog"
+                title="双击更换快捷键"
+                @dblclick="openShortcutDialog('quicknoteShortcut')"
               >
                 {{ quicknoteShortcut || '按下快捷键' }}
               </button>
             </div>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>粘贴板</strong>
-                <p>呼出 Steno 主窗口并打开粘贴板历史。</p>
+                <strong>粘贴板
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    呼出 Steno 主窗口并打开粘贴板历史。
+                  </NTooltip>
+                </strong>
               </div>
               <button
                 class="settings-control settings-shortcut-capture"
                 type="button"
                 data-testid="clipboard-shortcut-capture"
-                @keydown="event => captureShortcut(event, 'clipboardShortcut')"
+                aria-haspopup="dialog"
+                title="双击更换快捷键"
+                @dblclick="openShortcutDialog('clipboardShortcut')"
               >
                 {{ clipboardShortcut || '按下快捷键' }}
               </button>
             </div>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>搜索</strong>
-                <p>当前为应用内预留字段，暂不注册到操作系统。</p>
+                <strong>搜索
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    当前为应用内预留字段，暂不注册到操作系统。
+                  </NTooltip>
+                </strong>
               </div>
               <button
                 class="settings-control settings-shortcut-capture"
                 type="button"
                 data-testid="search-shortcut-capture"
-                @keydown="event => captureShortcut(event, 'searchShortcut')"
+                aria-haspopup="dialog"
+                title="双击更换快捷键"
+                @dblclick="openShortcutDialog('searchShortcut')"
               >
                 {{ searchShortcut || '按下快捷键' }}
               </button>
@@ -675,14 +871,22 @@ const headerSub = computed(() =>
           <section v-else-if="activeSection === 'todo'" class="settings-section">
             <div class="settings-section__intro">
               <h2>待办浮窗</h2>
-              <p>全局快捷键随时呼出今日待办；可选择浮窗的弹出位置策略。</p>
             </div>
 
             <h3 class="settings-group">浮窗</h3>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>启用待办浮窗</strong>
-                <p>关闭后系统级快捷键会注销，浮窗不可呼出。</p>
+                <strong>启用待办浮窗
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    关闭后系统级快捷键会注销，浮窗不可呼出。
+                  </NTooltip>
+                </strong>
               </div>
               <NSwitch
                 :value="settings.state.todoQuickPanelEnabled"
@@ -695,15 +899,26 @@ const headerSub = computed(() =>
               :class="{ 'settings-row--disabled': !settings.state.todoQuickPanelEnabled }"
             >
               <div class="settings-row__meta">
-                <strong>呼出快捷键</strong>
-                <p>聚焦后直接按下组合键保存；系统级快捷键会重新注册。</p>
+                <strong>呼出快捷键
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    聚焦后直接按下组合键保存；系统级快捷键会重新注册。
+                  </NTooltip>
+                </strong>
               </div>
               <button
                 class="settings-control settings-shortcut-capture"
                 type="button"
                 data-testid="todo-shortcut-capture"
                 :disabled="!settings.state.todoQuickPanelEnabled"
-                @keydown="event => captureShortcut(event, 'todoQuickPanelShortcut')"
+                aria-haspopup="dialog"
+                title="双击更换快捷键"
+                @dblclick="openShortcutDialog('todoQuickPanelShortcut')"
               >
                 {{ todoShortcut || '按下快捷键' }}
               </button>
@@ -713,8 +928,17 @@ const headerSub = computed(() =>
               :class="{ 'settings-row--disabled': !settings.state.todoQuickPanelEnabled }"
             >
               <div class="settings-row__meta">
-                <strong>弹出位置</strong>
-                <p>选择浮窗在屏幕上的初始位置策略。</p>
+                <strong>弹出位置
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    选择浮窗在屏幕上的初始位置策略。
+                  </NTooltip>
+                </strong>
               </div>
               <NRadioGroup
                 :value="settings.state.todoQuickPanelPosition"
@@ -734,7 +958,6 @@ const headerSub = computed(() =>
           <section v-else-if="activeSection === 'reminders'" class="settings-section">
             <div class="settings-section__intro">
               <h2>提醒设置</h2>
-              <p>配置任务编辑器中的快捷提醒选项，修改后会立即用于下次打开的提醒菜单。</p>
             </div>
 
             <div class="settings-section__toolbar">
@@ -838,28 +1061,54 @@ const headerSub = computed(() =>
           <section v-else-if="activeSection === 'privacy'" class="settings-section">
             <div class="settings-section__intro">
               <h2>隐私安全</h2>
-              <p>Steno 当前保持本地优先，隐私增强项先展示边界，不写入不存在的设置键。</p>
             </div>
 
             <h3 class="settings-group">本地保护</h3>
             <div class="settings-row settings-row--disabled">
               <div class="settings-row__meta">
-                <strong>数据库加密</strong>
-                <p>SQLCipher 加密入口规划中，当前版本不会修改数据库结构。</p>
+                <strong>数据库加密
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    SQLCipher 加密入口规划中，当前版本不会修改数据库结构。
+                  </NTooltip>
+                </strong>
               </div>
               <NButton size="tiny" disabled>规划中</NButton>
             </div>
             <div class="settings-row settings-row--disabled">
               <div class="settings-row__meta">
-                <strong>敏感内容过滤</strong>
-                <p>信用卡号、Token、私钥等模式过滤需要后端规则支持。</p>
+                <strong>敏感内容过滤
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    信用卡号、Token、私钥等模式过滤需要后端规则支持。
+                  </NTooltip>
+                </strong>
               </div>
               <NButton size="tiny" disabled>规划中</NButton>
             </div>
             <div class="settings-row settings-row--disabled">
               <div class="settings-row__meta">
-                <strong>应用排除名单</strong>
-                <p>密码管理器和指定应用排除名单将在权限层接入。</p>
+                <strong>应用排除名单
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    密码管理器和指定应用排除名单将在权限层接入。
+                  </NTooltip>
+                </strong>
               </div>
               <NButton size="tiny" disabled>只读</NButton>
             </div>
@@ -868,7 +1117,6 @@ const headerSub = computed(() =>
           <section v-else-if="activeSection === 'storage'" class="settings-section">
             <div class="settings-section__intro">
               <h2>存储位置</h2>
-              <p>查看本地数据目录、数据库文件和备份目录；路径以普通文本渲染。</p>
             </div>
 
             <h3 class="settings-group">本地路径</h3>
@@ -894,8 +1142,17 @@ const headerSub = computed(() =>
             <h3 class="settings-group">备份</h3>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>累计修改次数触发备份</strong>
-                <p>达到阈值后打包本地 Markdown 与索引。</p>
+                <strong>累计修改次数触发备份
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 16v-4M12 8h.01"/>
+                      </svg>
+                    </template>
+                    达到阈值后打包本地 Markdown 与索引。
+                  </NTooltip>
+                </strong>
               </div>
               <NInputNumber
                 :value="settings.state.backupEveryChanges"
@@ -911,7 +1168,6 @@ const headerSub = computed(() =>
           <section v-else class="settings-section">
             <div class="settings-section__intro">
               <h2>关于 Steno</h2>
-              <p>一款本地优先的桌面速记工具，使用 Tauri、Rust 和 Vue 构建。</p>
             </div>
 
             <div class="settings-about-grid">
@@ -938,6 +1194,33 @@ const headerSub = computed(() =>
             </div>
           </section>
         </main>
+      </div>
+
+      <div
+        v-if="shortcutDialogKey"
+        ref="shortcutDialogRef"
+        class="shortcut-dialog-backdrop"
+        data-testid="shortcut-capture-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="shortcutDialogTitle"
+        tabindex="-1"
+        @click.self="closeShortcutDialog"
+        @keydown="captureShortcut"
+      >
+        <section class="shortcut-dialog" @click.stop>
+          <h2 id="shortcutDialogTitle">更换快捷键</h2>
+          <p>正在更换「{{ shortcutDialogLabel }}」，请按下新的组合键。</p>
+          <div class="shortcut-dialog__preview">
+            {{ shortcutDialogCurrent || '等待输入' }}
+          </div>
+          <small>最多支持 3 个按键，按 Esc 取消。</small>
+          <div class="shortcut-dialog__actions">
+            <button type="button" class="shortcut-dialog__cancel" @click="closeShortcutDialog">
+              取消
+            </button>
+          </div>
+        </section>
       </div>
 
       <footer class="settings-panel__footer">
@@ -1002,6 +1285,7 @@ const headerSub = computed(() =>
   width: min(1060px, calc(100vw - 32px));
   height: min(660px, calc(100vh - 48px));
   min-width: 760px;
+  position: relative;
   display: grid;
   grid-template-rows: 48px 1fr 40px;
   overflow: hidden;
@@ -1196,21 +1480,10 @@ const headerSub = computed(() =>
   color: #f8f1e9;
 }
 
-.settings-tab span,
-.settings-tab small {
-  display: block;
-}
-
 .settings-tab span {
+  display: block;
   font-size: 13px;
   font-weight: 650;
-}
-
-.settings-tab small {
-  margin-top: 2px;
-  font-size: 10px;
-  color: currentColor;
-  opacity: 0.65;
 }
 
 .settings-panel__body {
@@ -1239,17 +1512,6 @@ const headerSub = computed(() =>
 .settings-section__intro h2 {
   font-size: 18px;
   font-weight: 650;
-}
-
-.settings-section__intro p {
-  margin-top: 4px;
-  color: #71675f;
-  font-size: 12.5px;
-}
-
-:global(.dark) .settings-section__intro p,
-.settings-shell:not(.settings-shell--embedded) .settings-section__intro p {
-  color: #b8aea4;
 }
 
 .settings-section__toolbar {
@@ -1307,22 +1569,32 @@ const headerSub = computed(() =>
 }
 
 .settings-row__meta strong {
-  display: block;
-  margin-bottom: 2px;
   font-size: 13.5px;
   font-weight: 650;
 }
 
-.settings-row__meta p {
-  margin: 0;
-  color: #756b63;
-  font-size: 12px;
-  line-height: 1.5;
+.settings-info-icon {
+  width: 14px;
+  height: 14px;
+  margin-left: 6px;
+  vertical-align: middle;
+  color: #9a8e85;
+  cursor: help;
+  transition: color 0.16s ease;
 }
 
-:global(.dark) .settings-row__meta p,
-.settings-shell:not(.settings-shell--embedded) .settings-row__meta p {
-  color: #b6aca2;
+.settings-info-icon:hover {
+  color: #6f655d;
+}
+
+:global(.dark) .settings-info-icon,
+.settings-shell:not(.settings-shell--embedded) .settings-info-icon {
+  color: #8a7e74;
+}
+
+:global(.dark) .settings-info-icon:hover,
+.settings-shell:not(.settings-shell--embedded) .settings-info-icon:hover {
+  color: #b8aea4;
 }
 
 .settings-control {
@@ -1361,6 +1633,93 @@ const headerSub = computed(() =>
   background: var(--settings-control-bg-disabled);
   color: var(--settings-control-muted);
   cursor: not-allowed;
+}
+
+.shortcut-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(20, 17, 14, 0.36);
+  outline: none;
+}
+
+.shortcut-dialog {
+  width: min(360px, 100%);
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid rgba(128, 117, 105, 0.26);
+  border-radius: 10px;
+  background: #fbfaf8;
+  color: #27231f;
+  box-shadow: 0 18px 48px rgba(20, 17, 14, 0.22);
+}
+
+:global(.dark) .shortcut-dialog,
+.settings-shell:not(.settings-shell--embedded) .shortcut-dialog {
+  border-color: var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-fg);
+}
+
+.shortcut-dialog h2,
+.shortcut-dialog p {
+  margin: 0;
+}
+
+.shortcut-dialog h2 {
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.shortcut-dialog p,
+.shortcut-dialog small {
+  color: #756b63;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+:global(.dark) .shortcut-dialog p,
+:global(.dark) .shortcut-dialog small,
+.settings-shell:not(.settings-shell--embedded) .shortcut-dialog p,
+.settings-shell:not(.settings-shell--embedded) .shortcut-dialog small {
+  color: #b6aca2;
+}
+
+.shortcut-dialog__preview {
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--settings-control-border);
+  border-radius: 8px;
+  background: rgba(128, 117, 105, 0.08);
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.shortcut-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.shortcut-dialog__cancel {
+  min-width: 64px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--settings-control-border);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.shortcut-dialog__cancel:hover {
+  border-color: var(--settings-control-border-hover);
+  color: var(--settings-control-border-hover);
 }
 
 .settings-swatches {

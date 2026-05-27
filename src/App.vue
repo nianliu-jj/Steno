@@ -175,7 +175,11 @@ watch(
   min-height: 100vh;
   min-width: 100vw;
   border-radius: var(--app-window-radius, 12px);
+  background: var(--app-bg);
+  background-clip: padding-box;
+  clip-path: inset(0 round var(--app-window-radius, 12px));
   overflow: hidden;
+  isolation: isolate;
 }
 
 .mode-fallback {
