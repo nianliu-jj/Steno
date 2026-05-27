@@ -14,16 +14,19 @@
  *
  * 选中分类持久化到 localStorage，挂载时恢复。
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { defineAsyncComponent, computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { ComponentPublicInstance } from 'vue';
 import { NDatePicker, NDropdown, NScrollbar, useMessage } from 'naive-ui';
 import type { DropdownOption } from 'naive-ui';
 
 import { useSettingsStore } from '@/stores/settings';
 import { useTodosStore } from '@/stores/todos';
-import { useUiStore } from '@/stores/ui';
 import type { Todo, TodoCategory, TodoStatus } from '@/types/steno';
 import { computeReminderTime } from '@/utils/reminders';
+
+const StatsView = defineAsyncComponent(() =>
+  import('@/views/StatsView.vue').then(module => module.default),
+);
 
 const TODO_CONTENT_LIMIT = 500;
 const STORAGE_KEY = 'steno.todo.selectedCategory';
@@ -39,17 +42,16 @@ const VALID_CATEGORIES: ReadonlySet<TodoCategory> = new Set<TodoCategory>([
 
 const todos = useTodosStore();
 const settings = useSettingsStore();
-const ui = useUiStore();
 const message = useMessage();
 
-const categories: ReadonlyArray<{ key: TodoCategory; label: string }> = [
-  { key: 'today', label: '今天' },
-  { key: 'planned', label: '计划中' },
-  { key: 'doing', label: '进行中' },
-  { key: 'paused', label: '已暂停' },
-  { key: 'done', label: '已完成' },
-  { key: 'inbox', label: '收件箱' },
-  { key: 'all', label: '全部' },
+const categories: ReadonlyArray<{ key: TodoCategory; label: string; icon: string }> = [
+  { key: 'today', label: '今天', icon: 'M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z' },
+  { key: 'planned', label: '计划中', icon: 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2' },
+  { key: 'doing', label: '进行中', icon: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z' },
+  { key: 'paused', label: '已暂停', icon: 'M6 4h4v16H6zM14 4h4v16h-4z' },
+  { key: 'done', label: '已完成', icon: 'M20 6L9 17l-5-5' },
+  { key: 'inbox', label: '收件箱', icon: 'M22 12h-6l-2 3H10l-2-3H2M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z' },
+  { key: 'all', label: '全部', icon: 'M3 6h18M3 12h18M3 18h18' },
 ];
 
 const statusOptions: ReadonlyArray<{ key: TodoStatus; label: string }> = [
@@ -67,6 +69,7 @@ const editingContent = ref('');
 const editInputRef = ref<HTMLInputElement | null>(null);
 const customReminderId = ref<string | null>(null);
 const todoSidebarCollapsed = ref(false);
+const showStats = ref(false);
 
 /** v-for + v-if 中的模板 ref 会被收集成数组，这里用函数式 ref 取最新挂载实例。 */
 function bindEditInputRef(el: Element | ComponentPublicInstance | null) {
@@ -96,7 +99,7 @@ function toggleTodoSidebar() {
 }
 
 function openTodoStats() {
-  ui.navigateTo('stats');
+  showStats.value = !showStats.value;
 }
 
 function statusLabel(status: TodoStatus): string {
@@ -285,6 +288,8 @@ function isOverdueUnfiredReminder(item: Todo): boolean {
 }
 
 onMounted(async () => {
+  // 进入待办页面时自动折叠主侧边栏，为任务列表留出更多空间。
+  settings.state.mainSidebarCollapsed = true;
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved && VALID_CATEGORIES.has(saved as TodoCategory)) {
@@ -329,8 +334,22 @@ watch(
           class="category-item"
           :class="{ active: todos.selectedCategory === cat.key }"
           :data-testid="`category-${cat.key}`"
+          :title="todoSidebarCollapsed ? cat.label : undefined"
           @click="selectCategory(cat.key)"
         >
+          <svg
+            v-if="todoSidebarCollapsed"
+            class="category-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path :d="cat.icon" />
+          </svg>
           <span class="category-label">{{ cat.label }}</span>
           <span class="category-count" :data-testid="`count-${cat.key}`">
             {{ todos.categoryCounts[cat.key] }}
@@ -367,165 +386,187 @@ watch(
 
     <!-- 右侧主区 -->
     <section class="todo-view-main">
-      <header class="todo-view-toolbar">
-        <h3 class="toolbar-title">{{ currentCategoryLabel }}</h3>
-        <input
-          v-model="search"
-          type="search"
-          placeholder="搜索任务..."
-          class="todo-view-search"
-          data-testid="todo-view-search"
-        />
-      </header>
-
-      <div class="todo-view-add">
-        <input
-          v-model="draft"
-          type="text"
-          :maxlength="TODO_CONTENT_LIMIT"
-          :disabled="submitting"
-          placeholder="添加新任务..."
-          class="todo-view-input"
-          data-testid="todo-view-input"
-          @keydown.enter.prevent="submitDraft"
-        />
-        <button
-          type="button"
-          class="todo-view-submit"
-          :disabled="!draft.trim() || submitting"
-          data-testid="todo-view-submit"
-          @click="submitDraft"
-        >
-          添加
-        </button>
-      </div>
-
-      <div class="todo-view-body">
-        <NScrollbar v-if="!isEmpty">
-          <ul class="todo-view-list" data-testid="todo-view-list">
-            <li
-              v-for="item in filteredEntries"
-              :key="item.id"
-              class="todo-row"
-              :class="{ done: item.status === 'done' }"
-              :data-testid="`todo-row-${item.id}`"
+      <!-- 统计面板（内嵌在主区中，不覆盖侧边栏） -->
+      <template v-if="showStats">
+        <div class="todo-stats-embed">
+          <div class="todo-stats-header">
+            <h3 class="toolbar-title">统计</h3>
+            <button
+              type="button"
+              class="todo-stats-close"
+              data-testid="todo-stats-close"
+              @click="showStats = false"
             >
-              <label class="todo-row-checkbox">
-                <input
-                  type="checkbox"
-                  :checked="item.status === 'done'"
-                  :data-testid="`todo-row-toggle-${item.id}`"
-                  @change="toggleDone(item)"
-                />
-                <span class="checkbox-indicator"></span>
-              </label>
-
-              <div class="todo-row-text" :data-testid="`todo-row-text-${item.id}`">
-                <input
-                  v-if="editingId === item.id"
-                  :ref="bindEditInputRef"
-                  v-model="editingContent"
-                  type="text"
-                  class="todo-row-edit-input"
-                  :maxlength="TODO_CONTENT_LIMIT"
-                  :data-testid="`todo-row-edit-${item.id}`"
-                  @keydown.enter.prevent="commitEdit"
-                  @keydown.escape.prevent="cancelEdit"
-                  @blur="commitEdit"
-                />
-                <span
-                  v-else
-                  class="todo-row-content"
-                  @dblclick="startEdit(item)"
-                >
-                  {{ item.content }}
-                </span>
-              </div>
-
-              <NDropdown
-                trigger="click"
-                :options="buildStatusOptions(item)"
-                @select="(key: TodoStatus) => changeStatus(item, key)"
-              >
-                <button
-                  type="button"
-                  class="todo-row-status"
-                  :class="`status-${item.status}`"
-                  :data-testid="`todo-row-status-${item.id}`"
-                >
-                  {{ statusLabel(item.status) }}
-                </button>
-              </NDropdown>
-
-              <NDatePicker
-                :value="dueDateValue(item)"
-                type="date"
-                size="small"
-                clearable
-                placeholder="日期"
-                class="todo-row-date"
-                :data-testid="`todo-row-date-${item.id}`"
-                @update:value="ts => changeDueDate(item, ts)"
-              />
-
-              <NDropdown
-                trigger="click"
-                :options="buildReminderOptions()"
-                @select="(key: string) => changeReminder(item, key)"
-              >
-                <button
-                  type="button"
-                  class="todo-row-reminder"
-                  :class="{ 'todo-row-reminder--active': item.reminderTime }"
-                  :data-testid="`todo-row-reminder-${item.id}`"
-                >
-                  <span>
-                    {{
-                      item.reminderTime
-                        ? formatReminderTime(item.reminderTime)
-                        : '提醒'
-                    }}
-                  </span>
-                  <small v-if="isOverdueUnfiredReminder(item)">未提醒</small>
-                </button>
-              </NDropdown>
-
-              <NDatePicker
-                v-if="customReminderId === item.id"
-                :value="reminderTimeValue(item)"
-                type="datetime"
-                size="small"
-                clearable
-                placeholder="自定义提醒"
-                class="todo-row-reminder-custom"
-                :data-testid="`todo-row-reminder-custom-${item.id}`"
-                @update:value="ts => changeCustomReminder(item, ts)"
-              />
-
-              <button
-                type="button"
-                class="todo-row-delete"
-                title="删除"
-                :data-testid="`todo-row-delete-${item.id}`"
-                @click="removeItem(item.id)"
-              >
-                ×
-              </button>
-            </li>
-          </ul>
-        </NScrollbar>
-
-        <div v-else class="todo-view-empty" data-testid="todo-view-empty">
-          <p class="empty-title">暂无任务</p>
-          <p class="empty-subtitle">
-            {{
-              search.trim()
-                ? '没有匹配的任务，换个关键词试试'
-                : '在上方输入框添加第一个任务吧'
-            }}
-          </p>
+              返回任务列表
+            </button>
+          </div>
+          <StatsView />
         </div>
-      </div>
+      </template>
+
+      <!-- 任务列表 -->
+      <template v-else>
+        <header class="todo-view-toolbar">
+          <h3 class="toolbar-title">{{ currentCategoryLabel }}</h3>
+          <input
+            v-model="search"
+            type="search"
+            placeholder="搜索任务..."
+            class="todo-view-search"
+            data-testid="todo-view-search"
+          />
+        </header>
+
+        <div class="todo-view-add">
+          <input
+            v-model="draft"
+            type="text"
+            :maxlength="TODO_CONTENT_LIMIT"
+            :disabled="submitting"
+            placeholder="添加新任务..."
+            class="todo-view-input"
+            data-testid="todo-view-input"
+            @keydown.enter.prevent="submitDraft"
+          />
+          <button
+            type="button"
+            class="todo-view-submit"
+            :disabled="!draft.trim() || submitting"
+            data-testid="todo-view-submit"
+            @click="submitDraft"
+          >
+            添加
+          </button>
+        </div>
+
+        <div class="todo-view-body">
+          <NScrollbar v-if="!isEmpty">
+            <ul class="todo-view-list" data-testid="todo-view-list">
+              <li
+                v-for="item in filteredEntries"
+                :key="item.id"
+                class="todo-row"
+                :class="{ done: item.status === 'done' }"
+                :data-testid="`todo-row-${item.id}`"
+              >
+                <label class="todo-row-checkbox">
+                  <input
+                    type="checkbox"
+                    :checked="item.status === 'done'"
+                    :data-testid="`todo-row-toggle-${item.id}`"
+                    @change="toggleDone(item)"
+                  />
+                  <span class="checkbox-indicator"></span>
+                </label>
+
+                <div class="todo-row-text" :data-testid="`todo-row-text-${item.id}`">
+                  <input
+                    v-if="editingId === item.id"
+                    :ref="bindEditInputRef"
+                    v-model="editingContent"
+                    type="text"
+                    class="todo-row-edit-input"
+                    :maxlength="TODO_CONTENT_LIMIT"
+                    :data-testid="`todo-row-edit-${item.id}`"
+                    @keydown.enter.prevent="commitEdit"
+                    @keydown.escape.prevent="cancelEdit"
+                    @blur="commitEdit"
+                  />
+                  <span
+                    v-else
+                    class="todo-row-content"
+                    :title="item.content"
+                    @dblclick="startEdit(item)"
+                  >
+                    {{ item.content }}
+                  </span>
+                </div>
+
+                <NDropdown
+                  trigger="click"
+                  :options="buildStatusOptions(item)"
+                  @select="(key: TodoStatus) => changeStatus(item, key)"
+                >
+                  <button
+                    type="button"
+                    class="todo-row-status"
+                    :class="`status-${item.status}`"
+                    :data-testid="`todo-row-status-${item.id}`"
+                  >
+                    {{ statusLabel(item.status) }}
+                  </button>
+                </NDropdown>
+
+                <NDatePicker
+                  :value="dueDateValue(item)"
+                  type="date"
+                  size="small"
+                  clearable
+                  placeholder="日期"
+                  class="todo-row-date"
+                  :data-testid="`todo-row-date-${item.id}`"
+                  @update:value="ts => changeDueDate(item, ts)"
+                />
+
+                <NDropdown
+                  trigger="click"
+                  :options="buildReminderOptions()"
+                  @select="(key: string) => changeReminder(item, key)"
+                >
+                  <button
+                    type="button"
+                    class="todo-row-reminder"
+                    :class="{ 'todo-row-reminder--active': item.reminderTime }"
+                    :data-testid="`todo-row-reminder-${item.id}`"
+                  >
+                    <span>
+                      {{
+                        item.reminderTime
+                          ? formatReminderTime(item.reminderTime)
+                          : '提醒'
+                      }}
+                    </span>
+                    <small v-if="isOverdueUnfiredReminder(item)">未提醒</small>
+                  </button>
+                </NDropdown>
+
+                <NDatePicker
+                  v-if="customReminderId === item.id"
+                  :value="reminderTimeValue(item)"
+                  type="datetime"
+                  size="small"
+                  clearable
+                  placeholder="自定义提醒"
+                  class="todo-row-reminder-custom"
+                  :data-testid="`todo-row-reminder-custom-${item.id}`"
+                  @update:value="ts => changeCustomReminder(item, ts)"
+                />
+
+                <button
+                  type="button"
+                  class="todo-row-delete"
+                  title="删除"
+                  :data-testid="`todo-row-delete-${item.id}`"
+                  @click="removeItem(item.id)"
+                >
+                  ×
+                </button>
+              </li>
+            </ul>
+          </NScrollbar>
+
+          <div v-else class="todo-view-empty" data-testid="todo-view-empty">
+            <p class="empty-title">暂无任务</p>
+            <p class="empty-subtitle">
+              {{
+                search.trim()
+                  ? '没有匹配的任务，换个关键词试试'
+                  : '在上方输入框添加第一个任务吧'
+              }}
+            </p>
+          </div>
+        </div>
+      </template>
     </section>
   </div>
 </template>
@@ -599,6 +640,12 @@ watch(
 .todo-view-sidebar--collapsed .category-label,
 .todo-view-sidebar--collapsed .category-count {
   display: none;
+}
+
+.category-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .category-item:hover {
@@ -833,7 +880,10 @@ watch(
   color: var(--app-fg);
   cursor: text;
   user-select: text;
-  word-break: break-word;
+  max-width: 480px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .todo-row-edit-input {
@@ -973,5 +1023,38 @@ watch(
   margin: 6px 0 0;
   font-size: 13px;
   color: var(--app-muted);
+}
+
+/* 统计面板嵌入样式 */
+.todo-stats-embed {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.todo-stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.todo-stats-close {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 120ms, color 120ms;
+}
+
+.todo-stats-close:hover {
+  border-color: var(--app-accent);
+  color: var(--app-accent);
 }
 </style>

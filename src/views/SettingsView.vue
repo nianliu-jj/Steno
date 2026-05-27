@@ -953,8 +953,9 @@ const headerSub = computed(() =>
   --settings-control-border: rgba(93, 78, 65, 0.55);
   --settings-control-border-hover: rgba(168, 95, 50, 0.68);
   --settings-control-border-focus: #38d8a2;
-  width: min(920px, calc(100vw - 32px));
+  width: min(1060px, calc(100vw - 32px));
   height: min(660px, calc(100vh - 48px));
+  min-width: 760px;
   display: grid;
   grid-template-rows: 76px 1fr 60px;
   overflow: hidden;
@@ -1430,7 +1431,7 @@ const headerSub = computed(() =>
   color: #b6aca2;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 800px) {
   .settings-panel {
     width: calc(100vw - 20px);
     height: calc(100vh - 20px);
