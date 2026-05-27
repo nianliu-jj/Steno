@@ -75,7 +75,14 @@ export const useClipboardStore = defineStore('clipboard', () => {
   }
 
   function upsertLocal(entry: ClipboardEntry) {
-    entries.value = [entry, ...entries.value.filter(item => item.id !== entry.id)].slice(0, 500);
+    const updated = [entry, ...entries.value.filter(item => item.id !== entry.id)];
+    updated.sort((a, b) => {
+      const aPin = a.pinnedAt ?? '';
+      const bPin = b.pinnedAt ?? '';
+      if (aPin !== bPin) return bPin.localeCompare(aPin);
+      return b.updatedAt.localeCompare(a.updatedAt);
+    });
+    entries.value = updated.slice(0, 500);
   }
 
   async function startEventListeners() {

@@ -45,7 +45,10 @@ provide(I18N_KEY, i18n);
 const isDark = useDark();
 
 const naiveTheme = computed(() => (isDark.value ? darkTheme : null));
-const appThemeVars = computed(() => getAppThemeVars(isDark.value));
+const appThemeVars = computed(() => ({
+  ...getAppThemeVars(isDark.value),
+  '--app-window-radius': `${settings.state.windowBorderRadius}px`,
+}));
 let unlistenThemeModeChanged: (() => void) | null = null;
 let disposed = false;
 let settingsLoadPending = true;
@@ -141,7 +144,6 @@ watch(
             to=".app-theme-root"
             :mask-closable="true"
             :auto-focus="false"
-            :mask-style="{ background: 'transparent' }"
             @update:show="value => !value && ui.closeSettings()"
           >
             <SettingsView embedded @close="ui.closeSettings()" />
@@ -172,6 +174,8 @@ watch(
 .app-theme-root {
   min-height: 100vh;
   min-width: 100vw;
+  border-radius: var(--app-window-radius, 12px);
+  overflow: hidden;
 }
 
 .mode-fallback {

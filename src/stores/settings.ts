@@ -46,6 +46,8 @@ export interface StenoSettings {
   clipboardShortcut: string;
   /** 粘贴板列表每页显示条数。 */
   clipboardPageSize: number;
+  /** 速记浮窗弹出位置策略。 */
+  quicknotePopupPosition: 'cursor' | 'center' | 'last';
   /** 全局搜索的快捷键。 */
   searchShortcut: string;
   /** 速记浮窗默认宽度（px）。 */
@@ -94,6 +96,8 @@ export interface StenoSettings {
   reminderQuickOptions: ReminderOption[];
   /** 界面语言。 */
   locale: Locale;
+  /** 主窗口圆角半径（px）。 */
+  windowBorderRadius: number;
 }
 
 export const DEFAULT_REMINDER_QUICK_OPTIONS: ReminderOption[] = [
@@ -155,6 +159,7 @@ const DEFAULTS: StenoSettings = {
   quicknoteShortcut: 'Ctrl+Shift+M',
   clipboardShortcut: 'Ctrl+Shift+V',
   clipboardPageSize: 20,
+  quicknotePopupPosition: 'cursor',
   searchShortcut: 'Ctrl+Shift+F',
   floatingWidth: 400,
   floatingHeight: 300,
@@ -174,6 +179,7 @@ const DEFAULTS: StenoSettings = {
   todoQuickPanelLastPos: '',
   reminderQuickOptions: DEFAULT_REMINDER_QUICK_OPTIONS,
   locale: 'zh-CN',
+  windowBorderRadius: 12,
 };
 
 function cloneReminderOptions(options: ReminderOption[]): ReminderOption[] {
@@ -257,7 +263,8 @@ function decode<K extends keyof StenoSettings>(
     case 'backupEveryChanges':
     case 'mainSidebarWidth':
     case 'noteEditorOutlineWidth':
-    case 'zenOutlineWidth': {
+    case 'zenOutlineWidth':
+    case 'windowBorderRadius': {
       const n = Number.parseInt(raw, 10);
       // 解析失败或 ≤0 时使用默认值
       return (Number.isFinite(n) && n > 0 ? n : defaultValue(key)) as StenoSettings[K];

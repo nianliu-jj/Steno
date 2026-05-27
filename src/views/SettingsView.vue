@@ -229,7 +229,7 @@ function labelOf(
 }
 
 async function onUpdateNumber<
-  K extends 'floatingWidth' | 'floatingHeight' | 'blurCloseDelayMs' | 'backupEveryChanges',
+  K extends 'floatingWidth' | 'floatingHeight' | 'blurCloseDelayMs' | 'backupEveryChanges' | 'windowBorderRadius',
 >(key: K, value: number | null) {
   if (value == null || !Number.isFinite(value)) return;
   if (value === settings.state[key]) return;
@@ -268,11 +268,25 @@ async function onTodoPositionChange(value: StenoSettings['todoQuickPanelPosition
   }
 }
 
+async function onPopupPositionChange(_key: 'quicknotePopupPosition', value: string) {
+  try {
+    await settings.update('quicknotePopupPosition', value as 'cursor' | 'center' | 'last');
+  } catch (e) {
+    message.error(`保存失败：${String(e)}`);
+  }
+}
+
 const editorModeOptions = [
   { label: '编辑 + 预览', value: 'split' },
   { label: '只编辑', value: 'edit' },
   { label: '只预览', value: 'preview' },
 ] satisfies { label: string; value: EditorMode }[];
+
+const popupPositionOptions = [
+  { label: '跟随光标', value: 'cursor' },
+  { label: '屏幕居中', value: 'center' },
+  { label: '上次位置', value: 'last' },
+];
 
 const reminderUnitOptions = [
   { label: '分钟', value: 'minute' },
@@ -385,10 +399,6 @@ function closePanel() {
   }
 }
 
-function resetPlanned() {
-  message.info('当前版本暂不支持一键重置');
-}
-
 onMounted(async () => {
   if (!settings.loaded) {
     await settings.load();
@@ -413,8 +423,20 @@ const headerSub = computed(() =>
             <p>{{ headerSub }}</p>
           </div>
         </div>
+        <button
+          class="settings-close-btn"
+          type="button"
+          aria-label="关闭设置"
+          @click="closePanel"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </header>
 
-        <nav class="settings-tabs" aria-label="设置分类">
+      <div class="settings-panel__body-wrap">
+        <nav class="settings-sidebar" aria-label="设置分类">
           <button
             v-for="section in sections"
             :key="section.key"
@@ -430,472 +452,480 @@ const headerSub = computed(() =>
           </button>
         </nav>
 
-        <NButton quaternary circle aria-label="关闭设置" @click="closePanel">×</NButton>
-      </header>
+        <main class="settings-panel__body">
+          <section v-if="activeSection === 'general'" class="settings-section">
+            <div class="settings-section__intro">
+              <h2>常规</h2>
+              <p>启动与速记相关行为，决定 Steno 如何驻留在桌面工作流中。</p>
+            </div>
 
-      <main class="settings-panel__body">
-        <section v-if="activeSection === 'general'" class="settings-section">
-          <div class="settings-section__intro">
-            <h2>常规</h2>
-            <p>启动与速记相关行为，决定 Steno 如何驻留在桌面工作流中。</p>
-          </div>
-
-          <h3 class="settings-group">启动与速记</h3>
-          <div class="settings-row">
-            <div class="settings-row__meta">
-              <strong>速记浮窗宽度</strong>
-              <p>新打开速记浮窗时使用的默认宽度。</p>
-            </div>
-            <NInputNumber
-              :value="settings.state.floatingWidth"
-              :min="240"
-              :max="1200"
-              :step="20"
-              size="small"
-              @update:value="value => onUpdateNumber('floatingWidth', value)"
-            />
-          </div>
-          <div class="settings-row">
-            <div class="settings-row__meta">
-              <strong>速记浮窗高度</strong>
-              <p>新打开速记浮窗时使用的默认高度。</p>
-            </div>
-            <NInputNumber
-              :value="settings.state.floatingHeight"
-              :min="180"
-              :max="900"
-              :step="20"
-              size="small"
-              @update:value="value => onUpdateNumber('floatingHeight', value)"
-            />
-          </div>
-          <div class="settings-row">
-            <div class="settings-row__meta">
-              <strong>失焦关闭延迟</strong>
-              <p>速记浮窗失去焦点后等待关闭的毫秒数。</p>
-            </div>
-            <NInputNumber
-              :value="settings.state.blurCloseDelayMs"
-              :min="0"
-              :max="5000"
-              :step="100"
-              size="small"
-              @update:value="value => onUpdateNumber('blurCloseDelayMs', value)"
-            />
-          </div>
-
-          <h3 class="settings-group">语言</h3>
-          <div class="settings-row">
-            <div class="settings-row__meta">
-              <strong>界面语言</strong>
-              <p>切换应用界面的显示语言，更改后立即生效。</p>
-            </div>
-            <NSelect
-              class="settings-control"
-              size="small"
-              :value="settings.state.locale"
-              :options="localeOptions"
-              @update:value="value => onLocaleChange(value as Locale)"
-            />
-          </div>
-        </section>
-
-        <section v-else-if="activeSection === 'appearance'" class="settings-section">
-          <div class="settings-section__intro">
-            <h2>外观</h2>
-            <p>主题、编辑器模式和未来纸张偏好集中在这里管理。</p>
-          </div>
-
-          <h3 class="settings-group">主题</h3>
-          <div class="settings-row">
-            <div class="settings-row__meta">
-              <strong>颜色模式</strong>
-              <p>跟随系统会响应操作系统浅色或深色模式。</p>
-            </div>
-            <NRadioGroup
-              :value="settings.state.themeMode"
-              @update:value="value => onThemeChange(value as ThemeMode)"
-            >
-              <NSpace>
-                <NRadio value="light">浅色</NRadio>
-                <NRadio value="dark">深色</NRadio>
-                <NRadio value="system">跟随系统</NRadio>
-              </NSpace>
-            </NRadioGroup>
-          </div>
-          <div class="settings-row settings-row--disabled">
-            <div class="settings-row__meta">
-              <strong>主题强调色</strong>
-              <p>原型中的强调色选择已预留，当前版本不写入设置。</p>
-            </div>
-            <div class="settings-swatches" aria-label="规划中的主题强调色">
-              <span style="--swatch: #b45f2a"></span>
-              <span style="--swatch: #2f8f63"></span>
-              <span style="--swatch: #3b6ea8"></span>
-              <span style="--swatch: #8d5db7"></span>
-            </div>
-          </div>
-
-          <h3 class="settings-group">编辑器</h3>
-          <div class="settings-row">
-            <div class="settings-row__meta">
-              <strong>编辑器模式</strong>
-              <p>控制 Markdown 编辑器默认展示方式。</p>
-            </div>
-            <NSelect
-              class="settings-control"
-              size="small"
-              :value="settings.state.editorMode"
-              :options="editorModeOptions"
-              @update:value="value => onEditorModeChange(value as EditorMode)"
-            />
-          </div>
-          <div class="settings-row settings-row--disabled">
-            <div class="settings-row__meta">
-              <strong>便签默认底色</strong>
-              <p>新便签纸张颜色将在后续版本接入画布卡片。</p>
-            </div>
-            <NButton size="tiny" disabled>规划中</NButton>
-          </div>
-        </section>
-
-        <section v-else-if="activeSection === 'shortcuts'" class="settings-section">
-          <div class="settings-section__intro">
-            <h2>快捷键</h2>
-            <p>聚焦快捷键控件后直接按下组合键保存；系统级快捷键会重新注册。</p>
-          </div>
-
-          <h3 class="settings-group">全局入口</h3>
-          <div class="settings-row">
-            <div class="settings-row__meta">
-              <strong>主窗口</strong>
-              <p>呼出或聚焦 Steno 主窗口。</p>
-            </div>
-            <button
-              class="settings-control settings-shortcut-capture"
-              type="button"
-              data-testid="main-shortcut-capture"
-              @keydown="event => captureShortcut(event, 'mainWindowShortcut')"
-            >
-              {{ mainShortcut || '按下快捷键' }}
-            </button>
-          </div>
-          <div class="settings-row">
-            <div class="settings-row__meta">
-              <strong>速记浮窗</strong>
-              <p>从任意应用快速打开速记输入框。</p>
-            </div>
-            <button
-              class="settings-control settings-shortcut-capture"
-              type="button"
-              data-testid="quicknote-shortcut-capture"
-              @keydown="event => captureShortcut(event, 'quicknoteShortcut')"
-            >
-              {{ quicknoteShortcut || '按下快捷键' }}
-            </button>
-          </div>
-          <div class="settings-row">
-            <div class="settings-row__meta">
-              <strong>粘贴板</strong>
-              <p>呼出 Steno 主窗口并打开粘贴板历史。</p>
-            </div>
-            <button
-              class="settings-control settings-shortcut-capture"
-              type="button"
-              data-testid="clipboard-shortcut-capture"
-              @keydown="event => captureShortcut(event, 'clipboardShortcut')"
-            >
-              {{ clipboardShortcut || '按下快捷键' }}
-            </button>
-          </div>
-          <div class="settings-row">
-            <div class="settings-row__meta">
-              <strong>搜索</strong>
-              <p>当前为应用内预留字段，暂不注册到操作系统。</p>
-            </div>
-            <button
-              class="settings-control settings-shortcut-capture"
-              type="button"
-              data-testid="search-shortcut-capture"
-              @keydown="event => captureShortcut(event, 'searchShortcut')"
-            >
-              {{ searchShortcut || '按下快捷键' }}
-            </button>
-          </div>
-        </section>
-
-        <section v-else-if="activeSection === 'todo'" class="settings-section">
-          <div class="settings-section__intro">
-            <h2>待办浮窗</h2>
-            <p>全局快捷键随时呼出今日待办；可选择浮窗的弹出位置策略。</p>
-          </div>
-
-          <h3 class="settings-group">浮窗</h3>
-          <div class="settings-row">
-            <div class="settings-row__meta">
-              <strong>启用待办浮窗</strong>
-              <p>关闭后系统级快捷键会注销，浮窗不可呼出。</p>
-            </div>
-            <NSwitch
-              :value="settings.state.todoQuickPanelEnabled"
-              data-testid="todo-enabled-switch"
-              @update:value="onTodoEnabledChange"
-            />
-          </div>
-          <div
-            class="settings-row"
-            :class="{ 'settings-row--disabled': !settings.state.todoQuickPanelEnabled }"
-          >
-            <div class="settings-row__meta">
-              <strong>呼出快捷键</strong>
-              <p>聚焦后直接按下组合键保存；系统级快捷键会重新注册。</p>
-            </div>
-            <button
-              class="settings-control settings-shortcut-capture"
-              type="button"
-              data-testid="todo-shortcut-capture"
-              :disabled="!settings.state.todoQuickPanelEnabled"
-              @keydown="event => captureShortcut(event, 'todoQuickPanelShortcut')"
-            >
-              {{ todoShortcut || '按下快捷键' }}
-            </button>
-          </div>
-          <div
-            class="settings-row"
-            :class="{ 'settings-row--disabled': !settings.state.todoQuickPanelEnabled }"
-          >
-            <div class="settings-row__meta">
-              <strong>弹出位置</strong>
-              <p>选择浮窗在屏幕上的初始位置策略。</p>
-            </div>
-            <NRadioGroup
-              :value="settings.state.todoQuickPanelPosition"
-              :disabled="!settings.state.todoQuickPanelEnabled"
-              data-testid="todo-position-radio"
-              @update:value="onTodoPositionChange"
-            >
-              <NSpace>
-                <NRadio value="bottom-right">屏幕右下角</NRadio>
-                <NRadio value="cursor">跟随光标</NRadio>
-                <NRadio value="last">记住上次位置</NRadio>
-              </NSpace>
-            </NRadioGroup>
-          </div>
-        </section>
-
-        <section v-else-if="activeSection === 'reminders'" class="settings-section">
-          <div class="settings-section__intro">
-            <h2>提醒设置</h2>
-            <p>配置任务编辑器中的快捷提醒选项，修改后会立即用于下次打开的提醒菜单。</p>
-          </div>
-
-          <div class="settings-section__toolbar">
-            <NButton
-              size="small"
-              type="primary"
-              data-testid="reminder-option-add"
-              @click="addReminderOption"
-            >
-              添加选项
-            </NButton>
-            <NPopconfirm
-              positive-text="恢复默认"
-              negative-text="取消"
-              @positive-click="restoreDefaultReminderOptions"
-            >
-              <template #trigger>
-                <NButton size="small" secondary data-testid="reminder-options-reset">
-                  恢复默认
-                </NButton>
-              </template>
-              使用默认 6 个提醒选项覆盖当前列表。
-            </NPopconfirm>
-          </div>
-
-          <div class="reminder-options">
-            <div
-              v-for="(option, index) in settings.state.reminderQuickOptions"
-              :key="option.id"
-              class="reminder-option-row"
-            >
-              <NInput
-                class="reminder-option-label"
+            <h3 class="settings-group">启动与速记</h3>
+            <div class="settings-row">
+              <div class="settings-row__meta">
+                <strong>速记浮窗宽度</strong>
+                <p>新打开速记浮窗时使用的默认宽度。</p>
+              </div>
+              <NInputNumber
+                :value="settings.state.floatingWidth"
+                :min="240"
+                :max="1200"
+                :step="20"
                 size="small"
-                :value="option.label"
-                :data-testid="`reminder-option-label-${index}`"
-                placeholder="显示名称"
-                @update:value="value => updateReminderOption(index, { label: value })"
+                @update:value="value => onUpdateNumber('floatingWidth', value)"
               />
+            </div>
+            <div class="settings-row">
+              <div class="settings-row__meta">
+                <strong>速记浮窗高度</strong>
+                <p>新打开速记浮窗时使用的默认高度。</p>
+              </div>
+              <NInputNumber
+                :value="settings.state.floatingHeight"
+                :min="180"
+                :max="900"
+                :step="20"
+                size="small"
+                @update:value="value => onUpdateNumber('floatingHeight', value)"
+              />
+            </div>
+            <div class="settings-row">
+              <div class="settings-row__meta">
+                <strong>失焦关闭延迟</strong>
+                <p>速记浮窗失去焦点后等待关闭的毫秒数。</p>
+              </div>
+              <NInputNumber
+                :value="settings.state.blurCloseDelayMs"
+                :min="0"
+                :max="5000"
+                :step="100"
+                size="small"
+                @update:value="value => onUpdateNumber('blurCloseDelayMs', value)"
+              />
+            </div>
+            <div class="settings-row">
+              <div class="settings-row__meta">
+                <strong>弹出位置</strong>
+                <p>速记浮窗打开时的定位策略。</p>
+              </div>
+              <NSelect
+                :value="settings.state.quicknotePopupPosition"
+                :options="popupPositionOptions"
+                size="small"
+                style="width: 220px"
+                @update:value="value => onPopupPositionChange('quicknotePopupPosition', value)"
+              />
+            </div>
 
+            <h3 class="settings-group">语言</h3>
+            <div class="settings-row">
+              <div class="settings-row__meta">
+                <strong>界面语言</strong>
+                <p>切换应用界面的显示语言，更改后立即生效。</p>
+              </div>
+              <NSelect
+                class="settings-control"
+                size="small"
+                :value="settings.state.locale"
+                :options="localeOptions"
+                @update:value="value => onLocaleChange(value as Locale)"
+              />
+            </div>
+          </section>
+
+          <section v-else-if="activeSection === 'appearance'" class="settings-section">
+            <div class="settings-section__intro">
+              <h2>外观</h2>
+              <p>主题、编辑器模式和未来纸张偏好集中在这里管理。</p>
+            </div>
+
+            <h3 class="settings-group">主题</h3>
+            <div class="settings-row">
+              <div class="settings-row__meta">
+                <strong>颜色模式</strong>
+                <p>跟随系统会响应操作系统浅色或深色模式。</p>
+              </div>
               <NRadioGroup
-                :value="option.type"
-                @update:value="value => onReminderTypeChange(index, value as ReminderOption['type'])"
+                :value="settings.state.themeMode"
+                @update:value="value => onThemeChange(value as ThemeMode)"
               >
-                <NSpace :size="10">
-                  <NRadio value="relative">相对</NRadio>
-                  <NRadio value="absolute">绝对</NRadio>
+                <NSpace>
+                  <NRadio value="light">浅色</NRadio>
+                  <NRadio value="dark">深色</NRadio>
+                  <NRadio value="system">跟随系统</NRadio>
                 </NSpace>
               </NRadioGroup>
+            </div>
+            <div class="settings-row settings-row--disabled">
+              <div class="settings-row__meta">
+                <strong>主题强调色</strong>
+                <p>原型中的强调色选择已预留，当前版本不写入设置。</p>
+              </div>
+              <div class="settings-swatches" aria-label="规划中的主题强调色">
+                <span style="--swatch: #b45f2a"></span>
+                <span style="--swatch: #2f8f63"></span>
+                <span style="--swatch: #3b6ea8"></span>
+                <span style="--swatch: #8d5db7"></span>
+              </div>
+            </div>
 
-              <template v-if="option.type === 'relative'">
-                <NInputNumber
-                  class="reminder-option-number"
-                  size="small"
-                  :min="1"
-                  :value="option.value"
-                  @update:value="value => onReminderNumberChange(index, 'value', value)"
-                />
-                <NSelect
-                  class="reminder-option-unit"
-                  size="small"
-                  :value="option.unit"
-                  :options="reminderUnitOptions"
-                  @update:value="value => updateReminderOption(index, { unit: value as ReminderOption['unit'] })"
-                />
-              </template>
+            <h3 class="settings-group">编辑器</h3>
+            <div class="settings-row">
+              <div class="settings-row__meta">
+                <strong>编辑器模式</strong>
+                <p>控制 Markdown 编辑器默认展示方式。</p>
+              </div>
+              <NSelect
+                class="settings-control"
+                size="small"
+                :value="settings.state.editorMode"
+                :options="editorModeOptions"
+                @update:value="value => onEditorModeChange(value as EditorMode)"
+              />
+            </div>
+            <div class="settings-row settings-row--disabled">
+              <div class="settings-row__meta">
+                <strong>便签默认底色</strong>
+                <p>新便签纸张颜色将在后续版本接入画布卡片。</p>
+              </div>
+              <NButton size="tiny" disabled>规划中</NButton>
+            </div>
+          </section>
 
-              <template v-else>
-                <NInput
-                  class="reminder-option-time"
-                  size="small"
-                  :value="option.absoluteTime"
-                  placeholder="16:00"
-                  @update:value="value => updateReminderOption(index, { absoluteTime: value })"
-                />
-                <NInputNumber
-                  class="reminder-option-number"
-                  size="small"
-                  :min="0"
-                  :value="option.dayOffset ?? 0"
-                  @update:value="value => onReminderNumberChange(index, 'dayOffset', value)"
-                />
-              </template>
+          <section v-else-if="activeSection === 'shortcuts'" class="settings-section">
+            <div class="settings-section__intro">
+              <h2>快捷键</h2>
+              <p>聚焦快捷键控件后直接按下组合键保存；系统级快捷键会重新注册。</p>
+            </div>
 
+            <h3 class="settings-group">全局入口</h3>
+            <div class="settings-row">
+              <div class="settings-row__meta">
+                <strong>主窗口</strong>
+                <p>呼出或聚焦 Steno 主窗口。</p>
+              </div>
+              <button
+                class="settings-control settings-shortcut-capture"
+                type="button"
+                data-testid="main-shortcut-capture"
+                @keydown="event => captureShortcut(event, 'mainWindowShortcut')"
+              >
+                {{ mainShortcut || '按下快捷键' }}
+              </button>
+            </div>
+            <div class="settings-row">
+              <div class="settings-row__meta">
+                <strong>速记浮窗</strong>
+                <p>从任意应用快速打开速记输入框。</p>
+              </div>
+              <button
+                class="settings-control settings-shortcut-capture"
+                type="button"
+                data-testid="quicknote-shortcut-capture"
+                @keydown="event => captureShortcut(event, 'quicknoteShortcut')"
+              >
+                {{ quicknoteShortcut || '按下快捷键' }}
+              </button>
+            </div>
+            <div class="settings-row">
+              <div class="settings-row__meta">
+                <strong>粘贴板</strong>
+                <p>呼出 Steno 主窗口并打开粘贴板历史。</p>
+              </div>
+              <button
+                class="settings-control settings-shortcut-capture"
+                type="button"
+                data-testid="clipboard-shortcut-capture"
+                @keydown="event => captureShortcut(event, 'clipboardShortcut')"
+              >
+                {{ clipboardShortcut || '按下快捷键' }}
+              </button>
+            </div>
+            <div class="settings-row">
+              <div class="settings-row__meta">
+                <strong>搜索</strong>
+                <p>当前为应用内预留字段，暂不注册到操作系统。</p>
+              </div>
+              <button
+                class="settings-control settings-shortcut-capture"
+                type="button"
+                data-testid="search-shortcut-capture"
+                @keydown="event => captureShortcut(event, 'searchShortcut')"
+              >
+                {{ searchShortcut || '按下快捷键' }}
+              </button>
+            </div>
+          </section>
+
+          <section v-else-if="activeSection === 'todo'" class="settings-section">
+            <div class="settings-section__intro">
+              <h2>待办浮窗</h2>
+              <p>全局快捷键随时呼出今日待办；可选择浮窗的弹出位置策略。</p>
+            </div>
+
+            <h3 class="settings-group">浮窗</h3>
+            <div class="settings-row">
+              <div class="settings-row__meta">
+                <strong>启用待办浮窗</strong>
+                <p>关闭后系统级快捷键会注销，浮窗不可呼出。</p>
+              </div>
+              <NSwitch
+                :value="settings.state.todoQuickPanelEnabled"
+                data-testid="todo-enabled-switch"
+                @update:value="onTodoEnabledChange"
+              />
+            </div>
+            <div
+              class="settings-row"
+              :class="{ 'settings-row--disabled': !settings.state.todoQuickPanelEnabled }"
+            >
+              <div class="settings-row__meta">
+                <strong>呼出快捷键</strong>
+                <p>聚焦后直接按下组合键保存；系统级快捷键会重新注册。</p>
+              </div>
+              <button
+                class="settings-control settings-shortcut-capture"
+                type="button"
+                data-testid="todo-shortcut-capture"
+                :disabled="!settings.state.todoQuickPanelEnabled"
+                @keydown="event => captureShortcut(event, 'todoQuickPanelShortcut')"
+              >
+                {{ todoShortcut || '按下快捷键' }}
+              </button>
+            </div>
+            <div
+              class="settings-row"
+              :class="{ 'settings-row--disabled': !settings.state.todoQuickPanelEnabled }"
+            >
+              <div class="settings-row__meta">
+                <strong>弹出位置</strong>
+                <p>选择浮窗在屏幕上的初始位置策略。</p>
+              </div>
+              <NRadioGroup
+                :value="settings.state.todoQuickPanelPosition"
+                :disabled="!settings.state.todoQuickPanelEnabled"
+                data-testid="todo-position-radio"
+                @update:value="onTodoPositionChange"
+              >
+                <NSpace>
+                  <NRadio value="bottom-right">屏幕右下角</NRadio>
+                  <NRadio value="cursor">跟随光标</NRadio>
+                  <NRadio value="last">记住上次位置</NRadio>
+                </NSpace>
+              </NRadioGroup>
+            </div>
+          </section>
+
+          <section v-else-if="activeSection === 'reminders'" class="settings-section">
+            <div class="settings-section__intro">
+              <h2>提醒设置</h2>
+              <p>配置任务编辑器中的快捷提醒选项，修改后会立即用于下次打开的提醒菜单。</p>
+            </div>
+
+            <div class="settings-section__toolbar">
               <NButton
                 size="small"
-                type="error"
-                secondary
-                :data-testid="`reminder-option-delete-${index}`"
-                @click="deleteReminderOption(index)"
+                type="primary"
+                data-testid="reminder-option-add"
+                @click="addReminderOption"
               >
-                删除
+                添加选项
               </NButton>
+              <NPopconfirm
+                positive-text="恢复默认"
+                negative-text="取消"
+                @positive-click="restoreDefaultReminderOptions"
+              >
+                <template #trigger>
+                  <NButton size="small" secondary data-testid="reminder-options-reset">
+                    恢复默认
+                  </NButton>
+                </template>
+                使用默认 6 个提醒选项覆盖当前列表。
+              </NPopconfirm>
             </div>
-            <NText v-if="settings.state.reminderQuickOptions.length === 0" depth="3">
-              暂无快捷提醒选项。
-            </NText>
-          </div>
-        </section>
 
-        <section v-else-if="activeSection === 'privacy'" class="settings-section">
-          <div class="settings-section__intro">
-            <h2>隐私安全</h2>
-            <p>Steno 当前保持本地优先，隐私增强项先展示边界，不写入不存在的设置键。</p>
-          </div>
+            <div class="reminder-options">
+              <div
+                v-for="(option, index) in settings.state.reminderQuickOptions"
+                :key="option.id"
+                class="reminder-option-row"
+              >
+                <NInput
+                  class="reminder-option-label"
+                  size="small"
+                  :value="option.label"
+                  :data-testid="`reminder-option-label-${index}`"
+                  placeholder="显示名称"
+                  @update:value="value => updateReminderOption(index, { label: value })"
+                />
 
-          <h3 class="settings-group">本地保护</h3>
-          <div class="settings-row settings-row--disabled">
-            <div class="settings-row__meta">
-              <strong>数据库加密</strong>
-              <p>SQLCipher 加密入口规划中，当前版本不会修改数据库结构。</p>
-            </div>
-            <NButton size="tiny" disabled>规划中</NButton>
-          </div>
-          <div class="settings-row settings-row--disabled">
-            <div class="settings-row__meta">
-              <strong>敏感内容过滤</strong>
-              <p>信用卡号、Token、私钥等模式过滤需要后端规则支持。</p>
-            </div>
-            <NButton size="tiny" disabled>规划中</NButton>
-          </div>
-          <div class="settings-row settings-row--disabled">
-            <div class="settings-row__meta">
-              <strong>应用排除名单</strong>
-              <p>密码管理器和指定应用排除名单将在权限层接入。</p>
-            </div>
-            <NButton size="tiny" disabled>只读</NButton>
-          </div>
-        </section>
+                <NRadioGroup
+                  :value="option.type"
+                  @update:value="value => onReminderTypeChange(index, value as ReminderOption['type'])"
+                >
+                  <NSpace :size="10">
+                    <NRadio value="relative">相对</NRadio>
+                    <NRadio value="absolute">绝对</NRadio>
+                  </NSpace>
+                </NRadioGroup>
 
-        <section v-else-if="activeSection === 'storage'" class="settings-section">
-          <div class="settings-section__intro">
-            <h2>存储位置</h2>
-            <p>查看本地数据目录、数据库文件和备份目录；路径以普通文本渲染。</p>
-          </div>
+                <template v-if="option.type === 'relative'">
+                  <NInputNumber
+                    class="reminder-option-number"
+                    size="small"
+                    :min="1"
+                    :value="option.value"
+                    @update:value="value => onReminderNumberChange(index, 'value', value)"
+                  />
+                  <NSelect
+                    class="reminder-option-unit"
+                    size="small"
+                    :value="option.unit"
+                    :options="reminderUnitOptions"
+                    @update:value="value => updateReminderOption(index, { unit: value as ReminderOption['unit'] })"
+                  />
+                </template>
 
-          <h3 class="settings-group">本地路径</h3>
-          <div v-if="paths" class="settings-paths">
-            <div class="settings-path-row">
-              <span class="settings-path-label">数据目录</span>
-              <code class="settings-path-value">{{ paths.dataDir }}</code>
-              <NButton tertiary size="tiny" @click="copyPath(paths.dataDir)">复制</NButton>
-            </div>
-            <div class="settings-path-row">
-              <span class="settings-path-label">数据库文件</span>
-              <code class="settings-path-value">{{ paths.dbPath }}</code>
-              <NButton tertiary size="tiny" @click="copyPath(paths.dbPath)">复制</NButton>
-            </div>
-            <div class="settings-path-row">
-              <span class="settings-path-label">备份目录</span>
-              <code class="settings-path-value">{{ paths.backupDir }}</code>
-              <NButton tertiary size="tiny" @click="copyPath(paths.backupDir)">复制</NButton>
-            </div>
-          </div>
-          <NText v-else depth="3">加载中...</NText>
+                <template v-else>
+                  <NInput
+                    class="reminder-option-time"
+                    size="small"
+                    :value="option.absoluteTime"
+                    placeholder="16:00"
+                    @update:value="value => updateReminderOption(index, { absoluteTime: value })"
+                  />
+                  <NInputNumber
+                    class="reminder-option-number"
+                    size="small"
+                    :min="0"
+                    :value="option.dayOffset ?? 0"
+                    @update:value="value => onReminderNumberChange(index, 'dayOffset', value)"
+                  />
+                </template>
 
-          <h3 class="settings-group">备份</h3>
-          <div class="settings-row">
-            <div class="settings-row__meta">
-              <strong>累计修改次数触发备份</strong>
-              <p>达到阈值后打包本地 Markdown 与索引。</p>
+                <NButton
+                  size="small"
+                  type="error"
+                  secondary
+                  :data-testid="`reminder-option-delete-${index}`"
+                  @click="deleteReminderOption(index)"
+                >
+                  删除
+                </NButton>
+              </div>
+              <NText v-if="settings.state.reminderQuickOptions.length === 0" depth="3">
+                暂无快捷提醒选项。
+              </NText>
             </div>
-            <NInputNumber
-              :value="settings.state.backupEveryChanges"
-              :min="1"
-              :max="200"
-              :step="1"
-              size="small"
-              @update:value="value => onUpdateNumber('backupEveryChanges', value)"
-            />
-          </div>
-        </section>
+          </section>
 
-        <section v-else class="settings-section">
-          <div class="settings-section__intro">
-            <h2>关于 Steno</h2>
-            <p>一款本地优先的桌面速记工具，使用 Tauri、Rust 和 Vue 构建。</p>
-          </div>
+          <section v-else-if="activeSection === 'privacy'" class="settings-section">
+            <div class="settings-section__intro">
+              <h2>隐私安全</h2>
+              <p>Steno 当前保持本地优先，隐私增强项先展示边界，不写入不存在的设置键。</p>
+            </div>
 
-          <div class="settings-about-grid">
-            <div class="settings-about-card">
-              <span>版本</span>
-              <strong>Steno 0.0.0</strong>
-              <small>本地开发版</small>
+            <h3 class="settings-group">本地保护</h3>
+            <div class="settings-row settings-row--disabled">
+              <div class="settings-row__meta">
+                <strong>数据库加密</strong>
+                <p>SQLCipher 加密入口规划中，当前版本不会修改数据库结构。</p>
+              </div>
+              <NButton size="tiny" disabled>规划中</NButton>
             </div>
-            <div class="settings-about-card">
-              <span>运行时</span>
-              <strong>Tauri 2 + Vue 3</strong>
-              <small>Rust 后端 · SQLite 本地库</small>
+            <div class="settings-row settings-row--disabled">
+              <div class="settings-row__meta">
+                <strong>敏感内容过滤</strong>
+                <p>信用卡号、Token、私钥等模式过滤需要后端规则支持。</p>
+              </div>
+              <NButton size="tiny" disabled>规划中</NButton>
             </div>
-            <div class="settings-about-card">
-              <span>数据策略</span>
-              <strong>本地优先</strong>
-              <small>默认不上传笔记内容</small>
+            <div class="settings-row settings-row--disabled">
+              <div class="settings-row__meta">
+                <strong>应用排除名单</strong>
+                <p>密码管理器和指定应用排除名单将在权限层接入。</p>
+              </div>
+              <NButton size="tiny" disabled>只读</NButton>
             </div>
-            <div class="settings-about-card">
-              <span>许可证</span>
-              <strong>MIT</strong>
-              <small>开源项目</small>
+          </section>
+
+          <section v-else-if="activeSection === 'storage'" class="settings-section">
+            <div class="settings-section__intro">
+              <h2>存储位置</h2>
+              <p>查看本地数据目录、数据库文件和备份目录；路径以普通文本渲染。</p>
             </div>
-          </div>
-        </section>
-      </main>
+
+            <h3 class="settings-group">本地路径</h3>
+            <div v-if="paths" class="settings-paths">
+              <div class="settings-path-row">
+                <span class="settings-path-label">数据目录</span>
+                <code class="settings-path-value">{{ paths.dataDir }}</code>
+                <NButton tertiary size="tiny" @click="copyPath(paths.dataDir)">复制</NButton>
+              </div>
+              <div class="settings-path-row">
+                <span class="settings-path-label">数据库文件</span>
+                <code class="settings-path-value">{{ paths.dbPath }}</code>
+                <NButton tertiary size="tiny" @click="copyPath(paths.dbPath)">复制</NButton>
+              </div>
+              <div class="settings-path-row">
+                <span class="settings-path-label">备份目录</span>
+                <code class="settings-path-value">{{ paths.backupDir }}</code>
+                <NButton tertiary size="tiny" @click="copyPath(paths.backupDir)">复制</NButton>
+              </div>
+            </div>
+            <NText v-else depth="3">加载中...</NText>
+
+            <h3 class="settings-group">备份</h3>
+            <div class="settings-row">
+              <div class="settings-row__meta">
+                <strong>累计修改次数触发备份</strong>
+                <p>达到阈值后打包本地 Markdown 与索引。</p>
+              </div>
+              <NInputNumber
+                :value="settings.state.backupEveryChanges"
+                :min="1"
+                :max="200"
+                :step="1"
+                size="small"
+                @update:value="value => onUpdateNumber('backupEveryChanges', value)"
+              />
+            </div>
+          </section>
+
+          <section v-else class="settings-section">
+            <div class="settings-section__intro">
+              <h2>关于 Steno</h2>
+              <p>一款本地优先的桌面速记工具，使用 Tauri、Rust 和 Vue 构建。</p>
+            </div>
+
+            <div class="settings-about-grid">
+              <div class="settings-about-card">
+                <span>版本</span>
+                <strong>Steno 0.0.0</strong>
+                <small>本地开发版</small>
+              </div>
+              <div class="settings-about-card">
+                <span>运行时</span>
+                <strong>Tauri 2 + Vue 3</strong>
+                <small>Rust 后端 · SQLite 本地库</small>
+              </div>
+              <div class="settings-about-card">
+                <span>数据策略</span>
+                <strong>本地优先</strong>
+                <small>默认不上传笔记内容</small>
+              </div>
+              <div class="settings-about-card">
+                <span>许可证</span>
+                <strong>MIT</strong>
+                <small>开源项目</small>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
 
       <footer class="settings-panel__footer">
-        <NButton quaternary type="error" @click="closePanel">取消</NButton>
         <span class="settings-save-hint">所有更改自动保存到本地</span>
-        <NButton secondary @click="resetPlanned">重置</NButton>
-        <NButton type="primary" @click="closePanel">确认</NButton>
       </footer>
     </section>
   </div>
@@ -957,7 +987,7 @@ const headerSub = computed(() =>
   height: min(660px, calc(100vh - 48px));
   min-width: 760px;
   display: grid;
-  grid-template-rows: 76px 1fr 60px;
+  grid-template-rows: 48px 1fr 40px;
   overflow: hidden;
   border: 1px solid rgba(128, 117, 105, 0.35);
   border-radius: 14px;
@@ -1010,7 +1040,10 @@ const headerSub = computed(() =>
 
 .settings-panel__header {
   min-width: 0;
-  padding: 0 14px 0 18px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   border-bottom: 1px solid rgba(128, 117, 105, 0.22);
 }
 
@@ -1019,18 +1052,34 @@ const headerSub = computed(() =>
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
+.settings-close-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--app-muted);
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+
+.settings-close-btn:hover {
+  background: rgba(128, 117, 105, 0.12);
+  color: var(--app-fg);
+}
+
+.settings-close-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
 .settings-brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-width: 150px;
-  padding-right: 12px;
-  border-right: 1px solid rgba(128, 117, 105, 0.22);
-}
-
-:global(.dark) .settings-brand,
-.settings-shell:not(.settings-shell--embedded) .settings-brand {
-  border-right-color: rgba(255, 255, 255, 0.08);
+  min-width: 0;
 }
 
 .settings-brand__mark {
@@ -1071,22 +1120,36 @@ const headerSub = computed(() =>
   color: #afa59b;
 }
 
-.settings-tabs {
-  min-width: 0;
+.settings-panel__body-wrap {
   flex: 1;
   display: flex;
-  align-items: stretch;
-  gap: 4px;
-  overflow-x: auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.settings-sidebar {
+  width: 160px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 10px;
+  border-right: 1px solid rgba(128, 117, 105, 0.16);
+  overflow-y: auto;
   scrollbar-width: none;
 }
 
-.settings-tabs::-webkit-scrollbar {
+.settings-sidebar::-webkit-scrollbar {
   display: none;
 }
 
+:global(.dark) .settings-sidebar,
+.settings-shell:not(.settings-shell--embedded) .settings-sidebar {
+  border-right-color: rgba(255, 255, 255, 0.06);
+}
+
 .settings-tab {
-  min-width: 88px;
+  width: 100%;
   border: 0;
   border-radius: 8px;
   padding: 8px 10px;
@@ -1135,6 +1198,8 @@ const headerSub = computed(() =>
 }
 
 .settings-panel__body {
+  flex: 1;
+  min-width: 0;
   min-height: 0;
   overflow: auto;
   padding: 22px 28px 28px;
