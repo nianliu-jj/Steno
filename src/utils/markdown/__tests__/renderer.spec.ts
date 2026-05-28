@@ -5,6 +5,9 @@
  * mermaid 占位、未知语言代码块降级、行内代码标记。
  *
  * Phase 3 新增：Shiki warmup 完成后围栏代码块的高亮输出验证。
+ * Phase 6 起出口接 DOMPurify，需要 jsdom window — 故指定 jsdom 环境。
+ *
+ * @vitest-environment jsdom
  */
 
 import { beforeAll, describe, expect, it } from 'vitest';

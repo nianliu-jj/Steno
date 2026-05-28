@@ -15,6 +15,7 @@ import mark from 'markdown-it-mark';
 import taskLists from 'markdown-it-task-lists';
 
 import { resolveImageSrc } from './images';
+import { sanitizeHtml } from './sanitize';
 import { highlightCode } from './shiki';
 
 export interface RenderOptions {
@@ -119,5 +120,6 @@ export function renderMarkdown(content: string, opts: RenderOptions = {}): strin
   if (!content) {
     return '';
   }
-  return md.render(content, { noteDir: opts.noteDir });
+  const raw = md.render(content, { noteDir: opts.noteDir });
+  return sanitizeHtml(raw);
 }
