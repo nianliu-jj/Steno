@@ -15,12 +15,12 @@
 
 ## 3. Phase 2 — Parser（Markdown → Doc）
 
-- [ ] 3.1 移植 PureMark `src/core/parser/index.ts` 的 INLINE_SYNTAXES 与 BLOCK 解析
-- [ ] 3.2 在每个块级节点上记录 `startLine` attr（用于 `scrollToLine`）
-- [ ] 3.3 内联 HTML 标签按白名单解析为 `html_inline` mark / 节点
-- [ ] 3.4 解析 KaTeX 行内/块级、Mermaid 块、围栏代码块（含 `info` 语言）
-- [ ] 3.5 测试用例 `parser.test.ts`：覆盖标题/blockquote 含无空格/列表/任务列表/HR/表格/代码块/链接/图片/HTML inline/math/mermaid/嵌套列表
-- [ ] 3.6 `pnpm test parser` 通过
+- [x] 3.1 移植 PureMark `src/core/parser/index.ts` 的 INLINE_SYNTAXES 与 BLOCK 解析
+- [x] 3.2 在每个块级节点上记录 `startLine` attr（用于 `scrollToLine`）
+- [x] 3.3 内联 HTML 标签按白名单解析为 `html_inline` mark / 节点
+- [x] 3.4 解析 KaTeX 行内/块级、Mermaid 块、围栏代码块（含 `info` 语言）
+- [x] 3.5 测试用例 `parser.test.ts`：覆盖标题/blockquote 含无空格/列表/任务列表/HR/表格/代码块/链接/图片/HTML inline/math/mermaid/嵌套列表
+- [x] 3.6 `pnpm test parser` 通过
 
 ## 4. Phase 3 — Serializer（Doc → Markdown）
 
