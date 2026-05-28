@@ -7,11 +7,11 @@
 
 ## 2. Phase 1 — Schema
 
-- [ ] 2.1 移植 PureMark `src/core/schema/index.ts`：节点（doc/paragraph/heading/blockquote/bullet_list/ordered_list/list_item/task_list_item/code_block/math_block/mermaid_block/html_block/horizontal_rule/table/table_row/table_cell/table_header/image）
-- [ ] 2.2 移植 marks（strong/em/code/strike/link/highlight/syntax_marker/html_inline）+ `SAFE_INLINE_TAGS` 白名单 + `parseHtmlAttrs`
-- [ ] 2.3 调整命名以适配 Steno 风格（保留 PureMark 注释，新增中文注释说明 Steno 适配点）
-- [ ] 2.4 单测：`schema.test.ts` 校验 schema 能创建空 doc、能往各节点塞文本
-- [ ] 2.5 `pnpm test schema` 通过
+- [x] 2.1 移植 PureMark `src/core/schema/index.ts`：节点（doc/paragraph/heading/blockquote/bullet_list/ordered_list/list_item/task_list_item/code_block/math_block/mermaid_block/html_block/horizontal_rule/table/table_row/table_cell/table_header/image）
+- [x] 2.2 移植 marks（strong/em/code/strike/link/highlight/syntax_marker/html_inline）+ `SAFE_INLINE_TAGS` 白名单 + `parseHtmlAttrs`
+- [x] 2.3 调整命名以适配 Steno 风格（保留 PureMark 注释，新增中文注释说明 Steno 适配点）
+- [x] 2.4 单测：`schema.test.ts` 校验 schema 能创建空 doc、能往各节点塞文本
+- [x] 2.5 `pnpm test schema` 通过
 
 ## 3. Phase 2 — Parser（Markdown → Doc）
 
