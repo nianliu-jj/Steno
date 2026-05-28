@@ -1,5 +1,5 @@
 import { defineConfig, presetWind3, transformerDirectives, transformerVariantGroup } from 'unocss';
-import { presetSoybeanAdmin } from '@sa/uno-preset';
+import { presetSoybeanAdmin } from './src/uno-preset';
 import { themeVars } from './src/theme';
 
 export default defineConfig({
