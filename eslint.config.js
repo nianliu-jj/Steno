@@ -1,4 +1,4 @@
-import { defineConfig } from '@soybeanjs/eslint-config-vue';
+import { defineConfig } from './src/eslint/index.ts';
 
 export default [
   { ignores: ['dist/**', 'src-tauri/target/**', 'src-tauri/gen/**', '.worktrees/**', 'agentignore/**'] },

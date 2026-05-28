@@ -17,6 +17,8 @@
     "strictNullChecks": true,
     "noUnusedLocals": false,
     "allowSyntheticDefaultImports": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true
