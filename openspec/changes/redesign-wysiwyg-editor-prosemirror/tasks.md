@@ -24,10 +24,10 @@
 
 ## 4. Phase 3 — Serializer（Doc → Markdown）
 
-- [ ] 4.1 移植 PureMark `src/core/serializer/index.ts`；按节点/Mark 实现序列化器
-- [ ] 4.2 测试 `serializer.test.ts`：对 Phase 2 的全部用例做 round-trip（`serialize(parse(md)) === md` 经归一化后）
-- [ ] 4.3 处理空白与转义归一化规则（CRLF → LF、行尾空格、`*`/`_` 转义边界）
-- [ ] 4.4 `pnpm test serializer` 通过
+- [x] 4.1 移植 PureMark `src/core/serializer/index.ts`；按节点/Mark 实现序列化器
+- [x] 4.2 测试 `serializer.test.ts`：对 Phase 2 的全部用例做 round-trip（`serialize(parse(md)) === md` 经归一化后）
+- [x] 4.3 处理空白与转义归一化规则（CRLF → LF、行尾空格、`*`/`_` 转义边界）
+- [x] 4.4 `pnpm test serializer` 通过
 
 ## 5. Phase 4 — 基础 NodeView
 
