@@ -22,8 +22,6 @@ export interface CliOption {
   ncuCommandArgs: string[];
   /**
    * Options of generate changelog
-   *
-   * @link https://github.com/soybeanjs/changelog
    */
   changelogOptions: Partial<ChangelogOption>;
   /** The ignore pattern list of git commit verify */

@@ -16,7 +16,7 @@ import type { Theme } from '@unocss/preset-mini';
 
 export function presetSoybeanAdmin(): Preset<Theme> {
   const preset: Preset<Theme> = {
-    name: 'preset-soybean-admin',
+    name: 'preset-steno',
     shortcuts: [
       {
         'flex-center': 'flex justify-center items-center',

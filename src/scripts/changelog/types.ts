@@ -57,7 +57,7 @@ export interface GithubConfig {
   /**
    * The github repository name
    *
-   * @example soybeanjs/changelog
+   * @example user/repo
    */
   repo: string;
   /** The github token */
