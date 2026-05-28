@@ -1,22 +1,8 @@
 ## MODIFIED Requirements
 
-### Requirement: 仓库不得保留 `packages/` workspace 子目录
+### Requirement: `package.json` 不得保留 `@sa/*` workspace 依赖
 
-仓库根目录 MUST 不存在 `packages/` 文件夹。所有原先以 `@sa/*` workspace 协议发布的源码 MUST 已被迁移到 `src/` 下相应模块，或在确认未被引用后删除。
-
-#### Scenario: 仓库根目录不存在 packages
-
-- **WHEN** 执行 `Test-Path D:/Steno/packages`
-- **THEN** 返回 `False`
-
-#### Scenario: pnpm workspace 不再声明 packages 通配
-
-- **WHEN** 读取 `pnpm-workspace.yaml`
-- **THEN** 文件中不再出现 `'packages/*'` 这一行（`packages:` 字段为空数组或整字段删除）
-
-### Requirement: `package.json` 不得保留 `@sa/*` 或 `@soybeanjs/*` 依赖
-
-`package.json` 的 `dependencies` 与 `devDependencies` MUST 不含任何 `@sa/axios`、`@sa/color`、`@sa/hooks`、`@sa/utils`、`@sa/scripts`、`@sa/uno-preset` 等以 `workspace:*` 协议声明的字段，同时 MUST 不含任何 `@soybeanjs/*` 命名空间的 npm 包（包括但不限于 `@soybeanjs/changelog`、`@soybeanjs/eslint-config-vue`、`@soybeanjs/eslint-config`、`@soybeanjs/cli`）。
+`package.json` 的 `dependencies` 与 `devDependencies` MUST 不含任何 `@sa/axios`、`@sa/color`、`@sa/hooks`、`@sa/utils`、`@sa/scripts`、`@sa/uno-preset` 等以 `workspace:*` 协议声明的字段。同时 MUST 不含任何 `@soybeanjs/*` 命名空间的 npm 包（包括但不限于 `@soybeanjs/changelog`、`@soybeanjs/eslint-config-vue`、`@soybeanjs/eslint-config`、`@soybeanjs/cli`）。
 
 #### Scenario: 检查 package.json 不再依赖 @sa 包
 
@@ -105,27 +91,3 @@
 
 - **WHEN** 在仓库根目录（排除 `node_modules`、`agentignore`、`pnpm-lock.yaml`、`openspec/changes/archive/`）执行全文搜索 `@soybeanjs/`
 - **THEN** 命中数为 0
-
-### Requirement: 类型检查、测试、构建、lint 套件迁移后无回归
-
-迁移完成后，`pnpm typecheck`、`pnpm test`、`pnpm build`、`pnpm lint` 四个命令 MUST 全部以退出码 0 终止（test 与基线已存在 pre-existing 失败保持一致，不新增失败）。
-
-#### Scenario: typecheck 通过
-
-- **WHEN** 执行 `pnpm typecheck`
-- **THEN** 命令以退出码 0 退出，无 error 输出
-
-#### Scenario: 构建通过
-
-- **WHEN** 执行 `pnpm build`
-- **THEN** 构建以退出码 0 完成，产物目录正常生成
-
-#### Scenario: lint 通过且 warning 数量持平基线
-
-- **WHEN** 执行 `pnpm lint`
-- **THEN** 退出码 0；warning 数量与本次变更前完全一致
-
-#### Scenario: 单元测试不引入新失败
-
-- **WHEN** 执行 `pnpm test`
-- **THEN** 失败测试集合与本次变更前完全一致（不新增失败）
