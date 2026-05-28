@@ -2,7 +2,7 @@
  * @file Markdown 纯前端工具集
  *
  * 提供三个独立函数：
- * - `renderHtml` — 用 marked 渲染 Markdown → HTML（预览面板使用）
+ * - `renderHtml` — 通过 `src/utils/markdown` 的 markdown-it 管线渲染 Markdown → HTML（预览面板使用）
  * - `countWords` — CJK 单字 + 拉丁单词混合计数（UI 即时字数显示）
  * - `extractTags` — 抽取 `#tag`，仅供 UI 即时 chips 显示
  *
@@ -11,12 +11,10 @@
  * - 最终入库的 tags 以 **Rust 端** `extract_tags` 的结果为准（`db.rs`）
  * - 前端 `countWords` 与 Rust `word_count` 保持类似口径，但不保证完全一致
  *
- * **XSS 注意**：`renderHtml` 的输出会进入 `v-html`。marked 16 已移除内置
- * sanitizer，这里仅做 GFM 渲染。MVP 阶段所有内容都是本地用户自己写的，
- * XSS 风险极低；如需隔离应在调用方加 DOMPurify。
+ * **XSS 注意**：完整管线（Phase 6）会接入 DOMPurify；当前 Phase 1 暂为 markdown-it 内核。
  */
 
-import { marked } from 'marked';
+import { renderMarkdown } from '@/utils/markdown';
 
 /**
  * 标签正则：匹配 `#` 后跟字母/数字/下划线/连字符/中文的标签。
@@ -46,11 +44,7 @@ export function useMarkdown() {
    * @returns HTML 字符串；输入为空时返回 `''`
    */
   function renderHtml(md: string): string {
-    if (!md) {
-      return '';
-    }
-    // `async: false` 确保同步返回 string — marked 在同步模式下不返回 Promise
-    return marked.parse(md, { async: false }) as string;
+    return renderMarkdown(md);
   }
 
   /**

@@ -1,0 +1,12 @@
+/**
+ * Markdown 预览面板样式表。
+ *
+ * 设计依据：openspec/changes/redesign-markdown-rendering-pipeline/design.md
+ * 实施阶段：Phase 7 — 从 PureMark `src/core/styles/puremark.css` 抽取并适配 `--app-*` 变量。
+ *
+ * 当前为骨架占位，Phase 7 替换为完整规则。
+ */
+
+.markdown-body {
+  /* placeholder — Phase 7 提供完整样式 */
+}
