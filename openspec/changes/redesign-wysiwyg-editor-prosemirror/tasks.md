@@ -1,9 +1,9 @@
 ## 1. Phase 0 — 依赖与目录骨架
 
-- [ ] 1.1 用 pnpm 添加 `prosemirror-dropcursor`、`prosemirror-gapcursor`、`prosemirror-tables`、`prosemirror-transform`
-- [ ] 1.2 创建 `src/components/markdown-editor/prosemirror/` 目录树（`schema/` `parser/` `serializer/` `nodeviews/` `plugins/` `view/` `styles/` `tests/`），每个子目录留一个空 `index.ts` 占位
-- [ ] 1.3 把对照参考路径写进 README 注释（`D:\Markdown项目\PureMark\src\core\`、`D:\Markdown项目\milkup`），方便后续审查
-- [ ] 1.4 跑 `pnpm typecheck` 确保骨架可编译
+- [x] 1.1 用 pnpm 添加 `prosemirror-dropcursor`、`prosemirror-gapcursor`、`prosemirror-tables`、`prosemirror-transform`
+- [x] 1.2 创建 `src/components/markdown-editor/prosemirror/` 目录树（`schema/` `parser/` `serializer/` `nodeviews/` `plugins/` `view/` `styles/` `tests/`），每个子目录留一个空 `index.ts` 占位
+- [x] 1.3 把对照参考路径写进 README 注释（`D:\Markdown项目\PureMark\src\core\`、`D:\Markdown项目\milkup`），方便后续审查
+- [x] 1.4 跑 `pnpm typecheck` 确保骨架可编译
 
 ## 2. Phase 1 — Schema
 
