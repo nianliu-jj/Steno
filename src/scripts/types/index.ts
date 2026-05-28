@@ -1,4 +1,4 @@
-import type { ChangelogOption } from '@soybeanjs/changelog';
+import type { ChangelogOption } from '../changelog';
 
 export interface CliOption {
   /** The project root directory */

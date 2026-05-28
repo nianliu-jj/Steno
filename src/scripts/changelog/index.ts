@@ -1,0 +1,120 @@
+import { Presets, SingleBar } from 'cli-progress';
+import { createOptions } from './options';
+import {
+  getCurrentGitBranch,
+  getFromToTags,
+  getGitCommits,
+  getGitCommitsAndResolvedAuthors
+} from './git';
+import { generateMarkdown, isVersionInMarkdown, writeMarkdown } from './markdown';
+import type { ChangelogOption, GitCommit } from './types';
+
+export type { ChangelogOption } from './types';
+
+/**
+ * Get the changelog markdown by two git tags
+ *
+ * @param options The changelog options
+ * @param showTitle Whither show the title
+ */
+export async function getChangelogMarkdown(
+  options?: Partial<ChangelogOption>,
+  showTitle: boolean = true
+): Promise<{ markdown: string; commits: GitCommit[]; options: ChangelogOption }> {
+  const opts = await createOptions(options);
+  const current = await getCurrentGitBranch();
+  const to = opts.tags.includes(opts.to) ? opts.to : current;
+  const gitCommits = await getGitCommits(opts.from, to);
+  const resolvedLogins = new Map<string, string>();
+  const { commits, contributors } = await getGitCommitsAndResolvedAuthors(
+    gitCommits,
+    opts.github,
+    resolvedLogins
+  );
+  return {
+    markdown: await generateMarkdown({
+      commits,
+      options: opts,
+      showTitle,
+      contributors
+    }),
+    commits,
+    options: opts
+  };
+}
+
+/**
+ * Get the changelog markdown by the total git tags
+ *
+ * @param options The changelog options
+ * @param showProgress Whether show the progress bar
+ */
+export async function getTotalChangelogMarkdown(
+  options?: Partial<ChangelogOption>,
+  showProgress: boolean = true
+): Promise<string> {
+  const opts = await createOptions(options);
+  let bar: SingleBar | null = null;
+  if (showProgress) {
+    bar = new SingleBar(
+      { format: 'generate total changelog: [{bar}] {percentage}% | ETA: {eta}s | {value}/{total}' },
+      Presets.shades_classic
+    );
+  }
+  const tags = getFromToTags(opts.tags);
+  if (tags.length === 0) {
+    const { markdown: markdown$1 } = await getChangelogMarkdown(opts);
+    return markdown$1;
+  }
+  bar?.start(tags.length, 0);
+  let markdown = '';
+  const resolvedLogins = new Map<string, string>();
+  for await (const [index, tag] of tags.entries()) {
+    const { from, to } = tag;
+    const { commits, contributors } = await getGitCommitsAndResolvedAuthors(
+      await getGitCommits(from, to),
+      opts.github,
+      resolvedLogins
+    );
+    markdown = `${await generateMarkdown({
+      commits,
+      options: {
+        ...opts,
+        from,
+        to
+      },
+      showTitle: true,
+      contributors
+    })}\n\n${markdown}`;
+    bar?.update(index + 1);
+  }
+  bar?.stop();
+  return markdown;
+}
+
+/**
+ * Generate the changelog markdown by two git tags
+ *
+ * @param options The changelog options
+ */
+export async function generateChangelog(options?: Partial<ChangelogOption>): Promise<void> {
+  const opts = await createOptions(options);
+  const existContent = await isVersionInMarkdown(opts.to, opts.output);
+  if (!opts.regenerate && existContent) return;
+  const { markdown } = await getChangelogMarkdown(opts);
+  await writeMarkdown(markdown, opts.output, opts.regenerate);
+}
+
+/**
+ * Generate the changelog markdown by the total git tags
+ *
+ * @param options The changelog options
+ * @param showProgress Whither show the progress bar
+ */
+export async function generateTotalChangelog(
+  options?: Partial<ChangelogOption>,
+  showProgress: boolean = true
+): Promise<void> {
+  const opts = await createOptions(options);
+  await writeMarkdown(await getTotalChangelogMarkdown(opts, showProgress), opts.output, true);
+}
