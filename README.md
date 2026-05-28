@@ -96,6 +96,7 @@
 | 🌗 | **亮/暗/系统主题**    | 跟随系统，OKLCH 均匀色彩空间，瞬切                                               |
 | 🔒 | **本地优先**        | 所有数据存本机 SQLite（`~/.steno/data.db`），默认不上传                           |
 | 📤 | **Markdown 导出** | 单条导出含 YAML frontmatter；HTML 导出含内联样式                                |
+| 🎨 | **Markdown 渲染** | markdown-it 管线 + shiki 双主题代码高亮 + KaTeX 行内/块级公式 + Mermaid 图表 + DOMPurify 净化 |
 
 ---
 
@@ -154,6 +155,7 @@ cd src-tauri && cargo test   # Rust 单元测试
 | 前端框架 | Vue 3 (Composition API) + TypeScript + Vite 7 |
 | UI 组件 | [Naive UI](https://www.naiveui.com/) + [UnoCSS](https://unocss.dev/) |
 | 编辑器 | [CodeMirror 6](https://codemirror.net/) + 自建 live-render 装饰器 |
+| Markdown 渲染 | [markdown-it](https://github.com/markdown-it/markdown-it) + [shiki](https://shiki.style/) + [KaTeX](https://katex.org/) + [Mermaid](https://mermaid.js.org/) + [DOMPurify](https://github.com/cure53/DOMPurify) |
 | 状态管理 | [Pinia](https://pinia.vuejs.org/) |
 | 工程化 | pnpm monorepo + oxlint + oxfmt + simple-git-hooks |
 

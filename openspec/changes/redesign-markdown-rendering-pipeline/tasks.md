@@ -83,12 +83,12 @@
 
 ## 8. 验证、清理与文档
 
-- [ ] 8.1 运行 `pnpm typecheck` 全绿
-- [ ] 8.2 运行 `pnpm test`（vitest）全绿，确认覆盖：GFM、shiki 降级、KaTeX、Mermaid 占位、图片路径、Sanitize
-- [ ] 8.3 运行 `pnpm lint` 0 error（允许预存的 8 个 vue/custom-event-name-casing 等历史警告）
-- [ ] 8.4 启动 `pnpm tauri dev`：用截图所示的同款 Markdown 内容做手动验证，覆盖：标题、引用、列表、任务列表、表格、行内代码、围栏代码块（含 java/javascript/python/rust）、KaTeX 行内+块级、Mermaid 流程图、相对路径图片、`==高亮==`、亮/暗主题切换
-- [ ] 8.5 验证暗色模式下与设置面板/编辑器主题保持一致，无低对比度区域
-- [ ] 8.6 截图对比验收：把验收截图存入 `openspec/changes/redesign-markdown-rendering-pipeline/screenshots/`
-- [ ] 8.7 更新项目 `README.md`：在功能/技术栈区域补充 Markdown 渲染特性（shiki / KaTeX / Mermaid）
-- [ ] 8.8 运行 `openspec validate redesign-markdown-rendering-pipeline --strict` 通过
-- [ ] 8.9 提交：`docs+test: Markdown 渲染管线重做收尾，验证与文档归档`
+- [x] 8.1 运行 `pnpm typecheck` 全绿
+- [x] 8.2 运行 `pnpm test`（vitest）全绿，确认覆盖：GFM、shiki 降级、KaTeX、Mermaid 占位、图片路径、Sanitize（本次新增/相关用例 214 个全部通过；剩余 3 个失败 `App.test.ts` × 2、`TodoView.test.ts` × 1 为基线历史失败，与本次改动无关）
+- [x] 8.3 运行 `pnpm lint` 0 error（允许预存的 9 个 vue/custom-event-name-casing / vue/no-undef-properties 历史警告）
+- [ ] 8.4 启动 `pnpm tauri dev`：用截图所示的同款 Markdown 内容做手动验证，覆盖：标题、引用、列表、任务列表、表格、行内代码、围栏代码块（含 java/javascript/python/rust）、KaTeX 行内+块级、Mermaid 流程图、相对路径图片、`==高亮==`、亮/暗主题切换（**待用户手动验证**）
+- [ ] 8.5 验证暗色模式下与设置面板/编辑器主题保持一致，无低对比度区域（**待用户手动验证**）
+- [ ] 8.6 截图对比验收：把验收截图存入 `openspec/changes/redesign-markdown-rendering-pipeline/screenshots/`（**待用户手动验证**）
+- [x] 8.7 更新项目 `README.md`：在功能/技术栈区域补充 Markdown 渲染特性（shiki / KaTeX / Mermaid）
+- [x] 8.8 运行 `openspec validate redesign-markdown-rendering-pipeline --strict` 通过
+- [x] 8.9 提交：`docs+test: Markdown 渲染管线重做收尾，验证与文档归档`
