@@ -3,11 +3,14 @@
  *
  * 覆盖 Phase 2 引入的核心能力：GFM 基础、任务列表、`==高亮==`、行内/块级 KaTeX、
  * mermaid 占位、未知语言代码块降级、行内代码标记。
+ *
+ * Phase 3 新增：Shiki warmup 完成后围栏代码块的高亮输出验证。
  */
 
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { renderMarkdown } from '../renderer';
+import { isShikiReady, warmupShiki } from '../shiki';
 
 describe('renderMarkdown', () => {
   it('returns empty string for empty input', () => {
@@ -98,6 +101,31 @@ describe('renderMarkdown', () => {
       const html = renderMarkdown('```\nplain text\n```');
       expect(html).toContain('shiki-fallback');
       expect(html).toContain('plain text');
+    });
+  });
+
+  describe('shiki highlight (after warmup)', () => {
+    beforeAll(async () => {
+      await warmupShiki();
+    }, 60_000);
+
+    it('warmup leaves highlighter ready', () => {
+      expect(isShikiReady()).toBe(true);
+    });
+
+    it('renders a JavaScript code block with shiki block wrapper', () => {
+      const html = renderMarkdown('```javascript\nconst x = 1;\n```');
+      expect(html).toContain('class="shiki-block"');
+      expect(html).toContain('data-lang="javascript"');
+      expect(html).toContain('shiki-lang');
+      expect(html).toContain('shiki-copy');
+      // 双主题模式至少包含两套 style/class 之一
+      expect(html).toMatch(/shiki|github-light|github-dark/);
+    });
+
+    it('still falls back when the language is not in the loaded set', () => {
+      const html = renderMarkdown('```weirdlang\nfoo\n```');
+      expect(html).toContain('shiki-fallback');
     });
   });
 });

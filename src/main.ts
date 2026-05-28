@@ -23,9 +23,20 @@ import 'virtual:uno.css';
 import './styles/global.css';
 import './plugins/echarts';
 import App from './App.vue';
+import { warmupShiki } from './utils/markdown/shiki';
 
 const app = createApp(App);
 // 注册 Pinia 状态管理 — 所有 store 通过 `defineStore` 定义后即可在组件中注入
 app.use(createPinia());
 // 挂载到 index.html 中的 <div id="app">
 app.mount('#app');
+
+// 应用挂载后再异步预热 Shiki，避免阻塞首屏渲染
+type IdleCallbackHandle = (cb: () => void) => unknown;
+const scheduleIdle: IdleCallbackHandle =
+  typeof (globalThis as { requestIdleCallback?: IdleCallbackHandle }).requestIdleCallback === 'function'
+    ? (globalThis as { requestIdleCallback: IdleCallbackHandle }).requestIdleCallback
+    : (cb) => setTimeout(cb, 200);
+scheduleIdle(() => {
+  void warmupShiki();
+});
