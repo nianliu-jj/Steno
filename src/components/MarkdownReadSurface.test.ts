@@ -20,6 +20,13 @@ vi.mock('@/composables/useDb', () => ({
   }),
 }));
 
+vi.mock('@/i18n', () => ({
+  useI18n: () => ({
+    state: { locale: 'zh-CN' },
+    t: (key: string) => key,
+  }),
+}));
+
 describe('MarkdownReadSurface', () => {
   it('renders markdown html with heading anchors in read mode', () => {
     const wrapper = mount(MarkdownReadSurface, {

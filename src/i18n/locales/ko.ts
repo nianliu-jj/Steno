@@ -208,4 +208,8 @@ export default {
     minimize: '최소화',
     maximize: '최대화',
   },
+  markdown: {
+    copy: '복사',
+    copied: '복사됨',
+  },
 };

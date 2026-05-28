@@ -24,8 +24,10 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useDb } from '@/composables/useDb';
 import { useMarkdown } from '@/composables/useMarkdown';
 import { useMarkdownOutline } from '@/composables/useMarkdownOutline';
+import { useI18n } from '@/i18n';
 import { renderMermaidPlaceholders, resetMermaidRendering } from '@/utils/markdown/mermaid';
 import { resolveStenoAssetUrls, setStenoAssetDataDir } from '@/utils/stenoAssets';
+import '@/styles/markdown-render.css';
 
 const props = defineProps<{
   /** 文档标题（显示在顶部 `<h1>`）。 */
@@ -37,6 +39,7 @@ const props = defineProps<{
 const { renderHtml } = useMarkdown();
 const { decorateHeadingAnchors, listHeadings } = useMarkdownOutline();
 const db = useDb();
+const i18n = useI18n();
 const dataDir = ref<string | null>(null);
 const bodyRef = ref<HTMLElement | null>(null);
 const isDark = useDark();
@@ -64,6 +67,44 @@ async function refreshMermaid() {
   await renderMermaidPlaceholders(bodyRef.value);
 }
 
+/** 解码 base64 → UTF-8 字符串（与 shiki.ts 中 encodeCode 对称）。 */
+function decodeCodeAttr(encoded: string): string {
+  try {
+    const binary = typeof atob === 'function'
+      ? atob(encoded)
+      : Buffer.from(encoded, 'base64').toString('binary');
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return '';
+  }
+}
+
+/** Shiki 代码块复制按钮点击委托。 */
+async function onBodyClick(ev: MouseEvent) {
+  const target = ev.target as HTMLElement | null;
+  if (!target) return;
+  const btn = target.closest('.shiki-copy') as HTMLButtonElement | null;
+  if (!btn || !bodyRef.value?.contains(btn)) return;
+  ev.preventDefault();
+  const encoded = btn.dataset.code ?? '';
+  const code = decodeCodeAttr(encoded);
+  if (!code) return;
+  try {
+    await navigator.clipboard.writeText(code);
+    const original = i18n.t('markdown.copy');
+    btn.textContent = i18n.t('markdown.copied');
+    btn.classList.add('copied');
+    window.setTimeout(() => {
+      btn.textContent = original;
+      btn.classList.remove('copied');
+    }, 1600);
+  } catch (error) {
+    console.error('[markdown-read-surface] copy failed:', error);
+  }
+}
+
 onMounted(async () => {
   try {
     const paths = await db.getDataPaths();
@@ -72,6 +113,7 @@ onMounted(async () => {
   } catch (error) {
     console.error('[markdown-read-surface] failed to load data paths:', error);
   }
+  bodyRef.value?.addEventListener('click', onBodyClick);
   await refreshMermaid();
 });
 
@@ -88,6 +130,7 @@ watch(isDark, () => {
 });
 
 onBeforeUnmount(() => {
+  bodyRef.value?.removeEventListener('click', onBodyClick);
   bodyRef.value = null;
 });
 </script>

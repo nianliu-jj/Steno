@@ -208,4 +208,8 @@ export default {
     minimize: 'Minimieren',
     maximize: 'Maximieren',
   },
+  markdown: {
+    copy: 'Kopieren',
+    copied: 'Kopiert',
+  },
 };
