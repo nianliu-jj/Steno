@@ -18,10 +18,12 @@
  * - `content: string` — Markdown 原文
  */
 
-import { computed } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
+import { useDb } from '@/composables/useDb';
 import { useMarkdown } from '@/composables/useMarkdown';
 import { useMarkdownOutline } from '@/composables/useMarkdownOutline';
+import { resolveStenoAssetUrls, setStenoAssetDataDir } from '@/utils/stenoAssets';
 
 const props = defineProps<{
   /** 文档标题（显示在顶部 `<h1>`）。 */
@@ -32,6 +34,8 @@ const props = defineProps<{
 
 const { renderHtml } = useMarkdown();
 const { decorateHeadingAnchors, listHeadings } = useMarkdownOutline();
+const db = useDb();
+const dataDir = ref<string | null>(null);
 
 /** 显示用标题 — 空标题显示"无标题"。 */
 const displayTitle = computed(() => props.title.trim() || '无标题');
@@ -44,8 +48,21 @@ const displayTitle = computed(() => props.title.trim() || '无标题');
  * 第二步保证大纲点击后 `document.getElementById(id)` 能定位到对应标题。
  */
 const renderedHtml = computed(() =>
-  decorateHeadingAnchors(renderHtml(props.content), listHeadings(props.content)),
+  decorateHeadingAnchors(
+    renderHtml(resolveStenoAssetUrls(props.content, dataDir.value)),
+    listHeadings(props.content),
+  ),
 );
+
+onMounted(async () => {
+  try {
+    const paths = await db.getDataPaths();
+    dataDir.value = paths.dataDir;
+    setStenoAssetDataDir(paths.dataDir);
+  } catch (error) {
+    console.error('[markdown-read-surface] failed to load data paths:', error);
+  }
+});
 </script>
 
 <template>
@@ -92,5 +109,13 @@ const renderedHtml = computed(() =>
 .markdown-read-surface__body :deep(h5),
 .markdown-read-surface__body :deep(h6) {
   scroll-margin-top: 24px;
+}
+
+.markdown-read-surface__body :deep(img) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 12px 0;
+  border-radius: 6px;
 }
 </style>

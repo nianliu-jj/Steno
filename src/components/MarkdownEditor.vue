@@ -40,6 +40,9 @@ import { EditorView } from '@codemirror/view';
 
 import { createMarkdownExtensions } from './markdown-editor/extensions';
 
+import { useDb } from '@/composables/useDb';
+import { setStenoAssetDataDir } from '@/utils/stenoAssets';
+
 interface Props {
   modelValue: string;
   autofocus?: boolean;
@@ -59,6 +62,7 @@ const emit = defineEmits<{
 
 const containerRef = useTemplateRef<HTMLDivElement>('container');
 const view = ref<EditorView | null>(null);
+const db = useDb();
 /**
  * 防止双向绑定死循环的标志。
  *
@@ -92,6 +96,14 @@ function emitDocChange(next: string) {
 
 onMounted(() => {
   if (!containerRef.value) return;
+  if (typeof db.getDataPaths === 'function') {
+    void db.getDataPaths()
+      .then(paths => setStenoAssetDataDir(paths.dataDir))
+      .catch(error => {
+        console.error('[markdown-editor] failed to load data paths:', error);
+      });
+  }
+
   const instance = new EditorView({
     state: EditorState.create({
       doc: props.modelValue,
@@ -99,6 +111,10 @@ onMounted(() => {
         placeholder: props.placeholder,
         onDocChange: emitDocChange,
         onFocusChange: emitFocusChange,
+        onPasteImage: async dataUrl => {
+          const saved = await db.savePastedImage(dataUrl);
+          return saved.markdownUrl;
+        },
       }),
     }),
     parent: containerRef.value,
@@ -300,5 +316,21 @@ defineExpose({ focus, scrollToLine });
 }
 :global(.app-theme-root.dark) .md-editor :deep(.cm-md-link) {
   color: #60a5fa;
+}
+
+.md-editor :deep(.cm-md-image-preview) {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
+}
+
+.md-editor :deep(.cm-md-image-preview img) {
+  display: block;
+  max-width: min(100%, 520px);
+  max-height: 360px;
+  width: auto;
+  height: auto;
+  margin: 8px 0;
+  border-radius: 6px;
 }
 </style>

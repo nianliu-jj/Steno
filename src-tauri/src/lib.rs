@@ -47,6 +47,7 @@ pub fn run() {
         .plugin(shortcut::plugin())
         .invoke_handler(tauri::generate_handler![
             commands::save_note,
+            commands::save_pasted_image,
             commands::save_text_entry,
             commands::save_document_entry,
             commands::convert_text_to_document,

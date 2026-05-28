@@ -2459,6 +2459,32 @@ mod tests {
     }
 
     #[test]
+    fn save_note_persists_inline_image_markdown() {
+        let db = fresh_db();
+        let content = "截图\n\n![pasted image](data:image/png;base64,aGVsbG8=)";
+        let saved = db
+            .save_note(SaveNoteRequest {
+                id: Some("note-with-image".into()),
+                title: Some("图片笔记".into()),
+                content: content.into(),
+                tags: vec![],
+                is_pinned: None,
+                pinned_window_config: None,
+                canvas_position: None,
+                is_draft: None,
+            })
+            .unwrap()
+            .expect("image markdown should be saved");
+
+        assert_eq!(saved.content, content);
+        assert!(saved.html_content.contains("<img"));
+        assert!(saved.html_content.contains("data:image/png;base64,aGVsbG8="));
+
+        let fetched = db.get_note("note-with-image").unwrap().unwrap();
+        assert_eq!(fetched.content, content);
+    }
+
+    #[test]
     fn save_note_persists_is_draft_flag() {
         let db = fresh_db();
         let saved = db

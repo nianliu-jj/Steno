@@ -10,9 +10,10 @@
 //! 把 `DbError` / `JoinError` 都格式化成 `String` 返给前端 —
 //! 前端有完整错误消息便于排查，同时避免泄露内部结构。
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use base64::Engine;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::clipboard::{self, ClipboardEntry};
@@ -29,9 +30,59 @@ use crate::todo::{
 };
 use crate::{quicknote, shortcut, window_manager};
 
+const STENO_ASSET_PREFIX: &str = "steno-asset:";
+
 /// 把任意 Error-like 转成 String，匹配 tauri::command 的 Result<T, String> 约定。
 fn to_msg<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavePastedImageRequest {
+    pub data_url: String,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedPastedImage {
+    pub markdown_url: String,
+    pub relative_path: String,
+    pub absolute_path: String,
+}
+
+fn extension_for_image_mime(mime: &str) -> Result<&'static str, String> {
+    match mime {
+        "image/png" => Ok("png"),
+        "image/jpeg" | "image/jpg" => Ok("jpg"),
+        "image/gif" => Ok("gif"),
+        "image/webp" => Ok("webp"),
+        "image/svg+xml" => Ok("svg"),
+        _ => Err(format!("unsupported pasted image type: {mime}")),
+    }
+}
+
+fn parse_image_data_url(data_url: &str) -> Result<(&str, &[u8]), String> {
+    let (metadata, encoded) = data_url
+        .split_once(',')
+        .ok_or_else(|| "invalid pasted image data URL".to_string())?;
+    let mime = metadata
+        .strip_prefix("data:")
+        .and_then(|value| value.strip_suffix(";base64"))
+        .ok_or_else(|| "pasted image must be a base64 data URL".to_string())?;
+    if !mime.starts_with("image/") {
+        return Err("pasted data URL is not an image".to_string());
+    }
+    Ok((mime, encoded.as_bytes()))
+}
+
+fn safe_asset_url(relative_path: &Path) -> String {
+    let path = relative_path
+        .components()
+        .map(|component| component.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/");
+    format!("{STENO_ASSET_PREFIX}{path}")
 }
 
 #[tauri::command]
@@ -41,6 +92,42 @@ pub async fn save_note(db: State<'_, Db>, input: SaveNoteRequest) -> Result<Opti
         .await
         .map_err(to_msg)?
         .map_err(to_msg)
+}
+
+#[tauri::command]
+pub async fn save_pasted_image(
+    db: State<'_, Db>,
+    input: SavePastedImageRequest,
+) -> Result<SavedPastedImage, String> {
+    let data_dir = db.inner().paths().0;
+    tauri::async_runtime::spawn_blocking(move || {
+        let (mime, encoded) = parse_image_data_url(&input.data_url)?;
+        let ext = extension_for_image_mime(mime)?;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(encoded)
+            .map_err(|e| format!("invalid pasted image base64: {e}"))?;
+        if bytes.is_empty() {
+            return Err("pasted image is empty".to_string());
+        }
+
+        let date = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let relative_dir = PathBuf::from("images").join(date);
+        let absolute_dir = data_dir.join(&relative_dir);
+        std::fs::create_dir_all(&absolute_dir).map_err(to_msg)?;
+
+        let filename = format!("{}.{}", uuid::Uuid::new_v4(), ext);
+        let relative_path = relative_dir.join(filename);
+        let absolute_path = data_dir.join(&relative_path);
+        std::fs::write(&absolute_path, bytes).map_err(to_msg)?;
+
+        Ok(SavedPastedImage {
+            markdown_url: safe_asset_url(&relative_path),
+            relative_path: relative_path.to_string_lossy().into_owned(),
+            absolute_path: absolute_path.to_string_lossy().into_owned(),
+        })
+    })
+    .await
+    .map_err(to_msg)?
 }
 
 #[tauri::command]

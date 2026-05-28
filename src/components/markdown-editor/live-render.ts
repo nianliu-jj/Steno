@@ -21,7 +21,16 @@
  */
 import type { Range } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
-import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
+import {
+  Decoration,
+  WidgetType,
+  type DecorationSet,
+  EditorView,
+  ViewPlugin,
+  type ViewUpdate,
+} from '@codemirror/view';
+
+import { stenoAssetDisplaySrc } from '@/utils/stenoAssets';
 
 /**
  * 匹配 Lezer Markdown 语法树中的 `ATXHeading1` ~ `ATXHeading6` 节点名。
@@ -68,6 +77,31 @@ const linkMark = Decoration.mark({ class: 'cm-md-link' });
  */
 const hideMark = Decoration.replace({});
 
+const IMAGE_MARKDOWN_RE = /^!\[([^\]]*)\]\(([^)\s]+)\)$/;
+
+class ImagePreviewWidget extends WidgetType {
+  constructor(
+    readonly src: string,
+    readonly alt: string,
+  ) {
+    super();
+  }
+
+  eq(other: ImagePreviewWidget) {
+    return other.src === this.src && other.alt === this.alt;
+  }
+
+  toDOM() {
+    const wrap = document.createElement('span');
+    wrap.className = 'cm-md-image-preview';
+    const image = document.createElement('img');
+    image.src = stenoAssetDisplaySrc(this.src);
+    image.alt = this.alt || 'pasted image';
+    wrap.append(image);
+    return wrap;
+  }
+}
+
 /**
  * 当光标不在该节点所在行时应当隐藏的语法节点名集合。
  *
@@ -109,6 +143,22 @@ function buildDecorations(view: EditorView): DecorationSet {
       to,
       enter(node) {
         const { name, from: nodeFrom, to: nodeTo } = node;
+
+        if (name === 'Image') {
+          const line = view.state.doc.lineAt(nodeFrom);
+          const isCursorLine = line.number === cursorLineNumber;
+          const imageSource = view.state.doc.sliceString(nodeFrom, nodeTo);
+          const match = IMAGE_MARKDOWN_RE.exec(imageSource);
+          if (match && !isCursorLine) {
+            builder.push(
+              Decoration.replace({
+                widget: new ImagePreviewWidget(match[2], match[1]),
+                block: false,
+              }).range(nodeFrom, nodeTo),
+            );
+            return;
+          }
+        }
 
         // --- 块级节点：行装饰 ---
         const headingMatch = HEADING_NAME_RE.exec(name);

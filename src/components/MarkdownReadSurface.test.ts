@@ -1,9 +1,24 @@
 // @vitest-environment jsdom
 
-import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { flushPromises, mount } from '@vue/test-utils';
+import { describe, expect, it, vi } from 'vitest';
 
 import MarkdownReadSurface from './MarkdownReadSurface.vue';
+
+vi.mock('@tauri-apps/api/core', () => ({
+  isTauri: () => false,
+  convertFileSrc: (path: string) => `asset://${path}`,
+}));
+
+vi.mock('@/composables/useDb', () => ({
+  useDb: () => ({
+    getDataPaths: vi.fn(async () => ({
+      dataDir: '/tmp/steno',
+      dbPath: '/tmp/steno/data.db',
+      backupDir: '/tmp/steno/backup',
+    })),
+  }),
+}));
 
 describe('MarkdownReadSurface', () => {
   it('renders markdown html with heading anchors in read mode', () => {
@@ -33,5 +48,19 @@ describe('MarkdownReadSurface', () => {
     });
 
     expect(wrapper.get('.markdown-read-surface__title').text()).toBe('无标题');
+  });
+
+  it('renders steno asset image URLs as previewable images', async () => {
+    const wrapper = mount(MarkdownReadSurface, {
+      props: {
+        title: '图片',
+        content: '![截图](steno-asset:images/2026-05-28/paste.png)',
+      },
+    });
+    await flushPromises();
+
+    const image = wrapper.get('.markdown-read-surface__body img');
+    expect(image.attributes('alt')).toBe('截图');
+    expect(image.attributes('src')).toBe('/tmp/steno/images/2026-05-28/paste.png');
   });
 });

@@ -62,6 +62,14 @@ export function useDb() {
     return invoke<Note | null>('save_note', { input });
   }
 
+  function savePastedImage(dataUrl: string) {
+    return invoke<{
+      markdownUrl: string;
+      relativePath: string;
+      absolutePath: string;
+    }>('save_pasted_image', { input: { dataUrl } });
+  }
+
   /**
    * 按 ID 获取单条笔记。
    *
@@ -452,6 +460,7 @@ export function useDb() {
 
   return {
     saveNote,
+    savePastedImage,
     saveTextEntry,
     getNote,
     getEditorEntry,
