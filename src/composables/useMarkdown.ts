@@ -34,9 +34,11 @@ const TAG_REGEX = /#([\w一-龥][\w一-龥-]*)/gu;
 /**
  * Markdown 工具集。
  *
+ * @param noteDir 当前笔记所在目录（document 类型可用，text 类型为空）。
+ *                用于把相对路径图片拼接为 Tauri asset URL。
  * @returns `{ renderHtml, countWords, extractTags }`
  */
-export function useMarkdown() {
+export function useMarkdown(noteDir?: string) {
   /**
    * 将 Markdown 渲染为 HTML（GFM 语法）。
    *
@@ -44,7 +46,7 @@ export function useMarkdown() {
    * @returns HTML 字符串；输入为空时返回 `''`
    */
   function renderHtml(md: string): string {
-    return renderMarkdown(md);
+    return renderMarkdown(md, { noteDir });
   }
 
   /**

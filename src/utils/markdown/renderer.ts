@@ -14,6 +14,7 @@ import MarkdownIt from 'markdown-it';
 import mark from 'markdown-it-mark';
 import taskLists from 'markdown-it-task-lists';
 
+import { resolveImageSrc } from './images';
 import { highlightCode } from './shiki';
 
 export interface RenderOptions {
@@ -93,9 +94,16 @@ function createMarkdownIt(): MarkdownIt {
     return `<code class="md-inline-code">${content}</code>`;
   };
 
-  /** 图片：当前仅保留 src（外层 resolveStenoAssetUrls 已处理 steno-asset 协议）。 */
+  /** 图片：通过 env.noteDir 把相对路径拼接为 Tauri asset URL。 */
   const defaultImage = md.renderer.rules.image;
   md.renderer.rules.image = (tokens, idx, options, env, self) => {
+    const token = tokens[idx];
+    const srcAttr = token.attrGet('src');
+    if (srcAttr) {
+      const noteDir = (env as { noteDir?: string } | undefined)?.noteDir;
+      const resolved = resolveImageSrc(srcAttr, noteDir);
+      if (resolved !== srcAttr) token.attrSet('src', resolved);
+    }
     if (defaultImage) {
       return defaultImage(tokens, idx, options, env, self);
     }
@@ -107,9 +115,9 @@ function createMarkdownIt(): MarkdownIt {
 
 const md = createMarkdownIt();
 
-export function renderMarkdown(content: string, _opts: RenderOptions = {}): string {
+export function renderMarkdown(content: string, opts: RenderOptions = {}): string {
   if (!content) {
     return '';
   }
-  return md.render(content);
+  return md.render(content, { noteDir: opts.noteDir });
 }
