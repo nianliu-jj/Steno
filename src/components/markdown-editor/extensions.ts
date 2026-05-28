@@ -13,6 +13,7 @@
 
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
+import { languages } from '@codemirror/language-data';
 import { defaultHighlightStyle, indentOnInput, syntaxHighlighting } from '@codemirror/language';
 import { Facet, Prec, type Extension } from '@codemirror/state';
 import {
@@ -54,27 +55,37 @@ function clipboardFileKey(file: File): string {
   return `${file.name}:${file.type}:${file.size}:${file.lastModified}`;
 }
 
+function uniqueImageFiles(files: File[]): File[] {
+  const result: File[] = [];
+  const seen = new Set<string>();
+  for (const file of files) {
+    if (!isImageFile(file)) continue;
+    const key = clipboardFileKey(file);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(file);
+  }
+  return result;
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values));
+}
+
 export function getClipboardImageFiles(data: DataTransfer | null): File[] {
   if (!data) return [];
 
-  const files: File[] = [];
-  const seen = new Set<string>();
-  const push = (file: File | null) => {
-    if (!file || !isImageFile(file)) return;
-    const key = clipboardFileKey(file);
-    if (seen.has(key)) return;
-    seen.add(key);
-    files.push(file);
-  };
-
-  Array.from(data.files ?? []).forEach(push);
+  const itemFiles: File[] = [];
   Array.from(data.items ?? []).forEach(item => {
     if (item.kind === 'file' && item.type.toLowerCase().startsWith(IMAGE_MIME_PREFIX)) {
-      push(item.getAsFile());
+      const file = item.getAsFile();
+      if (file) itemFiles.push(file);
     }
   });
+  const uniqueItemFiles = uniqueImageFiles(itemFiles);
+  if (uniqueItemFiles.length > 0) return uniqueItemFiles;
 
-  return files;
+  return uniqueImageFiles(Array.from(data.files ?? []));
 }
 
 export function readFileAsDataUrl(file: File): Promise<string> {
@@ -102,7 +113,7 @@ export async function buildStoredImagePasteMarkdown(
   files: File[],
   storeImage?: (dataUrl: string) => Promise<string>,
 ): Promise<string> {
-  const dataUrls = await Promise.all(files.map(readFileAsDataUrl));
+  const dataUrls = uniqueStrings(await Promise.all(files.map(readFileAsDataUrl)));
   const urls = storeImage
     ? await Promise.all(dataUrls.map(async dataUrl => {
         try {
@@ -189,7 +200,7 @@ export function createMarkdownExtensions(options: CreateExtensionsOptions = {}):
     highlightSpecialChars(),                                   // 不可见字符高亮
     indentOnInput(),                                           // 回车自动缩进
     syntaxHighlighting(defaultHighlightStyle, { fallback: true }), // 代码块语法高亮
-    markdown({}),                                              // Markdown 语言模式（GFM）
+    markdown({ codeLanguages: languages }),                    // Markdown 语言模式（含 fenced code 高亮）
     keymap.of([...markdownKeyBindings, ...defaultKeymap, ...historyKeymap]), // 快捷键
     imagePasteExtension(),                                     // 粘贴图片为 Markdown 图片语法
     liveRenderPlugin,                                          // 原位 WYSIWYG 渲染

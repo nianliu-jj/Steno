@@ -39,6 +39,7 @@ import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 
 import { createMarkdownExtensions } from './markdown-editor/extensions';
+import { refreshLiveRenderEffect } from './markdown-editor/live-render';
 
 import { useDb } from '@/composables/useDb';
 import { setStenoAssetDataDir } from '@/utils/stenoAssets';
@@ -98,7 +99,10 @@ onMounted(() => {
   if (!containerRef.value) return;
   if (typeof db.getDataPaths === 'function') {
     void db.getDataPaths()
-      .then(paths => setStenoAssetDataDir(paths.dataDir))
+      .then(paths => {
+        setStenoAssetDataDir(paths.dataDir);
+        view.value?.dispatch({ effects: refreshLiveRenderEffect.of() });
+      })
       .catch(error => {
         console.error('[markdown-editor] failed to load data paths:', error);
       });
@@ -285,6 +289,39 @@ defineExpose({ focus, scrollToLine });
   font-family: ui-monospace, "Consolas", "Cascadia Code", monospace;
   font-size: 0.92em;
 }
+.md-editor :deep(.cm-md-code-block) {
+  padding-right: 12px;
+  padding-left: 12px;
+  background: #f6f8fa;
+  color: #1f2328;
+  font-family: ui-monospace, "SFMono-Regular", "Consolas", "Cascadia Code", monospace;
+  font-size: 0.92em;
+  line-height: 1.58;
+  tab-size: 2;
+}
+.md-editor :deep(.cm-md-code-block-start) {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+}
+.md-editor :deep(.cm-md-code-block-end) {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom-right-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+.md-editor :deep(.cm-md-code-fence-line) {
+  color: #57606a;
+  font-size: 0.82em;
+  line-height: 1.35;
+}
+.md-editor :deep(.cm-md-code-info) {
+  font-weight: 600;
+}
+.md-editor :deep(.cm-md-code-fence-mark) {
+  color: #8c959f;
+}
 .md-editor :deep(.cm-md-link) {
   color: #3b82f6;
   text-decoration: underline;
@@ -305,6 +342,16 @@ defineExpose({ focus, scrollToLine });
 /* 暗色主题适配（与 useDark 联动；app-theme-root.dark 在 App.vue 根节点） */
 :global(.app-theme-root.dark) .md-editor :deep(.cm-md-inline-code) {
   background: rgba(255, 255, 255, 0.12);
+}
+:global(.app-theme-root.dark) .md-editor :deep(.cm-md-code-block) {
+  background: #161b22;
+  color: #e6edf3;
+}
+:global(.app-theme-root.dark) .md-editor :deep(.cm-md-code-fence-line) {
+  color: #8b949e;
+}
+:global(.app-theme-root.dark) .md-editor :deep(.cm-md-code-fence-mark) {
+  color: #6e7681;
 }
 :global(.app-theme-root.dark) .md-editor :deep(.cm-md-quote) {
   border-left-color: rgba(255, 255, 255, 0.22);

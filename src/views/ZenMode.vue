@@ -473,6 +473,16 @@ onUnmounted(() => {
 .zen-body :deep(.cm-md-inline-code) {
   background: rgba(255, 255, 255, 0.1);
 }
+.zen-body :deep(.cm-md-code-block) {
+  background: rgba(255, 255, 255, 0.07);
+  color: #f0f0f2;
+}
+.zen-body :deep(.cm-md-code-fence-line) {
+  color: rgba(220, 220, 224, 0.72);
+}
+.zen-body :deep(.cm-md-code-fence-mark) {
+  color: rgba(220, 220, 224, 0.42);
+}
 .zen-body :deep(.cm-md-quote) {
   border-left-color: rgba(255, 255, 255, 0.22);
   background: rgba(255, 255, 255, 0.03);

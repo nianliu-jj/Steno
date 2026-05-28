@@ -63,4 +63,18 @@ describe('MarkdownReadSurface', () => {
     expect(image.attributes('alt')).toBe('截图');
     expect(image.attributes('src')).toBe('/tmp/steno/images/2026-05-28/paste.png');
   });
+
+  it('renders legacy home-steno image URLs as previewable images', async () => {
+    const wrapper = mount(MarkdownReadSurface, {
+      props: {
+        title: '图片',
+        content: '![pasted image](～/.steno/images/2026-05-28/paste.png)',
+      },
+    });
+    await flushPromises();
+
+    const image = wrapper.get('.markdown-read-surface__body img');
+    expect(image.attributes('alt')).toBe('pasted image');
+    expect(image.attributes('src')).toBe('/tmp/steno/images/2026-05-28/paste.png');
+  });
 });

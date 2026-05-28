@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 
 import { mount } from '@vue/test-utils';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 
 import MarkdownEditor from './MarkdownEditor.vue';
 import {
   buildImagePasteMarkdown,
+  buildStoredImagePasteMarkdown,
   getClipboardImageFiles,
   readFileAsDataUrl,
 } from './markdown-editor/extensions';
@@ -57,6 +58,11 @@ function mountEditor(modelValue = '') {
 }
 
 describe('MarkdownEditor', () => {
+  beforeEach(() => {
+    savePastedImage.mockClear();
+    getDataPaths.mockClear();
+  });
+
   it('renders the CodeMirror container with placeholder', () => {
     const wrapper = mountEditor('');
     expect(wrapper.find('[data-testid="md-editor"]').exists()).toBe(true);
@@ -68,6 +74,25 @@ describe('MarkdownEditor', () => {
     const wrapper = mountEditor('# 标题\n正文段');
     expect(wrapper.text()).toContain('# 标题');
     expect(wrapper.text()).toContain('正文段');
+    wrapper.unmount();
+  });
+
+  it('renders fenced code blocks with block styling and language label', async () => {
+    const source = '```java\nclass App {}\n```';
+    const wrapper = mountEditor(source);
+    const vm = wrapper.vm as unknown as {
+      view: { dispatch: (tr: { selection: { anchor: number } }) => void };
+    };
+
+    vm.view.dispatch({ selection: { anchor: source.indexOf('class') } });
+    await nextTick();
+
+    expect(wrapper.find('.cm-md-code-block-start').exists()).toBe(true);
+    expect(wrapper.find('.cm-md-code-content-line').exists()).toBe(true);
+    expect(wrapper.find('.cm-md-code-block-end').exists()).toBe(true);
+    expect(wrapper.get('.cm-md-code-info').text()).toBe('java');
+    expect(wrapper.text()).toContain('class App {}');
+    expect(wrapper.text()).not.toContain('```');
     wrapper.unmount();
   });
 
@@ -102,6 +127,51 @@ describe('MarkdownEditor', () => {
     await nextTick();
     expect(wrapper.text()).toContain('after-set');
     wrapper.unmount();
+  });
+
+  it('renders legacy home-steno image markdown as an image preview', async () => {
+    const wrapper = mountEditor('![pasted image](～/.steno/images/2026-05-28/paste.png)');
+    await settleAsyncPaste();
+
+    const image = wrapper.get('.cm-md-image-preview img');
+    expect(image.attributes('alt')).toBe('pasted image');
+    expect(image.attributes('src')).toBe('/tmp/steno/images/2026-05-28/paste.png');
+    expect(wrapper.text()).not.toContain('![pasted image]');
+    wrapper.unmount();
+  });
+
+  it('does not return the same pasted image from both clipboard files and items', () => {
+    const fileListImage = new File(['same-image'], 'clipboard.png', {
+      type: 'image/png',
+      lastModified: 1,
+    });
+    const itemImage = new File(['same-image'], 'image.png', {
+      type: 'image/png',
+      lastModified: 2,
+    });
+    const data = {
+      files: [fileListImage],
+      items: [
+        {
+          kind: 'file',
+          type: 'image/png',
+          getAsFile: () => itemImage,
+        },
+      ],
+    } as unknown as DataTransfer;
+
+    expect(getClipboardImageFiles(data)).toEqual([itemImage]);
+  });
+
+  it('deduplicates identical pasted image payloads before storing markdown URLs', async () => {
+    const first = new File(['same-image'], 'first.png', { type: 'image/png' });
+    const second = new File(['same-image'], 'second.png', { type: 'image/png' });
+    const storeImage = vi.fn(async () => 'steno-asset:images/2026-05-28/paste.png');
+
+    const markdown = await buildStoredImagePasteMarkdown([first, second], storeImage);
+
+    expect(storeImage).toHaveBeenCalledTimes(1);
+    expect(markdown).toBe('![pasted image](steno-asset:images/2026-05-28/paste.png)');
   });
 
   it('stores pasted image files and inserts short previewable markdown URLs', async () => {

@@ -15,11 +15,10 @@
  * **设计参考**：Obsidian Live Preview / PureMark 的同路做法。
  *
  * **不在本插件处理的事**：
- * - 代码块语法高亮 → 交给 `syntaxHighlighting(defaultHighlightStyle)`
- * - 链接/图片折叠 → 首版仅做样式标记，未来再迭代
+ * - 链接跳转/图片编辑控件 → 首版仅做预览，未来再迭代
  * - 水平线/表格/任务列表 → 交给 CM6 默认行为
  */
-import type { Range } from '@codemirror/state';
+import { StateEffect, type Range } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import {
   Decoration,
@@ -61,6 +60,24 @@ const headingLineDecorations = [
 const quoteLineDecoration = Decoration.line({ attributes: { class: 'cm-md-quote' } });
 /** 列表项行装饰器 — 左侧缩进。 */
 const listItemLineDecoration = Decoration.line({ attributes: { class: 'cm-md-list-item' } });
+/** Fenced code block 行装饰器 — 连续背景 + 等宽字体。 */
+const codeBlockStartLineDecoration = Decoration.line({
+  attributes: { class: 'cm-md-code-block cm-md-code-fence-line cm-md-code-block-start' },
+});
+const codeBlockContentLineDecoration = Decoration.line({
+  attributes: { class: 'cm-md-code-block cm-md-code-content-line' },
+});
+const codeBlockLastContentLineDecoration = Decoration.line({
+  attributes: { class: 'cm-md-code-block cm-md-code-content-line cm-md-code-block-end' },
+});
+const codeBlockEndLineDecoration = Decoration.line({
+  attributes: { class: 'cm-md-code-block cm-md-code-fence-line cm-md-code-block-end' },
+});
+const codeBlockSingleLineDecoration = Decoration.line({
+  attributes: {
+    class: 'cm-md-code-block cm-md-code-fence-line cm-md-code-block-start cm-md-code-block-end',
+  },
+});
 
 // 内联 mark 装饰器 — 对文本段应用 CSS class
 const strongMark = Decoration.mark({ class: 'cm-md-strong' });
@@ -68,6 +85,8 @@ const emphasisMark = Decoration.mark({ class: 'cm-md-em' });
 const strikeMark = Decoration.mark({ class: 'cm-md-strike' });
 const inlineCodeMark = Decoration.mark({ class: 'cm-md-inline-code' });
 const linkMark = Decoration.mark({ class: 'cm-md-link' });
+const codeInfoMark = Decoration.mark({ class: 'cm-md-code-info' });
+const codeFenceMark = Decoration.mark({ class: 'cm-md-code-fence-mark' });
 
 /**
  * 隐藏装饰器 — `Decoration.replace({})` 将匹配范围替换为空内容。
@@ -78,6 +97,8 @@ const linkMark = Decoration.mark({ class: 'cm-md-link' });
 const hideMark = Decoration.replace({});
 
 const IMAGE_MARKDOWN_RE = /^!\[([^\]]*)\]\(([^)\s]+)\)$/;
+
+export const refreshLiveRenderEffect = StateEffect.define<void>();
 
 class ImagePreviewWidget extends WidgetType {
   constructor(
@@ -112,8 +133,60 @@ const HIDE_NODE_NAMES = new Set([
   'HeaderMark',         // `#`、`##` 等标题前缀
   'EmphasisMark',       // `*`、`**` 等强调标记
   'StrikethroughMark',  // `~~` 删除线标记
-  'CodeMark',           // `` ` `` 行内代码标记
+  'CodeMark',           // `` ` `` 行内代码标记；代码块围栏单独处理
 ]);
+
+function isInsideFencedCode(node: { node: { parent: { name: string } | null } }): boolean {
+  return node.node.parent?.name === 'FencedCode';
+}
+
+function hasClosingCodeFence(node: { node: { getChildren: (type: string) => unknown[] } }): boolean {
+  return node.node.getChildren('CodeMark').length > 1;
+}
+
+function codeBlockDecorationForLine(
+  lineNumber: number,
+  startLineNumber: number,
+  endLineNumber: number,
+  hasClosingFence: boolean,
+): Decoration {
+  const isStart = lineNumber === startLineNumber;
+  const isEnd = lineNumber === endLineNumber;
+
+  if (isStart && isEnd) return codeBlockSingleLineDecoration;
+  if (isStart) return codeBlockStartLineDecoration;
+  if (hasClosingFence && isEnd) return codeBlockEndLineDecoration;
+  if (!hasClosingFence && isEnd) return codeBlockLastContentLineDecoration;
+  return codeBlockContentLineDecoration;
+}
+
+function decorateFencedCodeBlock(
+  view: EditorView,
+  builder: Range<Decoration>[],
+  node: { from: number; to: number; node: { getChildren: (type: string) => unknown[] } },
+  visibleFrom: number,
+  visibleTo: number,
+) {
+  const doc = view.state.doc;
+  const blockEndPos = Math.max(node.from, node.to - 1);
+  const startLine = doc.lineAt(node.from);
+  const endLine = doc.lineAt(blockEndPos);
+  const firstLine = doc.lineAt(Math.max(node.from, visibleFrom));
+  const lastLine = doc.lineAt(Math.min(blockEndPos, Math.max(visibleFrom, visibleTo - 1)));
+  const hasClosingFence = hasClosingCodeFence(node);
+
+  for (let lineNumber = firstLine.number; lineNumber <= lastLine.number; lineNumber += 1) {
+    const line = doc.line(lineNumber);
+    builder.push(
+      codeBlockDecorationForLine(
+        lineNumber,
+        startLine.number,
+        endLine.number,
+        hasClosingFence,
+      ).range(line.from),
+    );
+  }
+}
 
 /**
  * 构建当前视口的 DecorationSet。
@@ -145,11 +218,9 @@ function buildDecorations(view: EditorView): DecorationSet {
         const { name, from: nodeFrom, to: nodeTo } = node;
 
         if (name === 'Image') {
-          const line = view.state.doc.lineAt(nodeFrom);
-          const isCursorLine = line.number === cursorLineNumber;
           const imageSource = view.state.doc.sliceString(nodeFrom, nodeTo);
           const match = IMAGE_MARKDOWN_RE.exec(imageSource);
-          if (match && !isCursorLine) {
+          if (match) {
             builder.push(
               Decoration.replace({
                 widget: new ImagePreviewWidget(match[2], match[1]),
@@ -195,6 +266,11 @@ function buildDecorations(view: EditorView): DecorationSet {
           return;
         }
 
+        if (name === 'FencedCode') {
+          decorateFencedCodeBlock(view, builder, node, from, to);
+          return;
+        }
+
         // --- 内联节点：mark 装饰 ---
         if (name === 'StrongEmphasis') {
           builder.push(strongMark.range(nodeFrom, nodeTo));
@@ -213,6 +289,21 @@ function buildDecorations(view: EditorView): DecorationSet {
 
         if (name === 'InlineCode') {
           builder.push(inlineCodeMark.range(nodeFrom, nodeTo));
+          return;
+        }
+
+        if (name === 'CodeInfo' && isInsideFencedCode(node)) {
+          builder.push(codeInfoMark.range(nodeFrom, nodeTo));
+          return;
+        }
+
+        if (name === 'CodeMark' && isInsideFencedCode(node)) {
+          const markLine = view.state.doc.lineAt(nodeFrom);
+          if (markLine.number !== cursorLineNumber) {
+            builder.push(hideMark.range(nodeFrom, nodeTo));
+          } else {
+            builder.push(codeFenceMark.range(nodeFrom, nodeTo));
+          }
           return;
         }
 
@@ -255,7 +346,15 @@ export const liveRenderPlugin = ViewPlugin.fromClass(
       this.decorations = buildDecorations(view);
     }
     update(update: ViewUpdate) {
-      if (update.docChanged || update.viewportChanged || update.selectionSet) {
+      const shouldRefreshAssets = update.transactions.some(transaction =>
+        transaction.effects.some(effect => effect.is(refreshLiveRenderEffect)),
+      );
+      if (
+        update.docChanged
+        || update.viewportChanged
+        || update.selectionSet
+        || shouldRefreshAssets
+      ) {
         this.decorations = buildDecorations(update.view);
       }
     }

@@ -818,6 +818,16 @@ async function onPinClick() {
 .floating-body :deep(.cm-md-inline-code) {
   background: rgba(255, 255, 255, 0.12);
 }
+.floating-body :deep(.cm-md-code-block) {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f0f0f2;
+}
+.floating-body :deep(.cm-md-code-fence-line) {
+  color: rgba(220, 220, 224, 0.72);
+}
+.floating-body :deep(.cm-md-code-fence-mark) {
+  color: rgba(220, 220, 224, 0.42);
+}
 .floating-body :deep(.cm-md-quote) {
   border-left-color: rgba(255, 255, 255, 0.22);
   background: rgba(255, 255, 255, 0.04);
