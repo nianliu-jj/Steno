@@ -87,11 +87,11 @@
 
 ## 11. Phase 10 — 清理与依赖收敛
 
-- [ ] 11.1 从 `package.json` 移除不再被引用的 `@codemirror/lang-markdown`、`@codemirror/search`、`@lezer/highlight`
-- [ ] 11.2 删除 `src/utils/markdown/` 中已无人调用的子模块；保留 `renderMarkdown`（复制为 HTML 兜底）+ `sanitizeHtml`
-- [ ] 11.3 `pnpm install` 确认 lockfile 收敛
-- [ ] 11.4 全仓 grep 旧符号 `liveRenderPlugin` / `useMarkdown().renderHtml`（确认无残留）
-- [ ] 11.5 中文 commit：`chore: 清理 CodeMirror live-render 与未用 markdown 依赖`
+- [x] 11.1 从 `package.json` 移除不再被引用的 `@codemirror/lang-markdown`、`@codemirror/search`、`@lezer/highlight`
+- [x] 11.2 删除 `src/utils/markdown/` 中已无人调用的子模块；保留 `renderMarkdown`（复制为 HTML 兜底）+ `sanitizeHtml`
+- [x] 11.3 `pnpm install` 确认 lockfile 收敛
+- [x] 11.4 全仓 grep 旧符号 `liveRenderPlugin` / `useMarkdown().renderHtml`（确认无残留）
+- [x] 11.5 中文 commit：`chore: 清理 CodeMirror live-render 与未用 markdown 依赖`
 
 ## 12. Phase 11 — 文档与归档
 

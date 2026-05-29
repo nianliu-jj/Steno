@@ -7,10 +7,9 @@
  * Steno 适配说明（关键裁剪点）：
  * - PureMark 的图片粘贴走 Tauri `writeTempImage` + `imagePathPlugin`，并依赖
  *   localStorage 配置（local/remote）。Steno 改为走组件已有的存储约定：
- *   `onPasteImage(dataUrl) => Promise<shortUrl>`（见
- *   `src/components/markdown-editor/extensions.ts` 的 `buildStoredImagePasteMarkdown`），
- *   通过 `readFileAsDataUrl` 把 File 读成 data URL 再交给回调。未配置回调时
- *   直接用 data URL 兜底。
+ *   `onPasteImage(dataUrl) => Promise<shortUrl>`（由 MarkdownEditor.vue 注入，
+ *   内部转调 `db.savePastedImage`），把 File 读成 data URL 再交给回调。未配置
+ *   回调时直接用 data URL 兜底。
  * - PureMark 的源码模式（sourceView）图片走文本段落分支；Steno 暂不实现 source-view
  *   的块转换，但保留 `decorationPluginKey` 的 sourceView 守卫：源码模式下不解析
  *   Markdown，让默认处理器插入纯文本。
