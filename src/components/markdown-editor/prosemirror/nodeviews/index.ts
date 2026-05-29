@@ -1,3 +1,18 @@
-// 占位：NodeView 集合（image / task-list-item / html-block / math-block / mermaid-block / table / code-block）
-// 参考：D:\Markdown项目\PureMark\src\core\nodeviews\*（Phase 4-5 落地）
-export {};
+/**
+ * @file NodeView 集合出口
+ *
+ * Phase 4 已落地：image / task-list-item / html-block / math-block / mermaid-block。
+ *
+ * table NodeView：直接使用 `prosemirror-tables` 内置的 `tableNodeViews()`，无需自写。
+ * 在 Phase 7 `create-editor.ts` 装配时通过 `tableEditing()` 插件启用。
+ *
+ * code-block NodeView：在 Phase 5 内嵌 CodeMirror 6 落地，故此处暂未导出。
+ *
+ * 参考：D:\Markdown项目\PureMark\src\core\nodeviews\*
+ */
+
+export { createImageNodeView } from './image';
+export { createTaskItemNodeView } from './task-list-item';
+export { createHtmlBlockNodeView } from './html-block';
+export { createMathBlockNodeView } from './math-block';
+export { createMermaidBlockNodeView } from './mermaid-block';

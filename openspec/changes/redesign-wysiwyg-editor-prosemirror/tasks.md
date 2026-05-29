@@ -31,13 +31,13 @@
 
 ## 5. Phase 4 — 基础 NodeView
 
-- [ ] 5.1 `nodeviews/image.ts`：复用 `utils/stenoAssets.ts` 做相对路径解析；失败占位
-- [ ] 5.2 `nodeviews/task-list-item.ts`：原生 checkbox + 同步 `[ ]` ↔ `[x]`
-- [ ] 5.3 `nodeviews/html-block.ts`：DOMPurify 清洗后注入 innerHTML
-- [ ] 5.4 `nodeviews/math-block.ts`：调 KaTeX；进入 NodeView 时切换回源 LaTeX 编辑
-- [ ] 5.5 `nodeviews/mermaid-block.ts`：复用 `utils/markdown/mermaid.ts` 缓存
-- [ ] 5.6 `nodeviews/table.ts`：首版仅渲染 + 单元格编辑（增删行列留后续）
-- [ ] 5.7 单测 `nodeviews.test.ts`：mount 各 NodeView 断言 DOM 结构
+- [x] 5.1 `nodeviews/image.ts`：复用 `utils/stenoAssets.ts` 做相对路径解析；失败占位
+- [x] 5.2 `nodeviews/task-list-item.ts`：原生 checkbox + 同步 `[ ]` ↔ `[x]`
+- [x] 5.3 `nodeviews/html-block.ts`：DOMPurify 清洗后注入 innerHTML
+- [x] 5.4 `nodeviews/math-block.ts`：调 KaTeX；进入 NodeView 时切换回源 LaTeX 编辑
+- [x] 5.5 `nodeviews/mermaid-block.ts`：复用 `utils/markdown/mermaid.ts` 缓存
+- [x] 5.6 `nodeviews/table.ts`：首版仅渲染 + 单元格编辑（增删行列留后续）
+- [x] 5.7 单测 `nodeviews.test.ts`：mount 各 NodeView 断言 DOM 结构
 
 ## 6. Phase 5 — 代码块 NodeView（嵌入 CodeMirror）
 
