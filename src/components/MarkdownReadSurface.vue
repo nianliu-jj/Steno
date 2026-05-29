@@ -2,32 +2,26 @@
 /**
  * @component MarkdownReadSurface
  * @description 只读 Markdown 渲染面板 — 用于 NoteEditorView 的"只读模式"。
- *              将 Markdown 原文渲染为 HTML（markdown-it 管线）并注入标题锚点（id），
- *              配合 DocumentOutlineTree 的大纲点击跳转；mounted 后异步渲染 mermaid 图。
+ *              与 `MarkdownEditor` 共用同一套 ProseMirror 内核（schema / parser /
+ *              nodeviews），以 `editable: false` 渲染，保证只读态与编辑态视觉 100%
+ *              一致；代码块高亮、KaTeX、Mermaid、图片相对路径解析、复制按钮均由各
+ *              NodeView 自动接管，无需本组件再单独处理。
  *
- * **与 MarkdownEditor 的关系**：
- * - MarkdownEditor = 可编辑的 CodeMirror 6 编辑器（WYSIWYG）
- * - MarkdownReadSurface = 纯渲染输出（只读，通过 `v-html` 渲染）
- * - NoteEditorView 通过 `viewMode` 在两者之间切换
- *
- * **XSS 注意**：`v-html` 直接注入 HTML。当前管线已接入 markdown-it（HTML 关闭），
- * 完整 DOMPurify 过滤在 Phase 6 接入。
+ * **大纲跳转**：启用 `headingAnchors`，给每个 heading 注入 `id="heading-{源行号}"`，
+ * 与 `useMarkdownOutline` 的 id 约定一致，使 `document.getElementById(node.id)` 能
+ * 精确定位。
  *
  * @props
- * - `title: string` — 文档标题
+ * - `title: string` — 文档标题（显示在顶部 `<h1>`）
  * - `content: string` — Markdown 原文
  */
 
-import { useDark } from '@vueuse/core';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
+
+import { createEditorBridge, type EditorBridge } from './markdown-editor/prosemirror/view';
 
 import { useDb } from '@/composables/useDb';
-import { useMarkdown } from '@/composables/useMarkdown';
-import { useMarkdownOutline } from '@/composables/useMarkdownOutline';
-import { useI18n } from '@/i18n';
-import { renderMermaidPlaceholders, resetMermaidRendering } from '@/utils/markdown/mermaid';
-import { resolveStenoAssetUrls, setStenoAssetDataDir } from '@/utils/stenoAssets';
-import '@/styles/markdown-render.css';
+import { setStenoAssetDataDir } from '@/utils/stenoAssets';
 
 const props = defineProps<{
   /** 文档标题（显示在顶部 `<h1>`）。 */
@@ -36,103 +30,51 @@ const props = defineProps<{
   content: string;
 }>();
 
-const { renderHtml } = useMarkdown();
-const { decorateHeadingAnchors, listHeadings } = useMarkdownOutline();
 const db = useDb();
-const i18n = useI18n();
-const dataDir = ref<string | null>(null);
-const bodyRef = ref<HTMLElement | null>(null);
-const isDark = useDark();
+const containerRef = useTemplateRef<HTMLDivElement>('container');
+const bridge = ref<EditorBridge | null>(null);
 
 /** 显示用标题 — 空标题显示"无标题"。 */
 const displayTitle = computed(() => props.title.trim() || '无标题');
 
-/**
- * 渲染后的 HTML — 两步处理：
- * 1. `renderHtml(content)` → markdown-it 渲染（含 GFM、KaTeX、shiki、mermaid 占位）
- * 2. `decorateHeadingAnchors(html, headings)` → 注入 `id="heading-N"` 到 `<h1>`–`<h6>`
- *
- * 第二步保证大纲点击后 `document.getElementById(id)` 能定位到对应标题。
- */
-const renderedHtml = computed(() =>
-  decorateHeadingAnchors(
-    renderHtml(resolveStenoAssetUrls(props.content, dataDir.value)),
-    listHeadings(props.content),
-  ),
-);
-
-async function refreshMermaid() {
-  if (!bodyRef.value) return;
-  await nextTick();
-  await renderMermaidPlaceholders(bodyRef.value);
-}
-
-/** 解码 base64 → UTF-8 字符串（与 shiki.ts 中 encodeCode 对称）。 */
-function decodeCodeAttr(encoded: string): string {
-  try {
-    const binary = typeof atob === 'function'
-      ? atob(encoded)
-      : Buffer.from(encoded, 'base64').toString('binary');
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return new TextDecoder().decode(bytes);
-  } catch {
-    return '';
-  }
-}
-
-/** Shiki 代码块复制按钮点击委托。 */
-async function onBodyClick(ev: MouseEvent) {
-  const target = ev.target as HTMLElement | null;
-  if (!target) return;
-  const btn = target.closest('.shiki-copy') as HTMLButtonElement | null;
-  if (!btn || !bodyRef.value?.contains(btn)) return;
-  ev.preventDefault();
-  const encoded = btn.dataset.code ?? '';
-  const code = decodeCodeAttr(encoded);
-  if (!code) return;
-  try {
-    await navigator.clipboard.writeText(code);
-    const original = i18n.t('markdown.copy');
-    btn.textContent = i18n.t('markdown.copied');
-    btn.classList.add('copied');
-    window.setTimeout(() => {
-      btn.textContent = original;
-      btn.classList.remove('copied');
-    }, 1600);
-  } catch (error) {
-    console.error('[markdown-read-surface] copy failed:', error);
-  }
-}
-
 onMounted(async () => {
-  try {
-    const paths = await db.getDataPaths();
-    dataDir.value = paths.dataDir;
-    setStenoAssetDataDir(paths.dataDir);
-  } catch (error) {
-    console.error('[markdown-read-surface] failed to load data paths:', error);
+  if (typeof db.getDataPaths === 'function') {
+    try {
+      const paths = await db.getDataPaths();
+      setStenoAssetDataDir(paths.dataDir);
+    } catch (error) {
+      console.error('[markdown-read-surface] failed to load data paths:', error);
+    }
   }
-  bodyRef.value?.addEventListener('click', onBodyClick);
-  await refreshMermaid();
-});
 
-// 内容变化后异步渲染 mermaid（v-html 更新是同步的，nextTick 等待 DOM 落盘）
-watch(renderedHtml, () => {
-  void refreshMermaid();
-});
-
-// 主题切换：重置已渲染节点为占位态，再用新主题重新渲染
-watch(isDark, () => {
-  if (!bodyRef.value) return;
-  resetMermaidRendering(bodyRef.value);
-  void refreshMermaid();
+  if (!containerRef.value) return;
+  bridge.value = createEditorBridge({
+    mount: containerRef.value,
+    initialValue: props.content,
+    editable: false,
+    headingAnchors: true,
+  });
 });
 
 onBeforeUnmount(() => {
-  bodyRef.value?.removeEventListener('click', onBodyClick);
-  bodyRef.value = null;
+  bridge.value?.destroy();
+  bridge.value = null;
 });
+
+/** 内容变化 → 回写只读视图。 */
+watch(
+  () => props.content,
+  next => {
+    bridge.value?.setContent(next);
+  },
+);
+
+/** 滚动到指定标题锚点（NoteEditorView 大纲点击委托用）。 */
+function scrollToHeading(id: string) {
+  bridge.value?.scrollToHeading(id);
+}
+
+defineExpose({ scrollToHeading });
 </script>
 
 <template>
@@ -140,13 +82,7 @@ onBeforeUnmount(() => {
     <header class="markdown-read-surface__header">
       <h1 class="markdown-read-surface__title">{{ displayTitle }}</h1>
     </header>
-    <!-- eslint-disable vue/no-v-html -->
-    <div
-      ref="bodyRef"
-      class="markdown-read-surface__body markdown-body"
-      v-html="renderedHtml"
-    />
-    <!-- eslint-enable vue/no-v-html -->
+    <div ref="container" class="markdown-read-surface__body markdown-body" />
   </article>
 </template>
 
@@ -174,6 +110,15 @@ onBeforeUnmount(() => {
   padding: 0 22px 22px;
   overflow: auto;
   line-height: 1.65;
+}
+
+.markdown-read-surface__body :deep(.ProseMirror) {
+  outline: none;
+}
+
+/* 只读态隐藏光标，避免显示编辑闪烁条 */
+.markdown-read-surface__body :deep(.ProseMirror) {
+  caret-color: transparent;
 }
 
 .markdown-read-surface__body :deep(h1),

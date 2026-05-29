@@ -127,12 +127,20 @@ export function createEditorBridge(options: EditorBridgeOptions): EditorBridge {
   /**
    * 滚动到指定标题（大纲跳转用）。
    *
-   * TODO：当前 schema 的 heading 节点未注入稳定 id（无 anchor 机制），这里采用
-   *       近似实现 —— 把 id 当作标题纯文本去匹配第一个文本相同的 heading。
-   *       Phase 9 大纲落地后若引入 heading id attr，应改为按 id 精确匹配。
+   * 当 `createEditor` 启用 `headingAnchors` 时，heading DOM 上带有
+   * `id="heading-{startLine}"`（与 `useMarkdownOutline` 的 id 约定一致），
+   * 此处优先在编辑器 DOM 内按该 id 精确定位；找不到时回退为标题文本近似匹配。
    */
   function scrollToHeading(id: string): void {
     try {
+      // 优先：按注入的锚点 id 精确定位（只读态 headingAnchors）
+      const anchored = view.dom.querySelector(`[data-heading-id="${id}"], #${CSS.escape(id)}`);
+      if (anchored) {
+        (anchored as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+
+      // 回退：把 id 当标题纯文本去匹配第一个文本相同的 heading
       const doc = view.state.doc;
       let targetPos = -1;
       let pos = 0;
@@ -141,7 +149,6 @@ export function createEditorBridge(options: EditorBridgeOptions): EditorBridge {
         if (
           targetPos < 0
           && child.type.name === 'heading'
-          // 近似：textContent 去掉前导 # 与空白后与 id 比较
           && child.textContent.replace(/^#+\s*/, '').trim() === id
         ) {
           targetPos = pos;

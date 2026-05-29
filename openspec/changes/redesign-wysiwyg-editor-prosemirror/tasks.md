@@ -78,12 +78,12 @@
 
 ## 10. Phase 9 — MarkdownReadSurface.vue 接入
 
-- [ ] 10.1 重写 `src/components/MarkdownReadSurface.vue` 内部实现，使用相同 `create-editor` + `editable: () => false`
-- [ ] 10.2 移除 `v-html` 注入与 markdown-it 渲染调用；保留 heading 锚点 `id` 注入（通过 ProseMirror Decoration 或 NodeView 输出）
-- [ ] 10.3 复制按钮逻辑迁移到 Plugin（与编辑态共用）
-- [ ] 10.4 更新 `src/components/MarkdownReadSurface.test.ts`
-- [ ] 10.5 `pnpm typecheck && pnpm lint && pnpm test` 通过
-- [ ] 10.6 中文 commit：`refactor(reader): MarkdownReadSurface 共用 ProseMirror 内核`
+- [x] 10.1 重写 `src/components/MarkdownReadSurface.vue` 内部实现，使用相同 `create-editor` + `editable: () => false`
+- [x] 10.2 移除 `v-html` 注入与 markdown-it 渲染调用；保留 heading 锚点 `id` 注入（通过 ProseMirror Decoration 或 NodeView 输出）
+- [x] 10.3 复制按钮逻辑迁移到 Plugin（与编辑态共用）
+- [x] 10.4 更新 `src/components/MarkdownReadSurface.test.ts`
+- [x] 10.5 `pnpm typecheck && pnpm lint && pnpm test` 通过
+- [x] 10.6 中文 commit：`refactor(reader): MarkdownReadSurface 共用 ProseMirror 内核`
 
 ## 11. Phase 10 — 清理与依赖收敛
 

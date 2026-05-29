@@ -10,8 +10,8 @@
 
 import './editor-base.css';
 
-import { EditorState, type Transaction } from 'prosemirror-state';
-import { EditorView } from 'prosemirror-view';
+import { EditorState, Plugin, type Transaction } from 'prosemirror-state';
+import { EditorView, Decoration, DecorationSet } from 'prosemirror-view';
 import type { NodeView, NodeViewConstructor } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
 
@@ -48,6 +48,46 @@ export interface CreateEditorOptions {
   onFocusChange?: (focused: boolean) => void;
   /** 图片粘贴存储回调（data URL → 短 URL）。 */
   onPasteImage?: (dataUrl: string) => Promise<string>;
+  /**
+   * 是否为 heading 注入 `id="heading-{startLine}"` 锚点（只读态大纲跳转用）。
+   * 与 `useMarkdownOutline` 的 `heading-{1-indexed 行号}` 约定对齐。
+   */
+  headingAnchors?: boolean;
+}
+
+/**
+ * 为每个 heading 节点注入 `id="heading-{startLine}"` 的 nodeDecoration 插件。
+ *
+ * parser 已在 heading 节点的 `attrs.startLine` 记录 0-indexed 源行号，而
+ * `useMarkdownOutline.buildOutline` 生成的大纲节点 id 为 `heading-{1-indexed 行号}`，
+ * 故此处用 `startLine + 1` 对齐后只读态可用 `document.getElementById(node.id)` 精确滚动。
+ */
+function createHeadingAnchorPlugin(): Plugin {
+  return new Plugin({
+    props: {
+      decorations(state) {
+        const decorations: Decoration[] = [];
+        state.doc.descendants((node, pos) => {
+          if (node.type.name === 'heading') {
+            const startLine = node.attrs.startLine as number | null;
+            if (startLine != null) {
+              // parser 的 startLine 为 0-indexed，useMarkdownOutline 用 1-indexed
+              const id = `heading-${startLine + 1}`;
+              decorations.push(
+                Decoration.node(pos, pos + node.nodeSize, {
+                  id,
+                  'data-heading-id': id,
+                }),
+              );
+            }
+            return false;
+          }
+          return true;
+        });
+        return DecorationSet.create(state.doc, decorations);
+      },
+    },
+  });
 }
 
 /**
@@ -90,15 +130,20 @@ export function createEditor(options: CreateEditorOptions): EditorView {
     onChange,
     onFocusChange,
     onPasteImage,
+    headingAnchors = false,
   } = options;
 
   // 1. 解析初始 Markdown 为 ProseMirror 文档
   const doc = parseMarkdown(initialValue).doc;
 
   // 2. 装配插件并创建初始 state
+  const plugins = createEditorPlugins({ placeholder, onPasteImage });
+  if (headingAnchors) {
+    plugins.push(createHeadingAnchorPlugin());
+  }
   const state = EditorState.create({
     doc,
-    plugins: createEditorPlugins({ placeholder, onPasteImage }),
+    plugins,
   });
 
   // 3. 构造 EditorView
