@@ -95,7 +95,7 @@
 
 ## 12. Phase 11 — 文档与归档
 
-- [ ] 12.1 更新 `docs/` 下相关说明（编辑器架构图、NodeView 列表、自定义快捷键）
-- [ ] 12.2 在新 `prosemirror/README.md` 中给出"对照 PureMark 文件 → Steno 文件"的迁移映射表
-- [ ] 12.3 走 OpenSpec archive 流程归档本 change
-- [ ] 12.4 中文 commit：`docs: 归档 redesign-wysiwyg-editor-prosemirror change`
+- [x] 12.1 更新 `docs/` 下相关说明（编辑器架构图、NodeView 列表、自定义快捷键）
+- [x] 12.2 在新 `prosemirror/README.md` 中给出"对照 PureMark 文件 → Steno 文件"的迁移映射表
+- [x] 12.3 走 OpenSpec archive 流程归档本 change
+- [x] 12.4 中文 commit：`docs: 归档 redesign-wysiwyg-editor-prosemirror change`
