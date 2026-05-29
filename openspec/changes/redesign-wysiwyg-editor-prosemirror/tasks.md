@@ -50,15 +50,15 @@
 
 ## 7. Phase 6 — Plugins
 
-- [ ] 7.1 `plugins/instant-render.ts`：移植 PureMark 同名插件，基于 selection 决定隐藏/显示 `syntax_marker` Decoration
-- [ ] 7.2 `plugins/input-rules.ts`：`# `、`## `、`> `、`- `、`* `、`1. `、`- [ ] `、` ``` ` 等触发即时转换
-- [ ] 7.3 `plugins/syntax-fixer.ts`：光标离开后修复破损节点（参考 PureMark）
-- [ ] 7.4 `plugins/paste.ts`：粘贴 HTML → DOMPurify → parser；粘贴图片 → 调 `db.savePastedImage` 取 markdownUrl 插入
-- [ ] 7.5 `plugins/placeholder.ts`：空文档时显示提示
-- [ ] 7.6 `plugins/keymap.ts`：常用快捷键（Bold/Italic/Link/Code/Heading 切换/Undo/Redo）
-- [ ] 7.7 `plugins/history.ts`：`prosemirror-history` 适配
-- [ ] 7.8 `plugins/drop-cursor.ts` + `plugins/gap-cursor.ts`：拖拽与 block 间空白光标
-- [ ] 7.9 单测：instant-render 行为；input-rules 触发；paste 流程
+- [x] 7.1 `plugins/instant-render.ts`：移植 PureMark 同名插件，基于 selection 决定隐藏/显示 `syntax_marker` Decoration
+- [x] 7.2 `plugins/input-rules.ts`：`# `、`## `、`> `、`- `、`* `、`1. `、`- [ ] `、` ``` ` 等触发即时转换
+- [x] 7.3 `plugins/syntax-fixer.ts`：光标离开后修复破损节点（参考 PureMark）
+- [x] 7.4 `plugins/paste.ts`：粘贴 HTML → DOMPurify → parser；粘贴图片 → 调 `db.savePastedImage` 取 markdownUrl 插入
+- [x] 7.5 `plugins/placeholder.ts`：空文档时显示提示
+- [x] 7.6 `plugins/keymap.ts`：常用快捷键（Bold/Italic/Link/Code/Heading 切换/Undo/Redo）
+- [x] 7.7 `plugins/history.ts`：`prosemirror-history` 适配
+- [x] 7.8 `plugins/drop-cursor.ts` + `plugins/gap-cursor.ts`：拖拽与 block 间空白光标
+- [x] 7.9 单测：instant-render 行为；input-rules 触发；paste 流程
 
 ## 8. Phase 7 — 视图工厂与桥接
 
