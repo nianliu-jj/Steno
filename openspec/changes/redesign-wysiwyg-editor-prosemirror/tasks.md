@@ -41,12 +41,12 @@
 
 ## 6. Phase 5 — 代码块 NodeView（嵌入 CodeMirror）
 
-- [ ] 6.1 `nodeviews/code-block.ts`：在 NodeView 内挂 CodeMirror 6 EditorView
-- [ ] 6.2 处理内外 selection 同步（光标从 PM → CM、CM → PM 边界）
-- [ ] 6.3 接入语言包（按 `@codemirror/language-data` 动态加载）
-- [ ] 6.4 主题随 `useDark` 切换
-- [ ] 6.5 "复制"按钮：写剪贴板 + 提示
-- [ ] 6.6 单测：mount 一个 ts 代码块，断言 CodeMirror 容器存在 + 复制按钮可点
+- [x] 6.1 `nodeviews/code-block.ts`：在 NodeView 内挂 CodeMirror 6 EditorView
+- [x] 6.2 处理内外 selection 同步（光标从 PM → CM、CM → PM 边界）
+- [x] 6.3 接入语言包（按 `@codemirror/language-data` 动态加载）
+- [x] 6.4 主题随 `useDark` 切换
+- [x] 6.5 "复制"按钮：写剪贴板 + 提示
+- [x] 6.6 单测：mount 一个 ts 代码块，断言 CodeMirror 容器存在 + 复制按钮可点
 
 ## 7. Phase 6 — Plugins
 

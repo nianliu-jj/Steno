@@ -12,6 +12,8 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { EditorState } from 'prosemirror-state';
+import { EditorView as PMEditorView } from 'prosemirror-view';
 import type { EditorView } from 'prosemirror-view';
 
 import { stenoSchema } from '../schema';
@@ -20,6 +22,7 @@ import { createTaskItemNodeView } from '../nodeviews/task-list-item';
 import { createHtmlBlockNodeView } from '../nodeviews/html-block';
 import { createMathBlockNodeView } from '../nodeviews/math-block';
 import { createMermaidBlockNodeView } from '../nodeviews/mermaid-block';
+import { createCodeBlockNodeView } from '../nodeviews/code-block';
 
 /** 创建一个最小的 EditorView 桩，仅暴露 state.tr / dispatch 用于 task-list-item 的 setNodeMarkup 路径。 */
 function stubView(): { view: EditorView; dispatched: unknown[] } {
@@ -204,5 +207,72 @@ describe('mermaid-block NodeView', () => {
     expect(encoded.length).toBeGreaterThan(0);
     // base64 解码后应包含原 mermaid 源
     expect(atob(encoded)).toContain('graph TD');
+  });
+});
+
+describe('code-block NodeView', () => {
+  /**
+   * 用真实 EditorView 挂载一个 code_block，并让其使用 createCodeBlockNodeView。
+   * 返回挂载后该代码块的 NodeView dom（即外层 .steno-code-block 容器）。
+   *
+   * jsdom 下 CodeMirror 的像素测量 API（getBoundingClientRect 等）会返回 0，
+   * 因此测试只断言 DOM 结构存在性，不验证布局。
+   */
+  function mountCodeBlock(language: string, code: string) {
+    const doc = stenoSchema.nodes.doc.create(null, [
+      stenoSchema.nodes.code_block.create({ language }, code ? [stenoSchema.text(code)] : []),
+    ]);
+    const place = document.createElement('div');
+    document.body.appendChild(place);
+    const view = new PMEditorView(place, {
+      state: EditorState.create({ schema: stenoSchema, doc }),
+      nodeViews: {
+        code_block: createCodeBlockNodeView,
+      },
+    });
+    const container = place.querySelector('.steno-code-block') as HTMLElement;
+    return { view, container };
+  }
+
+  it('挂载后存在 CodeMirror 容器 DOM 与 .cm-editor', () => {
+    const { view, container } = mountCodeBlock('ts', 'const x = 1');
+    expect(container).not.toBeNull();
+    const editorContainer = container.querySelector('.steno-code-block-editor');
+    expect(editorContainer).not.toBeNull();
+    // CodeMirror 6 会在 parent 内渲染 .cm-editor / .cm-content
+    expect(editorContainer!.querySelector('.cm-editor')).not.toBeNull();
+    expect(editorContainer!.querySelector('.cm-content')).not.toBeNull();
+    view.destroy();
+  });
+
+  it('语言标签显示规范化后的语言名（ts -> TypeScript）', () => {
+    const { view, container } = mountCodeBlock('ts', 'const x = 1');
+    const label = container.querySelector('.steno-code-block-lang-label') as HTMLElement;
+    expect(label).not.toBeNull();
+    expect(label.textContent).toBe('TypeScript');
+    view.destroy();
+  });
+
+  it('复制按钮存在且点击后写入剪贴板并临时显示「已复制」', () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    // jsdom 默认无 navigator.clipboard，注入桩
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    });
+
+    const { view, container } = mountCodeBlock('ts', 'const x = 1');
+    const copyBtn = container.querySelector('.steno-code-block-copy-btn') as HTMLButtonElement;
+    expect(copyBtn).not.toBeNull();
+    expect(copyBtn.textContent).toBe('复制');
+
+    copyBtn.click();
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(writeText.mock.calls[0][0]).toContain('const x = 1');
+    expect(writeText.mock.calls[0][0]).toContain('```ts');
+    // 点击后即时反馈
+    expect(copyBtn.textContent).toBe('已复制');
+
+    view.destroy();
   });
 });
