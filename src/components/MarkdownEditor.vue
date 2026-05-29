@@ -1,22 +1,24 @@
 <script setup lang="ts">
 /**
  * @component MarkdownEditor
- * @description 通用 Markdown 编辑器 — 基于 CodeMirror 6 + 自建 live-render 装饰器。
+ * @description 通用 Markdown 编辑器 — 基于 ProseMirror 的 Typora 风格 WYSIWYG 内核。
  *
- * **WYSIWYG 模式**：用户输入 Markdown 语法后原位渲染样式（标题/粗体/斜体/代码等），
- * 光标进入对应行时语法标记符号（`#`、`**`、`` ` `` 等）重新显示，便于继续编辑。
- * 这是 Obsidian Live Preview / PureMark 的同路做法。
+ * **WYSIWYG 模式**：编辑态本身就长得像渲染后的样子 —— 列表渲染 bullet、表格渲染
+ * grid、HR 渲染分隔线、链接显示蓝色、blockquote 显示左竖线、内联 HTML（`<u>` /
+ * `<mark>` 等）正确呈现；光标进入对应节点时显示 Markdown 源码标记符号（`**`、`>`、
+ * `-` 等），离开后隐藏。由 `prosemirror/` 下的 schema/parser/serializer/nodeviews/
+ * plugins 共同实现，详见 `view/create-editor.ts` 与 `view/editor-bridge.ts`。
  *
  * **设计取舍**：
  * - 不在此组件内做自动保存：上层（FloatingEditor / NoteEditorView）用 `useAutosave`
  *   监听 `v-model` 变化，保持组件单一职责
  * - 不渲染右侧预览面板：只读视图由 `MarkdownReadSurface` 单独负责
- * - 工具栏改为快捷键体系：常用绑定见 `./markdown-editor/keymap.ts`
+ * - 工具栏改为快捷键体系：常用绑定见 `prosemirror/plugins/keymap.ts`
  *
  * **双向绑定机制**：
- * 组件通过 `EditorView.updateListener` 监听文档变更 → 回调 `emit('update:modelValue', text)`。
- * 外部 `v-model` 变化时通过 `watch` 回写编辑器：先比较当前内容是否相同（避免循环更新），
- * 若不同则 `suppressNextDocSync = true` 防止双向死循环。
+ * 内核变更 → `onChange` 回调 → `emit('update:modelValue', text)`；外部 `v-model`
+ * 变化 → `watch` 调 `bridge.setContent(next)`。`editor-bridge` 内部自带防死循环
+ * （同值短路 + applyingExternal 标志），组件层无需再额外维护标志。
  *
  * @props
  * - `modelValue: string` — v-model 绑定的 Markdown 内容
@@ -35,11 +37,7 @@
 
 import { onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
 
-import { EditorState } from '@codemirror/state';
-import { EditorView } from '@codemirror/view';
-
-import { createMarkdownExtensions } from './markdown-editor/extensions';
-import { refreshLiveRenderEffect } from './markdown-editor/live-render';
+import { createEditorBridge, type EditorBridge } from './markdown-editor/prosemirror/view';
 
 import { useDb } from '@/composables/useDb';
 import { setStenoAssetDataDir } from '@/utils/stenoAssets';
@@ -62,121 +60,66 @@ const emit = defineEmits<{
 }>();
 
 const containerRef = useTemplateRef<HTMLDivElement>('container');
-const view = ref<EditorView | null>(null);
+const bridge = ref<EditorBridge | null>(null);
 const db = useDb();
-/**
- * 防止双向绑定死循环的标志。
- *
- * 场景：外部 `v-model` 变化 → `watch` 回写编辑器 → 触发 `onDocChange` →
- * 又 emit `update:modelValue` → 外部再次变化… 死循环。
- *
- * 解决：watch 里设 `suppressNextDocSync = true`，
- * `emitDocChange` 读到后跳过本次 emit 并复位标志。
- */
-let suppressNextDocSync = false;
-
-/** 将 focus/blur 事件转发给父组件。 */
-function emitFocusChange(focused: boolean) {
-  if (focused) emit('focus');
-  else emit('blur');
-}
-
-/**
- * 文档变更回调 — 驱动 `v-model` 双向绑定。
- *
- * 若 `suppressNextDocSync` 为 true 则跳过（由 watch 回写触发），
- * 防止外部 v-model → 编辑器 → v-model 的死循环。
- */
-function emitDocChange(next: string) {
-  if (suppressNextDocSync) {
-    suppressNextDocSync = false;
-    return;
-  }
-  emit('update:modelValue', next);
-}
 
 onMounted(() => {
   if (!containerRef.value) return;
+
+  // 解析数据目录，供图片相对路径渲染（Tauri 内会经 convertFileSrc）。
   if (typeof db.getDataPaths === 'function') {
     void db.getDataPaths()
       .then(paths => {
         setStenoAssetDataDir(paths.dataDir);
-        view.value?.dispatch({ effects: refreshLiveRenderEffect.of() });
       })
       .catch(error => {
         console.error('[markdown-editor] failed to load data paths:', error);
       });
   }
 
-  const instance = new EditorView({
-    state: EditorState.create({
-      doc: props.modelValue,
-      extensions: createMarkdownExtensions({
-        placeholder: props.placeholder,
-        onDocChange: emitDocChange,
-        onFocusChange: emitFocusChange,
-        onPasteImage: async dataUrl => {
-          const saved = await db.savePastedImage(dataUrl);
-          return saved.markdownUrl;
-        },
-      }),
-    }),
-    parent: containerRef.value,
+  bridge.value = createEditorBridge({
+    mount: containerRef.value,
+    initialValue: props.modelValue,
+    editable: true,
+    placeholder: props.placeholder,
+    autofocus: props.autofocus,
+    onChange: next => emit('update:modelValue', next),
+    onFocusChange: focused => {
+      if (focused) emit('focus');
+      else emit('blur');
+    },
+    onPasteImage: async dataUrl => {
+      const saved = await db.savePastedImage(dataUrl);
+      return saved.markdownUrl;
+    },
   });
-  view.value = instance;
-  if (props.autofocus) {
-    // queueMicrotask 确保 DOM 完成渲染后再 focus，避免焦点时序问题
-    queueMicrotask(() => instance.focus());
-  }
 });
 
 onBeforeUnmount(() => {
-  view.value?.destroy();
-  view.value = null;
+  bridge.value?.destroy();
+  bridge.value = null;
 });
 
-/**
- * 监听外部 `modelValue` 变化 → 回写编辑器内容。
- *
- * **防死循环机制**：
- * 1. 先比较 `current === next`，相同则跳过
- * 2. 设 `suppressNextDocSync = true`，阻止本次 dispatch 触发的 `onDocChange` 再次 emit
- */
+/** 监听外部 `modelValue` 变化 → 回写编辑器内容（bridge 内部已防死循环）。 */
 watch(
   () => props.modelValue,
   next => {
-    const instance = view.value;
-    if (!instance) return;
-    const current = instance.state.doc.toString();
-    if (current === next) return; // 内容相同，无需更新
-    suppressNextDocSync = true;
-    instance.dispatch({
-      changes: { from: 0, to: current.length, insert: next },
-    });
+    bridge.value?.setContent(next);
   },
 );
 
 /** 程序化聚焦编辑器。 */
 function focus() {
-  view.value?.focus();
+  bridge.value?.focus();
 }
 
 /**
  * 滚动编辑器到指定行（大纲点击跳转）。
  *
- * @param line - 1-indexed 行号；超出范围自动 clamp
+ * @param line - 1-indexed 行号；越界自动 clamp（由 bridge 内部处理）
  */
 function scrollToLine(line: number) {
-  const instance = view.value;
-  if (!instance) return;
-  const total = instance.state.doc.lines;
-  const target = Math.max(1, Math.min(line, total)); // clamp 到有效范围
-  const lineInfo = instance.state.doc.line(target);
-  instance.dispatch({
-    selection: { anchor: lineInfo.from },
-    effects: EditorView.scrollIntoView(lineInfo.from, { y: 'start', yMargin: 12 }),
-  });
-  instance.focus();
+  bridge.value?.scrollToLine(line);
 }
 
 defineExpose({ focus, scrollToLine });
@@ -192,192 +135,32 @@ defineExpose({ focus, scrollToLine });
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  overflow: hidden;
+  overflow: auto;
   font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
-.md-editor :deep(.cm-editor) {
+.md-editor :deep(.ProseMirror) {
   flex: 1;
   min-height: 0;
-  height: 100%;
+  padding: 12px 16px;
   background: transparent;
   color: inherit;
   font-size: 14px;
   line-height: 1.65;
-}
-
-.md-editor :deep(.cm-editor.cm-focused) {
   outline: none;
-}
-
-.md-editor :deep(.cm-scroller) {
-  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  padding: 12px 16px;
-}
-
-.md-editor :deep(.cm-content) {
   caret-color: currentColor;
-  padding: 0;
 }
 
-.md-editor :deep(.cm-cursor),
-.md-editor :deep(.cm-dropCursor) {
-  border-left-width: 1.5px;
-  border-left-color: currentColor;
-}
-
-.md-editor :deep(.cm-cursor-primary) {
-  border-left-color: currentColor;
-}
-
-.md-editor :deep(.cm-line) {
-  padding: 0;
-}
-
-.md-editor :deep(.cm-placeholder) {
+/* 占位文字：ProseMirror 空文档时 placeholder 插件给根节点加 data-placeholder。 */
+.md-editor :deep(.ProseMirror.steno-editor-empty::before) {
+  content: attr(data-placeholder);
   color: rgba(127, 127, 127, 0.6);
   font-style: italic;
+  pointer-events: none;
+  position: absolute;
 }
 
-/* 标题 */
-.md-editor :deep(.cm-md-h1) {
-  font-size: 1.85em;
-  font-weight: 700;
-  line-height: 1.3;
-  margin-top: 0.4em;
-}
-.md-editor :deep(.cm-md-h2) {
-  font-size: 1.55em;
-  font-weight: 700;
-  line-height: 1.32;
-  margin-top: 0.35em;
-}
-.md-editor :deep(.cm-md-h3) {
-  font-size: 1.3em;
-  font-weight: 600;
-  line-height: 1.36;
-}
-.md-editor :deep(.cm-md-h4) {
-  font-size: 1.15em;
-  font-weight: 600;
-}
-.md-editor :deep(.cm-md-h5) {
-  font-size: 1.05em;
-  font-weight: 600;
-}
-.md-editor :deep(.cm-md-h6) {
-  font-size: 1em;
-  font-weight: 600;
-  color: rgba(127, 127, 127, 0.85);
-}
-
-/* 内联强调 */
-.md-editor :deep(.cm-md-strong) {
-  font-weight: 700;
-}
-.md-editor :deep(.cm-md-em) {
-  font-style: italic;
-}
-.md-editor :deep(.cm-md-strike) {
-  text-decoration: line-through;
-  opacity: 0.75;
-}
-.md-editor :deep(.cm-md-inline-code) {
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: rgba(127, 127, 127, 0.14);
-  font-family: ui-monospace, "Consolas", "Cascadia Code", monospace;
-  font-size: 0.92em;
-}
-.md-editor :deep(.cm-md-code-block) {
-  padding-right: 12px;
-  padding-left: 12px;
-  background: #f6f8fa;
-  color: #1f2328;
-  font-family: ui-monospace, "SFMono-Regular", "Consolas", "Cascadia Code", monospace;
-  font-size: 0.92em;
-  line-height: 1.58;
-  tab-size: 2;
-}
-.md-editor :deep(.cm-md-code-block-start) {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top-left-radius: 6px;
-  border-top-right-radius: 6px;
-}
-.md-editor :deep(.cm-md-code-block-end) {
-  margin-bottom: 8px;
-  padding-bottom: 8px;
-  border-bottom-right-radius: 6px;
-  border-bottom-left-radius: 6px;
-}
-.md-editor :deep(.cm-md-code-fence-line) {
-  color: #57606a;
-  font-size: 0.82em;
-  line-height: 1.35;
-}
-.md-editor :deep(.cm-md-code-info) {
-  font-weight: 600;
-}
-.md-editor :deep(.cm-md-code-fence-mark) {
-  color: #8c959f;
-}
-.md-editor :deep(.cm-md-link) {
-  color: #3b82f6;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-/* 引用 / 列表 */
-.md-editor :deep(.cm-md-quote) {
-  border-left: 3px solid rgba(132, 82, 47, 0.4);
-  padding-left: 10px;
-  color: rgba(95, 86, 77, 0.85);
-  background: rgba(132, 82, 47, 0.04);
-}
-.md-editor :deep(.cm-md-list-item) {
-  padding-left: 4px;
-}
-
-/* 暗色主题适配（与 useDark 联动；app-theme-root.dark 在 App.vue 根节点） */
-:global(.app-theme-root.dark) .md-editor :deep(.cm-md-inline-code) {
-  background: rgba(255, 255, 255, 0.12);
-}
-:global(.app-theme-root.dark) .md-editor :deep(.cm-md-code-block) {
-  background: #161b22;
-  color: #e6edf3;
-}
-:global(.app-theme-root.dark) .md-editor :deep(.cm-md-code-fence-line) {
-  color: #8b949e;
-}
-:global(.app-theme-root.dark) .md-editor :deep(.cm-md-code-fence-mark) {
-  color: #6e7681;
-}
-:global(.app-theme-root.dark) .md-editor :deep(.cm-md-quote) {
-  border-left-color: rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(220, 220, 224, 0.86);
-}
-:global(.app-theme-root.dark) .md-editor :deep(.cm-placeholder) {
+:global(.app-theme-root.dark) .md-editor :deep(.ProseMirror.steno-editor-empty::before) {
   color: rgba(180, 180, 184, 0.55);
-}
-:global(.app-theme-root.dark) .md-editor :deep(.cm-md-link) {
-  color: #60a5fa;
-}
-
-.md-editor :deep(.cm-md-image-preview) {
-  display: inline-block;
-  max-width: 100%;
-  vertical-align: top;
-}
-
-.md-editor :deep(.cm-md-image-preview img) {
-  display: block;
-  max-width: min(100%, 520px);
-  max-height: 360px;
-  width: auto;
-  height: auto;
-  margin: 8px 0;
-  border-radius: 6px;
 }
 </style>

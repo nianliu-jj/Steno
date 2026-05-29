@@ -68,13 +68,13 @@
 
 ## 9. Phase 8 — MarkdownEditor.vue 接入
 
-- [ ] 9.1 重写 `src/components/MarkdownEditor.vue` 内部实现，使用 `create-editor` + `editor-bridge`；保持 props/emits/exposed 完全一致
-- [ ] 9.2 删除 `src/components/markdown-editor/live-render.ts`、`live-render.test.ts` 与对应样式块；清理任何剩余 import
-- [ ] 9.3 调整 `src/components/markdown-editor/extensions.ts`（CodeMirror）为内嵌代码块用，或重命名/拆分
-- [ ] 9.4 更新 `src/components/MarkdownEditor.test.ts`：替换为新内核的行为断言（v-model、focus、autofocus）
-- [ ] 9.5 端到端验证：把题目中"图二"对应的 Markdown 塞进编辑器，DOM 包含 `<ul>` / `<table>` / `<hr>` / `<a>` / `<u>` / `<code>`
-- [ ] 9.6 `pnpm typecheck && pnpm lint && pnpm test` 通过
-- [ ] 9.7 中文 commit：`refactor(editor): 将 MarkdownEditor 内核迁移到 ProseMirror`
+- [x] 9.1 重写 `src/components/MarkdownEditor.vue` 内部实现，使用 `create-editor` + `editor-bridge`；保持 props/emits/exposed 完全一致
+- [x] 9.2 删除 `src/components/markdown-editor/live-render.ts`、`live-render.test.ts` 与对应样式块；清理任何剩余 import
+- [x] 9.3 调整 `src/components/markdown-editor/extensions.ts`（CodeMirror）为内嵌代码块用，或重命名/拆分
+- [x] 9.4 更新 `src/components/MarkdownEditor.test.ts`：替换为新内核的行为断言（v-model、focus、autofocus）
+- [x] 9.5 端到端验证：把题目中"图二"对应的 Markdown 塞进编辑器，DOM 包含 `<ul>` / `<table>` / `<hr>` / `<a>` / `<u>` / `<code>`
+- [x] 9.6 `pnpm typecheck && pnpm lint && pnpm test` 通过
+- [x] 9.7 中文 commit：`refactor(editor): 将 MarkdownEditor 内核迁移到 ProseMirror`
 
 ## 10. Phase 9 — MarkdownReadSurface.vue 接入
 
