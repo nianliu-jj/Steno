@@ -62,9 +62,9 @@
 
 ## 8. Phase 7 — 视图工厂与桥接
 
-- [ ] 8.1 `view/create-editor.ts`：参数化工厂（schema、initialMarkdown、editable、placeholder、onChange、noteDir）
-- [ ] 8.2 `view/editor-bridge.ts`：双向绑定（含 `suppressNextDocSync` 思路适配）、`focus()`、`scrollToLine(line)`（用块级节点 `startLine` attr）、`scrollToHeading(id)`
-- [ ] 8.3 单测：bridge 的 v-model 双向同步、focus、scrollToLine 三个方法
+- [x] 8.1 `view/create-editor.ts`：参数化工厂（schema、initialMarkdown、editable、placeholder、onChange、noteDir）
+- [x] 8.2 `view/editor-bridge.ts`：双向绑定（含 `suppressNextDocSync` 思路适配）、`focus()`、`scrollToLine(line)`（用块级节点 `startLine` attr）、`scrollToHeading(id)`
+- [x] 8.3 单测：bridge 的 v-model 双向同步、focus、scrollToLine 三个方法
 
 ## 9. Phase 8 — MarkdownEditor.vue 接入
 
