@@ -210,6 +210,19 @@
   opacity: 0.75;
 }
 
+/* ============ 图片 ============ */
+
+.ProseMirror img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0.6em 0;
+}
+
+.ProseMirror a img {
+  cursor: pointer;
+}
+
 /* ============ 表格 ============ */
 
 .ProseMirror table {

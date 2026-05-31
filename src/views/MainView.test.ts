@@ -234,9 +234,9 @@ describe('MainView', () => {
 
       expect(card.find('h3').text()).toBe('无标题');
       expect(card.find('.note-pin').exists()).toBe(true);
-      expect(card.find('p').text()).toContain('标题');
-      expect(card.find('p').text()).toContain('加粗内容');
-      expect(card.find('p').text()).toContain('链接');
+      expect(card.find('.note-card-preview').html()).toContain('标题');
+      expect(card.find('.note-card-preview').html()).toContain('加粗内容');
+      expect(card.find('.note-card-preview').html()).toContain('链接');
       expect(card.find('.note-card-tags').text()).toContain('#alpha');
       expect(card.find('.note-card-tags').text()).toContain('#beta');
       expect(card.find('.note-card-tags').text()).not.toContain('#gamma');
