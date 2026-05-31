@@ -18,7 +18,7 @@
 import { keymap } from 'prosemirror-keymap';
 import { type Command, Plugin, TextSelection, type EditorState, type Transaction } from 'prosemirror-state';
 import type { Schema } from 'prosemirror-model';
-import { selectParentNode } from 'prosemirror-commands';
+import { selectParentNode, baseKeymap } from 'prosemirror-commands';
 import { splitListItem, liftListItem, sinkListItem } from 'prosemirror-schema-list';
 import { stenoSchema } from '../schema';
 import { decorationPluginKey } from '../decorations';
@@ -229,6 +229,11 @@ export function createKeymapPlugins(
   if (mergedConfig.list) {
     plugins.push(keymap(createListKeymap(schema)));
   }
+
+  // 基础键位兜底（优先级最低）：上面的自定义 Enter（块级 ```/--- 转换、列表项拆分）
+  // 未处理时，由 baseKeymap 的 Enter 链提供普通段落 splitBlock、代码块 newlineInCode；
+  // 同时补齐 Backspace 段首合并、Delete、Mod-a 全选等基础编辑能力。
+  plugins.push(keymap(baseKeymap));
 
   return plugins;
 }
