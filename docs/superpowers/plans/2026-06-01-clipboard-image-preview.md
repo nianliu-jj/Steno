@@ -30,29 +30,29 @@
 ## Task 2: Superpowers Execution Plan
 
 - [x] 创建本文档，记录实现边界、文件结构和分步计划。
-- [ ] 更新 OpenSpec tasks 中执行计划状态。
-- [ ] 提交计划文档。
+- [x] 更新 OpenSpec tasks 中执行计划状态。
+- [x] 提交计划文档。
 
 ## Task 3: Backend Verification
 
-- [ ] 检查 `src-tauri/src/clipboard.rs` 现有实现：
+- [x] 检查 `src-tauri/src/clipboard.rs` 现有实现：
   - `entry_from_system_clipboard()` 能读取图片。
   - `image_data_url()` 能把 RGBA 编码为 PNG data URL。
   - `write_entry_to_system_clipboard()` 能把 data URL 解码并写回系统剪贴板。
-- [ ] 补充或调整 Rust 单元测试，明确图片条目必须保存 data URL、`preview`、`image:` hash 和 `size_bytes`。
-- [ ] 运行 `cargo test --manifest-path src-tauri/Cargo.toml clipboard::tests --lib`。
-- [ ] 提交后端测试/实现变更。
+- [x] 补充或调整 Rust 单元测试，明确图片条目必须保存 data URL、`preview`、`image:` hash 和 `size_bytes`。
+- [x] 运行 `cargo test --manifest-path src-tauri/Cargo.toml clipboard::tests --lib`。
+- [x] 提交后端测试/实现变更。
 
 ## Task 4: Frontend Preview Test
 
-- [ ] 在 `src/views/ClipboardView.test.ts` 增加图片条目用例。
-- [ ] 断言图片条目渲染 `<img alt="剪贴板图片预览">`，`src` 等于 data URL，且不渲染普通文本 `<pre>`。
-- [ ] 运行 `pnpm vitest run src/views/ClipboardView.test.ts`。
-- [ ] 提交前端测试/实现变更。
+- [x] 在 `src/views/ClipboardView.test.ts` 增加图片条目用例。
+- [x] 断言图片条目渲染 `<img alt="剪贴板图片预览">`，`src` 等于 data URL，且不渲染普通文本 `<pre>`。
+- [x] 运行 `pnpm vitest run src/views/ClipboardView.test.ts`。
+- [x] 提交前端测试/实现变更。
 
 ## Task 5: Final Verification
 
-- [ ] 运行前端相关测试。
-- [ ] 运行 Rust 相关测试。
-- [ ] 检查 `git status --short`，确认只剩用户既有未跟踪参考文档。
-- [ ] 更新 OpenSpec tasks 为完成状态并提交。
+- [x] 运行前端相关测试。
+- [x] 运行 Rust 相关测试。
+- [x] 检查 `git status --short`，确认只剩用户既有未跟踪参考文档。
+- [x] 更新 OpenSpec tasks 为完成状态并提交。
