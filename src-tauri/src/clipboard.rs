@@ -360,11 +360,18 @@ mod tests {
 
     #[test]
     fn image_entry_uses_data_url_hash() {
-        let entry =
-            image_entry_from_data_url("data:image/png;base64,AAAA".to_string()).expect("entry");
+        let data_url = "data:image/png;base64,AAAA".to_string();
+        let entry = image_entry_from_data_url(data_url.clone()).expect("entry");
         assert_eq!(entry.content_type, "image");
+        assert_eq!(entry.content, data_url);
         assert_eq!(entry.preview, "图片内容");
         assert!(entry.content_hash.starts_with("image:"));
+        assert_eq!(entry.size_bytes, "data:image/png;base64,AAAA".len() as i64);
+    }
+
+    #[test]
+    fn image_entry_rejects_non_image_data_url() {
+        assert!(image_entry_from_data_url("data:text/plain;base64,AAAA".to_string()).is_none());
     }
 
     #[test]
