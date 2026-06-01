@@ -18,6 +18,7 @@ const deleteClipboardEntry = vi.fn<(id: string) => Promise<void>>();
 const clearClipboardEntries = vi.fn<() => Promise<void>>();
 const copyClipboardEntry = vi.fn<(id: string) => Promise<void>>();
 const pasteClipboardEntry = vi.fn<(id: string) => Promise<void>>();
+const addImageClipboardEntry = vi.fn<(dataUrl: string) => Promise<ClipboardEntry>>();
 
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(async (event: string, handler: (event: { payload: unknown }) => void) => {
@@ -33,6 +34,7 @@ vi.mock('@/composables/useDb', () => ({
     clearClipboardEntries,
     copyClipboardEntry,
     pasteClipboardEntry,
+    addImageClipboardEntry,
   }),
 }));
 
@@ -67,6 +69,7 @@ describe('clipboard store', () => {
     clearClipboardEntries.mockReset();
     copyClipboardEntry.mockReset();
     pasteClipboardEntry.mockReset();
+    addImageClipboardEntry.mockReset();
     listClipboardEntries.mockResolvedValue([textEntry, urlEntry]);
     deleteClipboardEntry.mockResolvedValue();
     clearClipboardEntries.mockResolvedValue();
@@ -126,5 +129,26 @@ describe('clipboard store', () => {
     expect(deleteClipboardEntry).toHaveBeenCalledWith('1');
     expect(clearClipboardEntries).toHaveBeenCalledOnce();
     expect(store.entries).toEqual([]);
+  });
+
+  it('adds an edited image as a new entry and upserts it locally', async () => {
+    const imageEntry: ClipboardEntry = {
+      id: 'img-9',
+      contentType: 'image',
+      content: 'data:image/png;base64,iVBORw0KGgo=',
+      htmlContent: null,
+      preview: '图片内容',
+      createdAt: '2026-06-01T00:00:00Z',
+      updatedAt: '2026-06-01T00:00:00Z',
+      sizeBytes: 40,
+    };
+    addImageClipboardEntry.mockResolvedValue(imageEntry);
+
+    const store = useClipboardStore();
+    const result = await store.addImageEntry('data:image/png;base64,iVBORw0KGgo=');
+
+    expect(addImageClipboardEntry).toHaveBeenCalledWith('data:image/png;base64,iVBORw0KGgo=');
+    expect(result).toEqual(imageEntry);
+    expect(store.entries[0]).toEqual(imageEntry);
   });
 });

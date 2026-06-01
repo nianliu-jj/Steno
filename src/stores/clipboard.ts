@@ -141,6 +141,12 @@ export const useClipboardStore = defineStore('clipboard', () => {
     return entry;
   }
 
+  async function addImageEntry(dataUrl: string) {
+    const entry = await db.addImageClipboardEntry(dataUrl);
+    upsertLocal(entry);
+    return entry;
+  }
+
   async function pinEntry(id: string) {
     const entry = await db.pinClipboardEntry(id);
     upsertLocal(entry);
@@ -179,6 +185,7 @@ export const useClipboardStore = defineStore('clipboard', () => {
     deleteEntry,
     clearEntries,
     updateEntry,
+    addImageEntry,
     pinEntry,
     unpinEntry,
   };

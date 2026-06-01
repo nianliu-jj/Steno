@@ -2720,6 +2720,19 @@ mod tests {
     }
 
     #[test]
+    fn upsert_image_entry_from_data_url_inserts_image_row() {
+        let db = fresh_db();
+        let data_url = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB".to_string();
+        let input = crate::clipboard::image_entry_from_data_url(data_url.clone()).expect("image entry");
+
+        let saved = db.upsert_clipboard_entry(input).expect("saved");
+
+        assert_eq!(saved.content_type, "image");
+        assert_eq!(saved.preview, "图片内容");
+        assert_eq!(saved.content, data_url);
+    }
+
+    #[test]
     fn list_clipboard_entries_filters_by_type_and_query() {
         let db = fresh_db();
         db.upsert_clipboard_entry(NewClipboardEntry {

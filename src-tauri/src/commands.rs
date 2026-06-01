@@ -466,6 +466,32 @@ pub async fn update_clipboard_entry(
 }
 
 #[tauri::command]
+pub async fn add_image_clipboard_entry(
+    app: AppHandle,
+    db: State<'_, Db>,
+    data_url: String,
+) -> Result<ClipboardEntry, String> {
+    let entry = clipboard::image_entry_from_data_url(data_url)
+        .ok_or_else(|| "无效的图片数据".to_string())?;
+    let db = db.inner().clone();
+    let saved = tauri::async_runtime::spawn_blocking(move || db.upsert_clipboard_entry(entry))
+        .await
+        .map_err(to_msg)?
+        .map_err(to_msg)?;
+    let _ = app.emit(clipboard::CLIPBOARD_UPDATED_EVENT, saved.clone());
+    Ok(saved)
+}
+
+#[tauri::command]
+pub async fn copy_edited_image_to_clipboard(data_url: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        clipboard::write_image_data_url_to_system_clipboard(&data_url)
+    })
+    .await
+    .map_err(to_msg)?
+}
+
+#[tauri::command]
 pub async fn pin_clipboard_entry(
     app: AppHandle,
     db: State<'_, Db>,

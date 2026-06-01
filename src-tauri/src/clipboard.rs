@@ -128,6 +128,12 @@ pub fn write_entry_to_system_clipboard(entry: &ClipboardEntry) -> Result<(), Str
         .map_err(|e| e.to_string())
 }
 
+pub fn write_image_data_url_to_system_clipboard(data_url: &str) -> Result<(), String> {
+    let mut clipboard = Clipboard::new().map_err(|e| e.to_string())?;
+    let image = image_data_url_to_arboard(data_url)?;
+    clipboard.set_image(image).map_err(|e| e.to_string())
+}
+
 pub fn paste_entry_to_active_cursor(entry: &ClipboardEntry) -> Result<(), String> {
     write_entry_to_system_clipboard(entry)?;
     trigger_system_paste()
@@ -372,6 +378,11 @@ mod tests {
     #[test]
     fn image_entry_rejects_non_image_data_url() {
         assert!(image_entry_from_data_url("data:text/plain;base64,AAAA".to_string()).is_none());
+    }
+
+    #[test]
+    fn image_data_url_to_arboard_rejects_non_image() {
+        assert!(image_data_url_to_arboard("data:text/plain;base64,AAAA").is_err());
     }
 
     #[test]

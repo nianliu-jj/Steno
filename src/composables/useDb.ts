@@ -275,6 +275,14 @@ export function useDb() {
     });
   }
 
+  function addImageClipboardEntry(dataUrl: string) {
+    return invoke<ClipboardEntry>('add_image_clipboard_entry', { dataUrl });
+  }
+
+  function copyEditedImageToClipboard(dataUrl: string) {
+    return invoke<void>('copy_edited_image_to_clipboard', { dataUrl });
+  }
+
   function pinClipboardEntry(id: string) {
     return invoke<ClipboardEntry>('pin_clipboard_entry', { id });
   }
@@ -485,6 +493,8 @@ export function useDb() {
     copyClipboardEntry,
     pasteClipboardEntry,
     updateClipboardEntry,
+    addImageClipboardEntry,
+    copyEditedImageToClipboard,
     pinClipboardEntry,
     unpinClipboardEntry,
     countClipboardEntries,

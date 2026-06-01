@@ -74,6 +74,8 @@ pub fn run() {
             commands::copy_clipboard_entry,
             commands::paste_clipboard_entry,
             commands::update_clipboard_entry,
+            commands::add_image_clipboard_entry,
+            commands::copy_edited_image_to_clipboard,
             commands::pin_clipboard_entry,
             commands::unpin_clipboard_entry,
             commands::count_clipboard_entries,

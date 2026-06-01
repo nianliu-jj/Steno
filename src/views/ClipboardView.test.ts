@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { nextTick } from 'vue';
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -26,6 +27,8 @@ vi.mock('@/composables/useDb', () => ({
     clearClipboardEntries,
     copyClipboardEntry,
     pasteClipboardEntry,
+    addImageClipboardEntry: vi.fn(async () => ({})),
+    copyEditedImageToClipboard: vi.fn(async () => {}),
   }),
 }));
 
@@ -166,7 +169,7 @@ describe('ClipboardView', () => {
     expect(wrapper.find('pre.clipboard-preview').exists()).toBe(false);
   });
 
-  it('opens image entries in the built-in image previewer', async () => {
+  it('opens image entries in the built-in image editor', async () => {
     const dataUrl = 'data:image/png;base64,iVBORw0KGgo=';
     listClipboardEntries.mockResolvedValueOnce([
       {
@@ -174,24 +177,27 @@ describe('ClipboardView', () => {
         contentType: 'image',
         content: dataUrl,
         htmlContent: null,
-        preview: '截图/图片',
+        preview: '图片内容',
         createdAt: '2026-06-01T00:00:00Z',
         updatedAt: '2026-06-01T00:00:00Z',
         sizeBytes: dataUrl.length,
       },
     ]);
 
-    const wrapper = mount(ClipboardView);
+    const wrapper = mount(ClipboardView, { attachTo: document.body });
     await vi.dynamicImportSettled();
 
+    expect(document.querySelector('[data-testid="clip-image-editor"]')).toBeNull();
+
     await wrapper.get('[data-testid="clipboard-open-img-1"]').trigger('click');
-
     expect(openUrl).not.toHaveBeenCalled();
-    expect(wrapper.get('[data-testid="clipboard-image-viewer"]').attributes('aria-label')).toBe('图片预览');
-    expect(wrapper.get('[data-testid="clipboard-image-viewer-img"]').attributes('src')).toBe(dataUrl);
+    expect(document.querySelector('[data-testid="clip-image-editor"]')).not.toBeNull();
 
-    await wrapper.get('[data-testid="clipboard-image-viewer-close"]').trigger('click');
-    expect(wrapper.find('[data-testid="clipboard-image-viewer"]').exists()).toBe(false);
+    (document.querySelector('[data-testid="clip-editor-close"]') as HTMLElement).click();
+    await nextTick();
+    expect(document.querySelector('[data-testid="clip-image-editor"]')).toBeNull();
+
+    wrapper.unmount();
   });
 
   it('pastes an entry when double clicking the clipboard content area only', async () => {

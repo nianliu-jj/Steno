@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { useClipboardStore } from '@/stores/clipboard';
 import { useWindow } from '@/composables/useWindow';
+import ClipboardImageEditor from '@/components/clipboard/ClipboardImageEditor.vue';
 import type { ClipboardContentType, ClipboardEntry } from '@/types/steno';
 
 const store = useClipboardStore();
@@ -385,43 +386,11 @@ async function handleDoubleClick(entry: ClipboardEntry) {
       </div>
     </footer>
 
-    <div
+    <ClipboardImageEditor
       v-if="previewImage"
-      class="clipboard-image-viewer"
-      role="dialog"
-      aria-modal="true"
-      aria-label="图片预览"
-      data-testid="clipboard-image-viewer"
-      @click.self="closeImagePreview"
-    >
-      <div class="clipboard-image-viewer__surface">
-        <header class="clipboard-image-viewer__header">
-          <div>
-            <strong>{{ previewImage.preview }}</strong>
-            <span>{{ formatTime(previewImage.updatedAt) }}</span>
-          </div>
-          <button
-            class="clipboard-icon-button"
-            type="button"
-            aria-label="关闭图片预览"
-            title="关闭"
-            data-testid="clipboard-image-viewer-close"
-            @click="closeImagePreview"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </header>
-        <div class="clipboard-image-viewer__stage">
-          <img
-            :src="previewImage.content"
-            alt="剪贴板图片大图预览"
-            data-testid="clipboard-image-viewer-img"
-          >
-        </div>
-      </div>
-    </div>
+      :entry="previewImage"
+      @close="closeImagePreview"
+    />
   </section>
 </template>
 
@@ -803,80 +772,6 @@ async function handleDoubleClick(entry: ClipboardEntry) {
   color: var(--app-muted);
   min-width: 50px;
   text-align: center;
-}
-
-.clipboard-image-viewer {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
-  display: grid;
-  place-items: center;
-  padding: 28px;
-  background: rgba(20, 18, 16, 0.58);
-  backdrop-filter: blur(10px);
-}
-
-.clipboard-image-viewer__surface {
-  width: min(920px, 94vw);
-  height: min(720px, 88vh);
-  display: grid;
-  grid-template-rows: auto 1fr;
-  overflow: hidden;
-  border: 1px solid var(--app-border);
-  border-radius: 8px;
-  background: var(--app-bg);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
-}
-
-.clipboard-image-viewer__header {
-  min-height: 54px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--app-border);
-}
-
-.clipboard-image-viewer__header div {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.clipboard-image-viewer__header strong {
-  overflow: hidden;
-  color: var(--app-fg);
-  font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.clipboard-image-viewer__header span {
-  color: var(--app-muted);
-  font-size: 12px;
-}
-
-.clipboard-image-viewer__stage {
-  min-height: 0;
-  display: grid;
-  place-items: center;
-  padding: 18px;
-  background:
-    linear-gradient(45deg, rgba(120, 108, 96, 0.12) 25%, transparent 25%),
-    linear-gradient(-45deg, rgba(120, 108, 96, 0.12) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, rgba(120, 108, 96, 0.12) 75%),
-    linear-gradient(-45deg, transparent 75%, rgba(120, 108, 96, 0.12) 75%);
-  background-position: 0 0, 0 12px, 12px -12px, -12px 0;
-  background-size: 24px 24px;
-}
-
-.clipboard-image-viewer__stage img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  border-radius: 6px;
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.18);
 }
 
 @media (max-width: 720px) {
