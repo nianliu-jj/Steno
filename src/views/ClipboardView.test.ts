@@ -17,6 +17,7 @@ const deleteClipboardEntry = vi.fn(async () => {});
 const clearClipboardEntries = vi.fn(async () => {});
 const copyClipboardEntry = vi.fn(async () => {});
 const pasteClipboardEntry = vi.fn(async () => {});
+const openUrl = vi.fn(async () => {});
 
 vi.mock('@/composables/useDb', () => ({
   useDb: () => ({
@@ -28,12 +29,21 @@ vi.mock('@/composables/useDb', () => ({
   }),
 }));
 
+vi.mock('@/composables/useWindow', () => ({
+  useWindow: () => ({
+    openQuicknote: vi.fn(async () => {}),
+    openUrl,
+    openPathInFileManager: vi.fn(async () => {}),
+  }),
+}));
+
 describe('ClipboardView', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     listClipboardEntries.mockResolvedValue([]);
     copyClipboardEntry.mockClear();
     pasteClipboardEntry.mockClear();
+    openUrl.mockClear();
   });
 
   it('renders an empty state when there is no clipboard history', async () => {
@@ -154,6 +164,34 @@ describe('ClipboardView', () => {
     expect(image.attributes('src')).toBe(dataUrl);
     expect(image.attributes('alt')).toBe('剪贴板图片预览');
     expect(wrapper.find('pre.clipboard-preview').exists()).toBe(false);
+  });
+
+  it('opens image entries in the built-in image previewer', async () => {
+    const dataUrl = 'data:image/png;base64,iVBORw0KGgo=';
+    listClipboardEntries.mockResolvedValueOnce([
+      {
+        id: 'img-1',
+        contentType: 'image',
+        content: dataUrl,
+        htmlContent: null,
+        preview: '截图/图片',
+        createdAt: '2026-06-01T00:00:00Z',
+        updatedAt: '2026-06-01T00:00:00Z',
+        sizeBytes: dataUrl.length,
+      },
+    ]);
+
+    const wrapper = mount(ClipboardView);
+    await vi.dynamicImportSettled();
+
+    await wrapper.get('[data-testid="clipboard-open-img-1"]').trigger('click');
+
+    expect(openUrl).not.toHaveBeenCalled();
+    expect(wrapper.get('[data-testid="clipboard-image-viewer"]').attributes('aria-label')).toBe('图片预览');
+    expect(wrapper.get('[data-testid="clipboard-image-viewer-img"]').attributes('src')).toBe(dataUrl);
+
+    await wrapper.get('[data-testid="clipboard-image-viewer-close"]').trigger('click');
+    expect(wrapper.find('[data-testid="clipboard-image-viewer"]').exists()).toBe(false);
   });
 
   it('pastes an entry when double clicking the clipboard content area only', async () => {
