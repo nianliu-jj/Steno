@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>剪贴板图片 · 原地编辑器 Mockup</title>
+<style>
+  :root {
+    --app-bg: #fbf4ec;
+    --app-surface: #fdf8f1;
+    --app-surface-2: #f3e8db;
+    --app-border: #e4d6c6;
+    --app-fg: #2c2620;
+    --app-muted: #8c8073;
+    --app-faint: #b3a797;
+    --app-accent: #c6612f;
+    --app-accent-soft: #f6e2d4;
+    --danger: #d03050;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 14px/1.5 -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    color: var(--app-fg);
+    background: #6b6b6b;
+    padding: 24px;
+  }
+  .note {
+    max-width: 1180px;
+    margin: 0 auto 16px;
+    color: #fff;
+    font-size: 13px;
+    opacity: 0.92;
+  }
+  .note code { background: rgba(255,255,255,0.16); padding: 1px 5px; border-radius: 4px; }
+
+  /* 模拟应用主窗口 */
+  .app-window {
+    position: relative;
+    max-width: 1180px;
+    height: 760px;
+    margin: 0 auto;
+    border-radius: 12px;
+    background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,0.02) 0 28px, transparent 28px 56px),
+      var(--app-bg);
+    border: 1px solid #4d4d4d;
+    overflow: hidden;
+    box-shadow: 0 18px 50px rgba(0,0,0,0.4);
+  }
+  .app-titlebar {
+    height: 38px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 14px;
+    background: var(--app-surface);
+    border-bottom: 1px solid var(--app-border);
+  }
+  .traffic { width: 12px; height: 12px; border-radius: 50%; }
+  .app-body-hint {
+    position: absolute;
+    inset: 38px 0 0 0;
+    display: grid;
+    place-items: center;
+    color: var(--app-faint);
+    font-size: 13px;
+    user-select: none;
+  }
+
+  /* 遮罩：默认极淡，可切换 */
+  .backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(28, 22, 16, 0.06);
+    display: grid;
+    place-items: center;
+    transition: background 160ms;
+  }
+  body.no-backdrop .backdrop { background: transparent; }
+  body.heavy-backdrop .backdrop { background: rgba(20,18,16,0.55); backdrop-filter: blur(8px); }
+
+  /* ===== 模态对话框（编辑器本体）===== */
+  .editor {
+    position: relative;
+    width: 760px;
+    height: 580px;
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    background: var(--app-bg);
+    border: 1px solid var(--app-border);
+    border-radius: 10px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+    overflow: hidden;
+  }
+
+  /* 标题栏 */
+  .editor-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--app-border);
+    background: var(--app-surface);
+    cursor: grab;
+  }
+  .editor-head .title { display: grid; gap: 2px; min-width: 0; }
+  .editor-head strong { font-size: 14px; }
+  .editor-head .sub { color: var(--app-muted); font-size: 12px; }
+
+  /* 工具栏 */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--app-border);
+    background: var(--app-surface);
+  }
+  .tgroup { display: flex; align-items: center; gap: 4px; }
+  .divider { width: 1px; height: 22px; background: var(--app-border); margin: 0 4px; }
+  .btn {
+    height: 32px;
+    min-width: 32px;
+    padding: 0 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--app-border);
+    border-radius: 7px;
+    background: var(--app-bg);
+    color: var(--app-fg);
+    cursor: pointer;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--app-accent); color: var(--app-accent); }
+  .btn.active { border-color: var(--app-accent); color: var(--app-accent); background: var(--app-accent-soft); }
+  .btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+  .group-label { color: var(--app-faint); font-size: 11px; margin-right: 2px; }
+  .future {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--app-faint);
+    font-size: 11px;
+    border: 1px dashed var(--app-border);
+    border-radius: 7px;
+    padding: 4px 8px;
+  }
+
+  /* 画布舞台 */
+  .stage {
+    position: relative;
+    min-height: 0;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background:
+      linear-gradient(45deg, rgba(120,108,96,0.12) 25%, transparent 25%),
+      linear-gradient(-45deg, rgba(120,108,96,0.12) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, rgba(120,108,96,0.12) 75%),
+      linear-gradient(-45deg, transparent 75%, rgba(120,108,96,0.12) 75%);
+    background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+    background-size: 24px 24px;
+  }
+  .canvas-frame {
+    position: relative;
+    width: 360px;
+    height: 300px;
+    background: linear-gradient(135deg, #dfe9f3, #b8d0ea);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    display: grid;
+    place-items: center;
+    color: #5a7fae;
+    font-size: 13px;
+  }
+  /* 裁剪选框示意 */
+  .crop {
+    position: absolute;
+    left: 40px; top: 36px; right: 70px; bottom: 60px;
+    border: 1.5px dashed #fff;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.28);
+    border-radius: 2px;
+  }
+  .crop::before, .crop::after {
+    content: ""; position: absolute; background: rgba(255,255,255,0.5);
+  }
+  .crop::before { left: 33%; top: 0; bottom: 0; width: 1px; }
+  .crop::after { top: 33%; left: 0; right: 0; height: 1px; }
+  .handle { position: absolute; width: 10px; height: 10px; background: #fff; border: 1px solid var(--app-accent); border-radius: 2px; }
+  .handle.tl { left: -5px; top: -5px; } .handle.tr { right: -5px; top: -5px; }
+  .handle.bl { left: -5px; bottom: -5px; } .handle.br { right: -5px; bottom: -5px; }
+
+  /* 调整面板（popover 示意，浮在右上） */
+  .adjust-pop {
+    position: absolute;
+    top: 8px; right: 8px;
+    width: 210px;
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.16);
+    padding: 10px 12px;
+  }
+  .adjust-pop h4 { margin: 0 0 8px; font-size: 12px; color: var(--app-muted); font-weight: 600; }
+  .slider-row { display: grid; grid-template-columns: 56px 1fr; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
+  .slider { height: 4px; border-radius: 2px; background: var(--app-surface-2); position: relative; }
+  .slider i { position: absolute; top: -4px; width: 12px; height: 12px; border-radius: 50%; background: var(--app-accent); }
+  .toggle-row { display: flex; gap: 6px; margin-top: 6px; }
+  .chip { font-size: 11px; padding: 3px 8px; border: 1px solid var(--app-border); border-radius: 12px; color: var(--app-muted); cursor: pointer; }
+
+  /* 底部操作栏 */
+  .footer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--app-border);
+    background: var(--app-surface);
+  }
+  .footer .left { color: var(--app-muted); font-size: 12px; }
+  .footer .spacer { flex: 1; }
+  .primary-split { display: inline-flex; }
+  .primary {
+    height: 34px;
+    padding: 0 14px;
+    border: 1px solid var(--app-accent);
+    background: var(--app-accent);
+    color: #fff;
+    border-radius: 7px 0 0 7px;
+    cursor: pointer;
+    font-size: 13px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .primary-caret {
+    height: 34px; width: 30px;
+    border: 1px solid var(--app-accent);
+    border-left: 1px solid rgba(255,255,255,0.35);
+    background: var(--app-accent);
+    color: #fff;
+    border-radius: 0 7px 7px 0;
+    cursor: pointer;
+    display: grid; place-items: center;
+  }
+  .menu {
+    position: absolute;
+    bottom: 54px; right: 92px;
+    width: 220px;
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+    padding: 6px;
+    font-size: 13px;
+  }
+  .menu .item { padding: 8px 10px; border-radius: 6px; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .menu .item:hover { background: var(--app-accent-soft); }
+  .menu .item .k { margin-left: auto; color: var(--app-faint); font-size: 11px; }
+  .menu .item.recommended .tag { font-size: 10px; color: var(--app-accent); border: 1px solid var(--app-accent); border-radius: 4px; padding: 0 4px; }
+
+  /* 右下角缩放手柄 */
+  .resize-grip {
+    position: absolute;
+    right: 3px; bottom: 3px;
+    width: 16px; height: 16px;
+    cursor: nwse-resize;
+    background:
+      linear-gradient(135deg, transparent 50%, var(--app-faint) 50%, var(--app-faint) 60%, transparent 60%, transparent 75%, var(--app-faint) 75%, var(--app-faint) 85%, transparent 85%);
+  }
+
+  .controls { max-width: 1180px; margin: 14px auto 0; display: flex; gap: 8px; align-items: center; }
+  .controls button { padding: 6px 12px; border-radius: 6px; border: 1px solid #888; background: #f5f5f5; cursor: pointer; }
+  .controls button.on { background: var(--app-accent); color: #fff; border-color: var(--app-accent); }
+  .controls span { color: #fff; font-size: 12px; }
+</style>
+</head>
+<body class="light-backdrop">
+  <div class="note">
+    剪贴板图片 · <b>原地编辑器</b> mockup。下方按钮可切换“遮罩”三种形态，对应你截图里要去掉的那圈阴影。
+    工具栏分组借鉴 snow-shot 的浮动图标条样式，但只放<b>变换 + 调整</b>（范围一），标注类预留位置。
+  </div>
+
+  <div class="app-window">
+    <div class="app-titlebar">
+      <span class="traffic" style="background:#ff5f57"></span>
+      <span class="traffic" style="background:#febc2e"></span>
+      <span class="traffic" style="background:#28c840"></span>
+      <span style="margin-left:8px;color:var(--app-muted);font-size:12px;">Steno — 粘贴板</span>
+    </div>
+    <div class="app-body-hint">↑ 应用主窗口（编辑器比它小，居中浮起）</div>
+
+    <div class="backdrop">
+      <div class="editor">
+        <!-- 标题栏（可拖动移动） -->
+        <div class="editor-head">
+          <div class="title">
+            <strong>编辑图片</strong>
+            <span class="sub">图片内容 · 06/01 10:14 · 1280×800</span>
+          </div>
+          <button class="btn" title="关闭" aria-label="关闭">
+            <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <!-- 工具栏 -->
+        <div class="toolbar">
+          <span class="group-label">变换</span>
+          <div class="tgroup">
+            <button class="btn active" title="裁剪 C">
+              <svg viewBox="0 0 24 24"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M2 6h14a2 2 0 0 1 2 2v14"/></svg>
+            </button>
+            <button class="btn" title="向左旋转 90°">
+              <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+            </button>
+            <button class="btn" title="向右旋转 90°">
+              <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+            </button>
+            <button class="btn" title="水平翻转">
+              <svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M7 8 4 12l3 4"/><path d="M17 8l3 4-3 4"/></svg>
+            </button>
+            <button class="btn" title="垂直翻转">
+              <svg viewBox="0 0 24 24"><path d="M3 12h18"/><path d="M8 7 12 4l4 3"/><path d="M8 17l4 3 4-3"/></svg>
+            </button>
+            <button class="btn" title="缩放尺寸">
+              <svg viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+            </button>
+          </div>
+
+          <span class="divider"></span>
+          <span class="group-label">调整</span>
+          <div class="tgroup">
+            <button class="btn active" title="亮度 / 对比度 / 饱和度">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
+              调整
+            </button>
+            <button class="btn" title="灰度">灰度</button>
+            <button class="btn" title="反相">反相</button>
+          </div>
+
+          <span class="divider"></span>
+          <div class="tgroup">
+            <button class="btn" title="撤销 ⌘Z">
+              <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-1"/></svg>
+            </button>
+            <button class="btn" disabled title="重做 ⌘⇧Z">
+              <svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h1"/></svg>
+            </button>
+            <button class="btn" title="重置为原图">重置</button>
+          </div>
+
+          <span class="future" title="范围二预留：箭头/矩形/文字/马赛克等标注工具">＋ 标注（预留）</span>
+        </div>
+
+        <!-- 画布舞台 -->
+        <div class="stage">
+          <div class="canvas-frame">
+            示例图片
+            <div class="crop">
+              <span class="handle tl"></span><span class="handle tr"></span>
+              <span class="handle bl"></span><span class="handle br"></span>
+            </div>
+          </div>
+
+          <!-- 调整 popover 示意 -->
+          <div class="adjust-pop">
+            <h4>基础调整</h4>
+            <div class="slider-row"><span>亮度</span><div class="slider"><i style="left:52%"></i></div></div>
+            <div class="slider-row"><span>对比度</span><div class="slider"><i style="left:60%"></i></div></div>
+            <div class="slider-row"><span>饱和度</span><div class="slider"><i style="left:45%"></i></div></div>
+            <div class="toggle-row">
+              <span class="chip">灰度</span>
+              <span class="chip">反相</span>
+              <span class="chip">复位</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 底部操作栏 -->
+        <div class="footer">
+          <span class="left">已应用 2 步操作 · 裁剪 720×540</span>
+          <span class="spacer"></span>
+          <button class="btn" title="复制到剪贴板">复制</button>
+          <button class="btn" title="取消">取消</button>
+          <span class="primary-split">
+            <button class="primary" title="保存为新的剪贴板条目（B）">
+              <svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11"/></svg>
+              保存为新条目
+            </button>
+            <button class="primary-caret" title="更多保存方式">
+              <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+          </span>
+        </div>
+
+        <!-- 保存方式下拉（B 默认 / A、D 预留） -->
+        <div class="menu">
+          <div class="item recommended"><span>保存为新条目</span><span class="tag">默认</span></div>
+          <div class="item"><span>覆盖原条目</span><span class="k">预留 · A</span></div>
+          <div class="item"><span>导出到文件…</span><span class="k">预留 · D</span></div>
+        </div>
+
+        <div class="resize-grip" title="拖动缩放编辑器窗口"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <span>遮罩形态：</span>
+    <button onclick="setBd('no')">无遮罩（应用可见）</button>
+    <button class="on" onclick="setBd('light')">极淡遮罩（推荐）</button>
+    <button onclick="setBd('heavy')">当前的重模糊（要去掉）</button>
+  </div>
+
+<script>
+  function setBd(kind) {
+    document.body.className = kind === 'no' ? 'no-backdrop' : kind === 'heavy' ? 'heavy-backdrop' : 'light-backdrop';
+    document.querySelectorAll('.controls button').forEach(b => b.classList.remove('on'));
+    event.target.classList.add('on');
+  }
+</script>
+</body>
+</html>
