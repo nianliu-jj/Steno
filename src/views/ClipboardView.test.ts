@@ -132,6 +132,30 @@ describe('ClipboardView', () => {
     expect(wrapper.text()).not.toContain('hello');
   });
 
+  it('renders image entries as preview images', async () => {
+    const dataUrl = 'data:image/png;base64,iVBORw0KGgo=';
+    listClipboardEntries.mockResolvedValueOnce([
+      {
+        id: 'img-1',
+        contentType: 'image',
+        content: dataUrl,
+        htmlContent: null,
+        preview: '图片内容',
+        createdAt: '2026-06-01T00:00:00Z',
+        updatedAt: '2026-06-01T00:00:00Z',
+        sizeBytes: dataUrl.length,
+      },
+    ]);
+
+    const wrapper = mount(ClipboardView);
+    await vi.dynamicImportSettled();
+
+    const image = wrapper.get('img.clipboard-image');
+    expect(image.attributes('src')).toBe(dataUrl);
+    expect(image.attributes('alt')).toBe('剪贴板图片预览');
+    expect(wrapper.find('pre.clipboard-preview').exists()).toBe(false);
+  });
+
   it('pastes an entry when double clicking the clipboard content area only', async () => {
     listClipboardEntries.mockResolvedValueOnce([
       {
