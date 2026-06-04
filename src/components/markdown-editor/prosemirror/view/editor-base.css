@@ -223,6 +223,158 @@
   cursor: pointer;
 }
 
+.ProseMirror .steno-image-node {
+  display: block;
+  margin: 0.8em 0;
+}
+
+.ProseMirror .steno-image-node img {
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.ProseMirror .steno-image-path {
+  margin: 6px auto 0;
+  max-width: 100%;
+  padding: 4px 8px;
+  color: var(--app-muted);
+  border-bottom: 1px solid var(--app-accent);
+  font-family: ui-monospace, "SFMono-Regular", "Consolas", "Cascadia Code", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.ProseMirror .image-fallback {
+  display: block;
+  margin: 0.6em 0;
+  padding: 10px 12px;
+  color: var(--app-muted);
+  background: var(--app-surface-2);
+  border: 1px dashed var(--app-border);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+/* ============ 代码块 NodeView ============ */
+
+.ProseMirror .steno-code-block {
+  margin: 0.9em 0;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface);
+}
+
+.ProseMirror .steno-code-block-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 10px;
+  background: var(--app-surface-2);
+  border-bottom: 1px solid var(--app-border);
+}
+
+.ProseMirror .steno-code-block-lang-label {
+  display: inline-flex;
+  align-items: center;
+  min-width: 64px;
+  height: 22px;
+  padding: 0 8px;
+  color: var(--app-muted);
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  font-family: ui-monospace, "SFMono-Regular", "Consolas", "Cascadia Code", monospace;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.ProseMirror .steno-code-block-copy-btn {
+  min-width: 28px;
+  height: 26px;
+  margin-left: auto;
+  padding: 0 8px;
+  color: var(--app-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.ProseMirror .steno-code-block-copy-btn:hover,
+.ProseMirror .steno-code-block-copy-btn.copied {
+  color: var(--app-fg);
+  background: var(--app-accent-soft);
+}
+
+.ProseMirror .steno-code-block-editor {
+  background: color-mix(in oklch, var(--app-surface-2) 66%, var(--app-surface));
+}
+
+.ProseMirror .steno-code-block .cm-editor {
+  background: transparent;
+}
+
+.ProseMirror .steno-code-block .cm-gutters {
+  min-width: 42px;
+}
+
+.ProseMirror .steno-code-block-readonly {
+  margin: 0;
+  padding: 12px 14px 12px 0;
+  background: transparent;
+  color: var(--app-fg);
+  border-radius: 0;
+  font-family: ui-monospace, "SFMono-Regular", "Consolas", "Cascadia Code", monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  counter-reset: steno-code-line;
+  overflow-x: auto;
+}
+
+.ProseMirror .steno-code-block-readonly code {
+  display: block;
+  padding: 0;
+  background: transparent;
+  font-size: inherit;
+}
+
+.ProseMirror .steno-code-block-line {
+  position: relative;
+  display: block;
+  min-height: 1.55em;
+  padding-left: 3.8em;
+  white-space: pre;
+}
+
+.ProseMirror .steno-code-block-line::before {
+  counter-increment: steno-code-line;
+  content: counter(steno-code-line);
+  position: absolute;
+  left: 0;
+  width: 2.8em;
+  padding-right: 0.65em;
+  color: var(--app-faint);
+  text-align: right;
+  user-select: none;
+}
+
+.ProseMirror .steno-code-block-line-content {
+  color: inherit;
+}
+
 /* ============ 表格 ============ */
 
 .ProseMirror table {

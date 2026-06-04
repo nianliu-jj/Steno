@@ -3,7 +3,7 @@ name = "steno"
 version = "0.0.0"
 description = "Steno — 跨平台桌面速记应用"
 edition = "2024"
-rust-version = "1.96"
+rust-version = "1.96.0"
 
 # tauri 推荐结构：lib + 薄 main，便于未来拓展（如手机端共用 lib）
 [lib]

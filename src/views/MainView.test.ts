@@ -237,10 +237,48 @@ describe('MainView', () => {
       expect(card.find('.note-card-preview').html()).toContain('标题');
       expect(card.find('.note-card-preview').html()).toContain('加粗内容');
       expect(card.find('.note-card-preview').html()).toContain('链接');
+      expect(card.find('.note-card-preview').classes()).toContain('markdown-card-preview');
       expect(card.find('.note-card-tags').text()).toContain('#alpha');
       expect(card.find('.note-card-tags').text()).toContain('#beta');
       expect(card.find('.note-card-tags').text()).not.toContain('#gamma');
       expect(card.find('.note-card-content').text()).toContain(expectedTime);
+    });
+
+    it('renders code and image content in notes as compact preview blocks', async () => {
+      setNotesState([
+        {
+          id: 'note-code-image',
+          title: '代码与图片',
+          content: [
+            '```java',
+            'public class Test {',
+            '}',
+            '```',
+            '',
+            '![复杂度图](assets/image-20240718101650827.png)',
+          ].join('\n'),
+          htmlContent: '',
+          tags: [],
+          isPinned: false,
+          pinnedWindowConfig: null,
+          canvasPosition: null,
+          createdAt: '2026-05-14T09:00:00.000Z',
+          updatedAt: new Date().toISOString(),
+          wordCount: 8,
+          isDraft: false,
+        },
+      ]);
+
+      const wrapper = mount(WrappedMainView);
+      await flushPromises();
+
+      const preview = wrapper.get('.note-card-preview');
+      expect(preview.html()).toContain('note-preview-code');
+      expect(preview.html()).toContain('public class Test');
+      expect(preview.html()).toContain('note-preview-image');
+      expect(preview.html()).toContain('assets/image-20240718101650827.png');
+      expect(preview.html()).not.toContain('```java');
+      expect(preview.find('img').exists()).toBe(false);
     });
 
     it('renders the layout v2 empty state when there are no notes', async () => {

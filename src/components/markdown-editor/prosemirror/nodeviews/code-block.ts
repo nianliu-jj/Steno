@@ -98,7 +98,7 @@ function languageLabel(language: string): string {
  */
 export class CodeBlockView implements NodeView {
   dom: HTMLElement;
-  cm: EditorView;
+  cm: EditorView | null = null;
   node: ProseMirrorNode;
   view: ProseMirrorView;
   getPos: () => number | undefined;
@@ -108,6 +108,8 @@ export class CodeBlockView implements NodeView {
   headerElement: HTMLElement;
   langLabelElement: HTMLElement;
   editorContainer: HTMLElement;
+  readonlyElement: HTMLPreElement | null = null;
+  isEditable: boolean;
   /** 当前已加载语言名的 token，避免异步 load 竞态把旧语言扩展写回。 */
   private loadedLanguageToken = '';
 
@@ -116,12 +118,14 @@ export class CodeBlockView implements NodeView {
     this.view = view;
     this.getPos = getPos;
     this.languageCompartment = new Compartment();
+    this.isEditable = view.editable;
 
     const language: string = node.attrs.language ?? '';
 
     // 容器
     this.dom = document.createElement('div');
     this.dom.className = 'steno-code-block';
+    if (!this.isEditable) this.dom.classList.add('is-readonly');
 
     // 头部（语言标签 + 复制按钮）
     this.headerElement = document.createElement('div');
@@ -135,11 +139,20 @@ export class CodeBlockView implements NodeView {
     this.headerElement.appendChild(this.createCopyButton());
     this.dom.appendChild(this.headerElement);
 
-    // CodeMirror 容器
     this.editorContainer = document.createElement('div');
     this.editorContainer.className = 'steno-code-block-editor';
     this.dom.appendChild(this.editorContainer);
 
+    if (this.isEditable) {
+      this.mountCodeMirror(node);
+      // 异步加载语言扩展（动态 import 语言包）
+      void this.loadLanguage(language);
+    } else {
+      this.renderReadonlyCode();
+    }
+  }
+
+  private mountCodeMirror(node: ProseMirrorNode): void {
     this.cm = new EditorView({
       state: CMEditorState.create({
         doc: node.textContent,
@@ -252,9 +265,31 @@ export class CodeBlockView implements NodeView {
       }),
       parent: this.editorContainer,
     });
+  }
 
-    // 异步加载语言扩展（动态 import 语言包）
-    void this.loadLanguage(language);
+  private renderReadonlyCode(): void {
+    this.editorContainer.replaceChildren();
+
+    const pre = document.createElement('pre');
+    pre.className = 'steno-code-block-readonly';
+    const code = document.createElement('code');
+
+    const lines = this.node.textContent.split('\n');
+    const visibleLines = lines.length > 0 ? lines : [''];
+    for (const line of visibleLines) {
+      const row = document.createElement('span');
+      row.className = 'steno-code-block-line';
+
+      const content = document.createElement('span');
+      content.className = 'steno-code-block-line-content';
+      content.textContent = line || ' ';
+      row.appendChild(content);
+      code.appendChild(row);
+    }
+
+    pre.appendChild(code);
+    this.editorContainer.appendChild(pre);
+    this.readonlyElement = pre;
   }
 
   /** 复制按钮：把代码块的完整 Markdown 写入剪贴板，点击后短暂提示「已复制」。 */
@@ -280,7 +315,7 @@ export class CodeBlockView implements NodeView {
   /** 代码块完整 Markdown（含围栏，移植自 PureMark getCodeBlockMarkdown）。 */
   private getCodeBlockMarkdown(): string {
     const language: string = this.node.attrs.language ?? '';
-    const content = this.cm.state.doc.toString();
+    const content = this.cm?.state.doc.toString() ?? this.node.textContent;
     return `\`\`\`${language}\n${content}\n\`\`\``;
   }
 
@@ -305,17 +340,17 @@ export class CodeBlockView implements NodeView {
     const desc = matchLanguageDescription(token);
     if (!desc) {
       // 无匹配语言：清空语言扩展
-      this.cm.dispatch({ effects: this.languageCompartment.reconfigure([]) });
+      this.cm?.dispatch({ effects: this.languageCompartment.reconfigure([]) });
       return;
     }
     try {
       const support = await desc.load();
       if (this.loadedLanguageToken !== token) return; // 已被后续切换覆盖
-      this.cm.dispatch({ effects: this.languageCompartment.reconfigure(support) });
+      this.cm?.dispatch({ effects: this.languageCompartment.reconfigure(support) });
     } catch {
       // 语言包加载失败（如对应 lang-* 未安装），降级为无高亮，不抛错
       if (this.loadedLanguageToken === token) {
-        this.cm.dispatch({ effects: this.languageCompartment.reconfigure([]) });
+        this.cm?.dispatch({ effects: this.languageCompartment.reconfigure([]) });
       }
     }
   }
@@ -327,7 +362,7 @@ export class CodeBlockView implements NodeView {
     if (this.updating) return;
     // 选区变化（无文档变更）也要前向同步，保证外层 selection 跟随 CM 光标
     if (!update.docChanged) {
-      if (update.selectionSet && this.cm.hasFocus) this.forwardSelection();
+      if (update.selectionSet && this.cm?.hasFocus) this.forwardSelection();
       return;
     }
 
@@ -347,6 +382,7 @@ export class CodeBlockView implements NodeView {
    * CM 偏移 + (pos + 1) 即 PM 文档坐标。
    */
   private forwardSelection(): void {
+    if (!this.cm) return;
     const pos = this.getPos();
     if (pos === undefined) return;
 
@@ -471,18 +507,20 @@ export class CodeBlockView implements NodeView {
     this.node = node;
     const newText = node.textContent;
 
-    if (newText !== this.cm.state.doc.toString()) {
+    if (this.cm && newText !== this.cm.state.doc.toString()) {
       this.updating = true;
       this.cm.dispatch({
         changes: { from: 0, to: this.cm.state.doc.length, insert: newText },
       });
       this.updating = false;
+    } else if (!this.cm) {
+      this.renderReadonlyCode();
     }
 
     const language: string = node.attrs.language ?? '';
     if (language !== prevLanguage) {
       this.langLabelElement.textContent = languageLabel(language);
-      void this.loadLanguage(language);
+      if (this.cm) void this.loadLanguage(language);
     }
 
     return true;
@@ -493,6 +531,7 @@ export class CodeBlockView implements NodeView {
    * PM 在选区进入本节点时调用，anchor/head 为相对 CM 文档的偏移。
    */
   setSelection(anchor: number, head: number): void {
+    if (!this.cm) return;
     this.cm.focus();
     this.updating = true;
     this.cm.dispatch({ selection: { anchor, head } });
@@ -501,7 +540,7 @@ export class CodeBlockView implements NodeView {
 
   /** 节点被选中时把焦点交给 CM（移植自 PureMark selectNode）。 */
   selectNode(): void {
-    this.cm.focus();
+    this.cm?.focus();
   }
 
   /**
@@ -525,7 +564,7 @@ export class CodeBlockView implements NodeView {
 
   /** 销毁内嵌 CM（移植自 PureMark destroy）。 */
   destroy(): void {
-    this.cm.destroy();
+    this.cm?.destroy();
   }
 }
 

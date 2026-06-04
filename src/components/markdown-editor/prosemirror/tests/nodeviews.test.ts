@@ -49,7 +49,7 @@ function stubView(): { view: EditorView; dispatched: unknown[] } {
 const getPos = () => 0;
 
 describe('image NodeView', () => {
-  it('普通图片：外层 dom 是 <img>，src/alt 注入正确', () => {
+  it('普通图片：渲染为图片容器，src/alt 注入正确', () => {
     const node = stenoSchema.nodes.image.create({
       src: 'steno-asset:foo.png',
       alt: '一张图',
@@ -57,8 +57,9 @@ describe('image NodeView', () => {
     });
     const { view } = stubView();
     const nv = createImageNodeView(node, view, getPos);
-    expect(nv.dom.tagName).toBe('IMG');
-    const img = nv.dom as HTMLImageElement;
+    expect(nv.dom.classList.contains('steno-image-node')).toBe(true);
+    const img = nv.dom.querySelector('img') as HTMLImageElement;
+    expect(img).not.toBeNull();
     // 浏览器/jsdom 会把 src 解析为绝对 URL，所以用 includes 断言相对路径片段
     expect(img.src).toContain('foo.png');
     expect(img.alt).toBe('一张图');
@@ -74,8 +75,8 @@ describe('image NodeView', () => {
     });
     const { view } = stubView();
     const nv = createImageNodeView(node, view, getPos);
-    expect(nv.dom.tagName).toBe('A');
-    const a = nv.dom as HTMLAnchorElement;
+    const a = nv.dom.querySelector('a') as HTMLAnchorElement;
+    expect(a).not.toBeNull();
     expect(a.getAttribute('href')).toBe('https://example.com');
     expect(a.title).toBe('hover');
     expect(a.querySelector('img')).not.toBeNull();
@@ -85,11 +86,31 @@ describe('image NodeView', () => {
     const node = stenoSchema.nodes.image.create({ src: 'broken.png', alt: '备用文本' });
     const { view } = stubView();
     const nv = createImageNodeView(node, view, getPos);
-    const img = nv.dom as HTMLImageElement;
+    const img = nv.dom.querySelector('img') as HTMLImageElement;
     // 模拟加载失败
     img.dispatchEvent(new Event('error'));
-    expect(nv.dom.className).toBe('image-fallback');
-    expect(nv.dom.textContent).toBe('备用文本');
+    const fallback = nv.dom.querySelector('.image-fallback') as HTMLElement;
+    expect(fallback).not.toBeNull();
+    expect(fallback.textContent).toBe('备用文本');
+  });
+
+  it('点击图片后在图片下方显示原始路径', () => {
+    const node = stenoSchema.nodes.image.create({
+      src: 'assets/image-20240718101650827.png',
+      alt: '复杂度图',
+    });
+    const { view } = stubView();
+    const nv = createImageNodeView(node, view, getPos);
+    const img = nv.dom.querySelector('img') as HTMLImageElement;
+    const path = nv.dom.querySelector('.steno-image-path') as HTMLElement;
+
+    expect(path).not.toBeNull();
+    expect(path.hidden).toBe(true);
+
+    img.click();
+
+    expect(path.hidden).toBe(false);
+    expect(path.textContent).toBe('assets/image-20240718101650827.png');
   });
 });
 
@@ -218,7 +239,7 @@ describe('code-block NodeView', () => {
    * jsdom 下 CodeMirror 的像素测量 API（getBoundingClientRect 等）会返回 0，
    * 因此测试只断言 DOM 结构存在性，不验证布局。
    */
-  function mountCodeBlock(language: string, code: string) {
+  function mountCodeBlock(language: string, code: string, editable = true) {
     const doc = stenoSchema.nodes.doc.create(null, [
       stenoSchema.nodes.code_block.create({ language }, code ? [stenoSchema.text(code)] : []),
     ]);
@@ -226,6 +247,7 @@ describe('code-block NodeView', () => {
     document.body.appendChild(place);
     const view = new PMEditorView(place, {
       state: EditorState.create({ schema: stenoSchema, doc }),
+      editable: () => editable,
       nodeViews: {
         code_block: createCodeBlockNodeView,
       },
@@ -272,6 +294,19 @@ describe('code-block NodeView', () => {
     expect(writeText.mock.calls[0][0]).toContain('```ts');
     // 点击后即时反馈
     expect(copyBtn.textContent).toBe('已复制');
+
+    view.destroy();
+  });
+
+  it('只读模式渲染为不可编辑代码视图，保留语言标签与复制按钮', () => {
+    const { view, container } = mountCodeBlock('java', 'public class Test {\n}', false);
+
+    expect(container.classList.contains('is-readonly')).toBe(true);
+    expect(container.querySelector('.cm-editor')).toBeNull();
+    expect(container.querySelector('pre.steno-code-block-readonly')).not.toBeNull();
+    expect(container.querySelector('.steno-code-block-line')).not.toBeNull();
+    expect(container.querySelector('.steno-code-block-lang-label')?.textContent).toBe('Java');
+    expect(container.querySelector('.steno-code-block-copy-btn')).not.toBeNull();
 
     view.destroy();
   });

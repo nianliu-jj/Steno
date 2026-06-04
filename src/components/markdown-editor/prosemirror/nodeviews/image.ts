@@ -20,8 +20,10 @@ import { stenoAssetDisplaySrc } from '@/utils/stenoAssets';
  * 创建 image NodeView。
  *
  * - 叶子节点（schema 中 image 无 content），无 contentDOM。
- * - 若 `linkHref` 非空，外层 dom 为 `<a>`，包裹 `<img>`；否则外层即 `<img>`。
- * - `<img>` 加载失败时把外层替换为 `<div class="image-fallback">{alt}</div>`。
+ * - 外层始终为 `.steno-image-node` 容器，保证路径提示与失败占位不破坏 PM 节点边界。
+ * - 若 `linkHref` 非空，图片区域包裹为 `<a>`，否则直接渲染 `<img>`。
+ * - 点击图片时在下方显示原始 src 路径，再次点击隐藏。
+ * - `<img>` 加载失败时把图片区域替换为 `<div class="image-fallback">{alt}</div>`。
  */
 export function createImageNodeView(
   initialNode: Node,
@@ -29,14 +31,19 @@ export function createImageNodeView(
   _getPos: () => number | undefined,
 ): NodeView {
   let node = initialNode;
+  let pathVisible = false;
   let dom: HTMLElement = buildDom(node);
   attachErrorHandler();
 
   function buildDom(currentNode: Node): HTMLElement {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'steno-image-node';
+
     const img = document.createElement('img');
     img.src = stenoAssetDisplaySrc(currentNode.attrs.src ?? '');
     img.alt = currentNode.attrs.alt ?? '';
     if (currentNode.attrs.title) img.title = currentNode.attrs.title;
+    img.addEventListener('click', onImageClick);
 
     const linkHref: string = currentNode.attrs.linkHref ?? '';
     if (linkHref) {
@@ -44,23 +51,40 @@ export function createImageNodeView(
       a.href = linkHref;
       if (currentNode.attrs.linkTitle) a.title = currentNode.attrs.linkTitle;
       a.appendChild(img);
-      return a;
+      wrapper.appendChild(a);
+    } else {
+      wrapper.appendChild(img);
     }
-    return img;
+
+    const path = document.createElement('div');
+    path.className = 'steno-image-path';
+    path.textContent = currentNode.attrs.src ?? '';
+    path.hidden = !pathVisible;
+    wrapper.appendChild(path);
+
+    return wrapper;
   }
 
   function attachErrorHandler() {
-    const img = dom.tagName === 'IMG' ? (dom as HTMLImageElement) : dom.querySelector('img');
+    const img = dom.querySelector('img');
     if (!img) return;
     img.addEventListener('error', onError, { once: true });
+  }
+
+  function onImageClick(event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    pathVisible = !pathVisible;
+    const path = dom.querySelector<HTMLElement>('.steno-image-path');
+    if (path) path.hidden = !pathVisible;
   }
 
   function onError() {
     const fallback = document.createElement('div');
     fallback.className = 'image-fallback';
     fallback.textContent = node.attrs.alt || node.attrs.src || '';
-    dom.replaceWith(fallback);
-    dom = fallback;
+    const media = dom.querySelector('a') ?? dom.querySelector('img');
+    media?.replaceWith(fallback);
   }
 
   return {
@@ -81,18 +105,21 @@ export function createImageNodeView(
         dom = next;
         attachErrorHandler();
       } else if (!sameAlt) {
-        const img = dom.tagName === 'IMG' ? (dom as HTMLImageElement) : dom.querySelector('img');
+        const img = dom.querySelector('img');
         if (img) {
           img.alt = node.attrs.alt ?? '';
           if (node.attrs.title) img.title = node.attrs.title; else img.removeAttribute('title');
         }
+        const path = dom.querySelector<HTMLElement>('.steno-image-path');
+        if (path) path.textContent = node.attrs.src ?? '';
       }
       return true;
     },
     destroy() {
       // 浏览器会在 dom 被替换/移除时自动清理 once: true 监听器，这里仅做防御。
-      const img = dom.tagName === 'IMG' ? (dom as HTMLImageElement) : dom.querySelector('img');
+      const img = dom.querySelector('img');
       img?.removeEventListener('error', onError);
+      img?.removeEventListener('click', onImageClick);
     },
   };
 }

@@ -21,7 +21,6 @@
 
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { NButton, NDropdown, NIcon, NInput, NPopconfirm, useMessage } from 'naive-ui';
-import { DOMSerializer } from 'prosemirror-model';
 
 import { useAppEvents } from '@/composables/useAppEvents';
 import { useDb } from '@/composables/useDb';
@@ -29,8 +28,7 @@ import { useWindow } from '@/composables/useWindow';
 import { useNotesStore } from '@/stores/notes';
 import { useUiStore } from '@/stores/ui';
 import type { Note } from '@/types/steno';
-import { parseMarkdown } from '@/components/markdown-editor/prosemirror/parser';
-import { stenoSchema } from '@/components/markdown-editor/prosemirror/schema';
+import { renderNotePreviewHtml } from '@/utils/notePreview';
 
 const cardExportOptions = [
   { key: 'markdown', label: '导出为 Markdown' },
@@ -526,52 +524,7 @@ function onOpenTagDialogForCard(note: Note) {
 }
 
 function previewHtml(content: string): string {
-  try {
-    // 解析 Markdown 为 ProseMirror 文档
-    const { doc } = parseMarkdown(content);
-
-    // 使用 DOMSerializer 将文档转换为 HTML
-    const serializer = DOMSerializer.fromSchema(stenoSchema);
-    const fragment = serializer.serializeFragment(doc.content);
-
-    // 创建临时容器获取 HTML 字符串
-    const container = document.createElement('div');
-    container.appendChild(fragment);
-    let html = container.innerHTML;
-
-    // 移除语法标记（syntax_marker）
-    html = html.replace(/<span[^>]*class="[^"]*syntax-marker[^"]*"[^>]*>.*?<\/span>/g, '');
-
-    // 截断过长内容（保留 HTML 标签）
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = html;
-    const textContent = tempDiv.textContent || '';
-
-    if (textContent.length > 120) {
-      // 简单截断：取前 120 个字符的文本对应的 HTML
-      let charCount = 0;
-      let truncated = '';
-      const walker = document.createTreeWalker(tempDiv, NodeFilter.SHOW_TEXT);
-
-      while (walker.nextNode() && charCount < 120) {
-        const node = walker.currentNode;
-        const text = node.textContent || '';
-        if (charCount + text.length > 120) {
-          truncated = html.substring(0, html.indexOf(text) + (120 - charCount));
-          break;
-        }
-        charCount += text.length;
-      }
-
-      return truncated ? truncated + '…' : html.substring(0, 200) + '…';
-    }
-
-    return html;
-  } catch (e) {
-    console.error('Preview render error:', e);
-    // 降级：返回纯文本
-    return content.substring(0, 120) + (content.length > 120 ? '…' : '');
-  }
+  return renderNotePreviewHtml(content);
 }
 
 function formatUpdatedAt(iso: string): string {
@@ -772,7 +725,7 @@ function formatUpdatedAt(iso: string): string {
         </header>
 
         <div class="note-card-content" @dblclick="onOpenNoteEditor(note)">
-          <div class="note-card-preview" v-html="previewHtml(note.content)"></div>
+          <div class="note-card-preview markdown-card-preview" v-html="previewHtml(note.content)"></div>
           <span class="note-card-time">{{ formatUpdatedAt(note.updatedAt) }}</span>
         </div>
 
@@ -1624,7 +1577,7 @@ function formatUpdatedAt(iso: string): string {
   color: color-mix(in oklch, oklch(20% 0.02 70) 78%, oklch(49% 0.018 70));
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   overflow: hidden;
   font-size: 12.5px;
   line-height: 1.55;
@@ -1671,6 +1624,30 @@ function formatUpdatedAt(iso: string): string {
   background: rgba(255, 213, 79, 0.55);
   padding: 0 2px;
   border-radius: 2px;
+}
+
+.note-card-preview .note-preview-code {
+  max-width: 100%;
+  color: oklch(37% 0.02 70);
+  border: 1px solid oklch(88% 0.012 78);
+  background: oklch(96% 0.014 78);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.note-card-preview .note-preview-image,
+.note-card-preview .note-preview-html {
+  display: inline;
+  color: oklch(49% 0.018 70);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.note-card-preview .note-preview-image::before {
+  content: "图片 ";
+  color: oklch(61% 0.13 42);
+  font-family: inherit;
 }
 
 .note-card-time {
