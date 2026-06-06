@@ -1636,18 +1636,10 @@ function formatUpdatedAt(iso: string): string {
   text-overflow: ellipsis;
 }
 
-.note-card-preview .note-preview-image,
-.note-card-preview .note-preview-html {
-  display: inline;
+.note-card-preview .note-preview-block {
   color: oklch(49% 0.018 70);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.9em;
-}
-
-.note-card-preview .note-preview-image::before {
-  content: "图片 ";
-  color: oklch(61% 0.13 42);
-  font-family: inherit;
 }
 
 .note-card-time {

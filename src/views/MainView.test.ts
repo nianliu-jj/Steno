@@ -275,8 +275,8 @@ describe('MainView', () => {
       const preview = wrapper.get('.note-card-preview');
       expect(preview.html()).toContain('note-preview-code');
       expect(preview.html()).toContain('public class Test');
-      expect(preview.html()).toContain('note-preview-image');
-      expect(preview.html()).toContain('assets/image-20240718101650827.png');
+      expect(preview.html()).toContain('[图片]');
+      expect(preview.html()).not.toContain('assets/image-20240718101650827.png');
       expect(preview.html()).not.toContain('```java');
       expect(preview.find('img').exists()).toBe(false);
     });

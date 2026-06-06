@@ -14,6 +14,8 @@ describe('renderNotePreviewHtml', () => {
     expect(html).toContain('<a href="hh">a</a>');
     expect(html).not.toContain('**');
     expect(html).not.toContain('&lt;u&gt;');
+    // 标题与段落属于两个块，应有换行分隔
+    expect(html).toContain('<br');
   });
 
   it('把围栏代码块压缩为一行摘要，避免卡片被大代码块撑开', () => {
@@ -24,12 +26,48 @@ describe('renderNotePreviewHtml', () => {
     expect(html).not.toContain('<pre');
   });
 
-  it('把图片渲染为轻量占位，保留可读路径文本', () => {
+  it('把图片渲染为 [图片] 占位，不暴露原始路径', () => {
     const html = renderNotePreviewHtml('![复杂度图](assets/image-20240718101650827.png)');
 
-    expect(html).toContain('note-preview-image');
-    expect(html).toContain('assets/image-20240718101650827.png');
+    expect(html).toContain('[图片]');
     expect(html).not.toContain('<img');
+    expect(html).not.toContain('assets/image-20240718101650827.png');
+  });
+
+  it('把表格渲染为 [表格] 占位，不展开单元格内容', () => {
+    const html = renderNotePreviewHtml('| A | B |\n| --- | --- |\n| a | b |');
+
+    expect(html).toContain('[表格]');
+    expect(html).not.toContain('<table');
+    expect(html).not.toContain('<td');
+    expect(html).not.toContain('<th');
+  });
+
+  it('段落之间体现原文换行，不再黏连成一行', () => {
+    const html = renderNotePreviewHtml('第一行\n\n第二行');
+
+    expect(html).toContain('<br');
+    expect(html).not.toContain('第一行第二行');
+  });
+
+  it('列表的每一项各自成行', () => {
+    const html = renderNotePreviewHtml('- a\n- v');
+
+    expect(html).toContain('<br');
+    // a 与 v 应被换行分隔，而非黏连
+    expect(html).not.toContain('av');
+  });
+
+  it('混合内容（标题/引用/列表/表格）逐行展示并占位表格', () => {
+    const md = '# 继续推进 Phase 4\n\n> 你好啊\n\n- a\n- v\n\n| A | B |\n| --- | --- |\n| a | b |';
+    const html = renderNotePreviewHtml(md);
+
+    expect(html).toContain('你好啊');
+    expect(html).toContain('[表格]');
+    expect(html).not.toContain('<table');
+    // 标题｜你好啊｜a｜v｜[表格] 共 5 行 → 至少 4 个换行分隔
+    const brCount = (html.match(/<br/g) ?? []).length;
+    expect(brCount).toBeGreaterThanOrEqual(4);
   });
 
   it('清理 script 与事件属性', () => {
