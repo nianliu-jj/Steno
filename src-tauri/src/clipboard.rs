@@ -32,6 +32,10 @@ pub struct ClipboardEntry {
     pub size_bytes: i64,
     #[serde(default)]
     pub pinned_at: Option<String>,
+    /// 最近一次"使用"（复制 / 粘贴 / 编辑 / 新建）的时间，用于列表排序与卡片时间显示。
+    /// 与 `updated_at`（内容修改时间，决定"已修改"标记）解耦：复制/粘贴只刷新它。
+    #[serde(default)]
+    pub last_used_at: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

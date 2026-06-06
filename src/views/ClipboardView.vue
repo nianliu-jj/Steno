@@ -321,7 +321,7 @@ async function handleDoubleClick(entry: ClipboardEntry) {
         <!-- 下：卡片底部栏 -->
         <footer class="clipboard-card__footer" :data-testid="`clipboard-card-footer-${entry.id}`">
           <div class="clipboard-card__footer-left">
-            <time class="clipboard-time">{{ formatTime(entry.updatedAt) }}</time>
+            <time class="clipboard-time">{{ formatTime(entry.lastUsedAt ?? entry.updatedAt) }}</time>
             <span v-if="isPinned(entry)" class="clipboard-pinned">已置顶</span>
             <span v-if="isModified(entry)" class="clipboard-modified">已修改</span>
           </div>

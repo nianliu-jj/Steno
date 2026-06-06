@@ -80,7 +80,11 @@ export const useClipboardStore = defineStore('clipboard', () => {
       const aPin = a.pinnedAt ?? '';
       const bPin = b.pinnedAt ?? '';
       if (aPin !== bPin) return bPin.localeCompare(aPin);
-      return b.updatedAt.localeCompare(a.updatedAt);
+      // 非置顶项按「最近使用时间」降序 —— 复制/粘贴会刷新 lastUsedAt 使其重排到头部。
+      // lastUsedAt 缺失时回退 updatedAt（与后端 COALESCE(last_used_at, updated_at) 一致）。
+      const aUsed = a.lastUsedAt ?? a.updatedAt;
+      const bUsed = b.lastUsedAt ?? b.updatedAt;
+      return bUsed.localeCompare(aUsed);
     });
     entries.value = updated.slice(0, 500);
   }

@@ -151,4 +151,38 @@ describe('clipboard store', () => {
     expect(result).toEqual(imageEntry);
     expect(store.entries[0]).toEqual(imageEntry);
   });
+
+  it('收到事件时按 lastUsedAt 重排（最近使用的非置顶项排到头部）', async () => {
+    const store = useClipboardStore();
+    await store.startEventListeners();
+
+    // a：updatedAt 较新但 lastUsedAt 较旧；b：updatedAt 较旧但 lastUsedAt 较新。
+    const a: ClipboardEntry = {
+      id: 'a',
+      contentType: 'text',
+      content: 'a',
+      htmlContent: null,
+      preview: 'a',
+      createdAt: '2026-05-25T00:00:00Z',
+      updatedAt: '2026-05-25T10:00:00Z',
+      sizeBytes: 1,
+      lastUsedAt: '2026-05-25T01:00:00Z',
+    };
+    const b: ClipboardEntry = {
+      id: 'b',
+      contentType: 'text',
+      content: 'b',
+      htmlContent: null,
+      preview: 'b',
+      createdAt: '2026-05-25T00:00:00Z',
+      updatedAt: '2026-05-25T02:00:00Z',
+      sizeBytes: 1,
+      lastUsedAt: '2026-05-25T20:00:00Z',
+    };
+    listeners.get('steno:clipboard-updated')?.({ payload: a });
+    listeners.get('steno:clipboard-updated')?.({ payload: b });
+
+    // 按 lastUsedAt 排序：b（20:00）应排在 a（01:00）之前，尽管 a 的 updatedAt 更新。
+    expect(store.entries.map(e => e.id)).toEqual(['b', 'a']);
+  });
 });

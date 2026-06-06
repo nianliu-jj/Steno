@@ -390,4 +390,27 @@ describe('ClipboardView', () => {
     expect(openUrl).toHaveBeenCalledWith('https://example.com');
     expect(messageSuccess).toHaveBeenCalledWith('已在浏览器中打开');
   });
+
+  it('卡片时间显示最近使用时间（lastUsedAt）而非内容修改时间', async () => {
+    listClipboardEntries.mockResolvedValueOnce([
+      {
+        id: '1',
+        contentType: 'text',
+        content: 'hello',
+        htmlContent: null,
+        preview: 'hello',
+        createdAt: '2026-05-25T00:00:00Z',
+        updatedAt: '2026-05-25T00:00:00Z',
+        sizeBytes: 5,
+        lastUsedAt: '2026-06-06T00:00:00Z',
+      },
+    ]);
+
+    const wrapper = mount(ClipboardView);
+    await vi.dynamicImportSettled();
+
+    const footer = wrapper.get('[data-testid="clipboard-card-footer-1"]');
+    expect(footer.text()).toContain('06/06');
+    expect(footer.text()).not.toContain('05/25');
+  });
 });

@@ -420,40 +420,50 @@ pub async fn clear_clipboard_entries(app: AppHandle, db: State<'_, Db>) -> Resul
 
 #[tauri::command]
 pub async fn copy_clipboard_entry(
+    app: AppHandle,
     db: State<'_, Db>,
     echo: State<'_, clipboard::ClipboardEcho>,
     id: String,
 ) -> Result<(), String> {
     let db = db.inner().clone();
     let echo = echo.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+    let entry = tauri::async_runtime::spawn_blocking(move || -> Result<ClipboardEntry, String> {
         let entry = db
             .get_clipboard_entry(&id)
             .map_err(to_msg)?
             .ok_or_else(|| format!("剪贴板条目不存在：{id}"))?;
-        clipboard::write_entry_to_system_clipboard(&entry, &echo)
+        clipboard::write_entry_to_system_clipboard(&entry, &echo)?;
+        // 复制即"使用一次"：刷新 last_used_at 让卡片重排到头部（不动 updated_at，不误标已修改）。
+        db.touch_clipboard_entry(&entry.id).map_err(to_msg)
     })
     .await
-    .map_err(to_msg)?
+    .map_err(to_msg)??;
+    let _ = app.emit(clipboard::CLIPBOARD_UPDATED_EVENT, entry);
+    Ok(())
 }
 
 #[tauri::command]
 pub async fn paste_clipboard_entry(
+    app: AppHandle,
     db: State<'_, Db>,
     echo: State<'_, clipboard::ClipboardEcho>,
     id: String,
 ) -> Result<(), String> {
     let db = db.inner().clone();
     let echo = echo.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+    let entry = tauri::async_runtime::spawn_blocking(move || -> Result<ClipboardEntry, String> {
         let entry = db
             .get_clipboard_entry(&id)
             .map_err(to_msg)?
             .ok_or_else(|| format!("剪贴板条目不存在：{id}"))?;
-        clipboard::paste_entry_to_active_cursor(&entry, &echo)
+        clipboard::paste_entry_to_active_cursor(&entry, &echo)?;
+        // 粘贴即"使用一次"：刷新 last_used_at 让卡片重排到头部（不动 updated_at）。
+        db.touch_clipboard_entry(&entry.id).map_err(to_msg)
     })
     .await
-    .map_err(to_msg)?
+    .map_err(to_msg)??;
+    let _ = app.emit(clipboard::CLIPBOARD_UPDATED_EVENT, entry);
+    Ok(())
 }
 
 #[tauri::command]

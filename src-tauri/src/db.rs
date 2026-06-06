@@ -320,6 +320,27 @@ impl Db {
             }
             conn.pragma_update(None, "user_version", 7_i64)?;
         }
+        if version < 8 {
+            // v8：clipboard_history 新增 last_used_at 列（最近复制/粘贴/编辑时间）。
+            // 用于列表排序与卡片时间显示，与"已修改"判断（updated_at）解耦；
+            // 旧库回填为 updated_at，保证排序/显示有值。
+            let clipboard_exists: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='clipboard_history'",
+                [],
+                |row| row.get(0),
+            )?;
+            if clipboard_exists > 0 && !Self::clipboard_has_column(conn, "last_used_at")? {
+                conn.execute(
+                    "ALTER TABLE clipboard_history ADD COLUMN last_used_at TEXT",
+                    [],
+                )?;
+                conn.execute(
+                    "UPDATE clipboard_history SET last_used_at = updated_at WHERE last_used_at IS NULL",
+                    [],
+                )?;
+            }
+            conn.pragma_update(None, "user_version", 8_i64)?;
+        }
         // 幂等自检：dev 库偶尔会出现 user_version 已升到 2 但实际 ALTER 没成功
         // 的不一致状态（多进程访问、上次 migration 异常等），每次启动再确认一次。
         Self::ensure_is_draft_column(conn)?;
@@ -412,7 +433,8 @@ impl Db {
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     size_bytes INTEGER NOT NULL DEFAULT 0,
-                    pinned_at TEXT
+                    pinned_at TEXT,
+                    last_used_at TEXT
                 )",
             ),
             (
@@ -486,6 +508,8 @@ impl Db {
                 ON clipboard_history(content_type, content_hash);
             CREATE INDEX IF NOT EXISTS idx_clipboard_history_updated_at
                 ON clipboard_history(updated_at);
+            CREATE INDEX IF NOT EXISTS idx_clipboard_history_last_used_at
+                ON clipboard_history(last_used_at);
             CREATE INDEX IF NOT EXISTS idx_clipboard_history_type
                 ON clipboard_history(content_type);
             ",
@@ -1286,13 +1310,14 @@ impl Db {
 
         conn.execute(
             "INSERT INTO clipboard_history
-             (id, content_type, content, html_content, preview, content_hash, created_at, updated_at, size_bytes)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             (id, content_type, content, html_content, preview, content_hash, created_at, updated_at, last_used_at, size_bytes)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
              ON CONFLICT(content_type, content_hash) DO UPDATE SET
                content = excluded.content,
                html_content = excluded.html_content,
                preview = excluded.preview,
                updated_at = excluded.updated_at,
+               last_used_at = excluded.last_used_at,
                size_bytes = excluded.size_bytes",
             rusqlite::params![
                 &id,
@@ -1302,6 +1327,7 @@ impl Db {
                 &input.preview,
                 &input.content_hash,
                 &created_at,
+                &now,
                 &now,
                 input.size_bytes,
             ],
@@ -1318,7 +1344,7 @@ impl Db {
     ) -> Result<Vec<ClipboardEntry>, DbError> {
         let conn = self.lock()?;
         let mut sql = String::from(
-            "SELECT id, content_type, content, html_content, preview, created_at, updated_at, size_bytes, pinned_at
+            "SELECT id, content_type, content, html_content, preview, created_at, updated_at, size_bytes, pinned_at, COALESCE(last_used_at, updated_at)
              FROM clipboard_history
              WHERE 1 = 1",
         );
@@ -1340,7 +1366,7 @@ impl Db {
             }
         }
 
-        sql.push_str(" ORDER BY pinned_at DESC, updated_at DESC LIMIT ?");
+        sql.push_str(" ORDER BY pinned_at DESC, COALESCE(last_used_at, updated_at) DESC LIMIT ?");
         values.push(limit.max(1).to_string());
 
         let mut stmt = conn.prepare(&sql)?;
@@ -1385,8 +1411,8 @@ impl Db {
         let now = chrono::Utc::now().to_rfc3339();
         let preview: String = content.chars().take(120).collect();
         conn.execute(
-            "UPDATE clipboard_history SET content = ?1, html_content = ?2, preview = ?3, updated_at = ?4, size_bytes = ?5 WHERE id = ?6",
-            rusqlite::params![content, html_content, &preview, &now, content.len() as i64, id],
+            "UPDATE clipboard_history SET content = ?1, html_content = ?2, preview = ?3, updated_at = ?4, last_used_at = ?5, size_bytes = ?6 WHERE id = ?7",
+            rusqlite::params![content, html_content, &preview, &now, &now, content.len() as i64, id],
         )?;
         Self::find_clipboard_entry(&conn, id)
     }
@@ -1406,6 +1432,18 @@ impl Db {
         conn.execute(
             "UPDATE clipboard_history SET pinned_at = NULL WHERE id = ?1",
             rusqlite::params![id],
+        )?;
+        Self::find_clipboard_entry(&conn, id)
+    }
+
+    /// 刷新条目的「最近使用时间」（复制 / 粘贴时调用），使其在列表中重排到头部
+    /// （置顶项之后）。刻意不动 `updated_at` —— 使用不是内容修改，不应触发"已修改"。
+    pub fn touch_clipboard_entry(&self, id: &str) -> Result<ClipboardEntry, DbError> {
+        let conn = self.lock()?;
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "UPDATE clipboard_history SET last_used_at = ?1 WHERE id = ?2",
+            rusqlite::params![&now, id],
         )?;
         Self::find_clipboard_entry(&conn, id)
     }
@@ -1486,7 +1524,7 @@ impl Db {
     fn find_clipboard_entry(conn: &Connection, id: &str) -> Result<ClipboardEntry, DbError> {
         let entry = conn
             .query_row(
-                "SELECT id, content_type, content, html_content, preview, created_at, updated_at, size_bytes, pinned_at
+                "SELECT id, content_type, content, html_content, preview, created_at, updated_at, size_bytes, pinned_at, COALESCE(last_used_at, updated_at)
                  FROM clipboard_history WHERE id = ?1",
                 rusqlite::params![id],
                 row_to_clipboard_entry,
@@ -2011,6 +2049,7 @@ fn row_to_clipboard_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<Clipboard
         updated_at: row.get(6)?,
         size_bytes: row.get(7)?,
         pinned_at: row.get(8)?,
+        last_used_at: row.get(9)?,
     })
 }
 
@@ -2259,7 +2298,7 @@ mod tests {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 7);
+        assert_eq!(version, 8);
     }
 
     #[test]
@@ -2346,7 +2385,7 @@ mod tests {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 7);
+        assert_eq!(version, 8);
     }
 
     // --- derive_title ---
@@ -2717,6 +2756,46 @@ mod tests {
         let listed = db.list_clipboard_entries(20, None, None).unwrap();
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].content, "hello");
+    }
+
+    #[test]
+    fn touch_clipboard_entry_refreshes_last_used_at_and_moves_to_top() {
+        let db = fresh_db();
+        let a = db
+            .upsert_clipboard_entry(NewClipboardEntry {
+                content_type: "text".into(),
+                content: "first".into(),
+                html_content: None,
+                preview: "first".into(),
+                content_hash: "text:1".into(),
+                size_bytes: 5,
+            })
+            .unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        let b = db
+            .upsert_clipboard_entry(NewClipboardEntry {
+                content_type: "text".into(),
+                content: "second".into(),
+                html_content: None,
+                preview: "second".into(),
+                content_hash: "text:2".into(),
+                size_bytes: 6,
+            })
+            .unwrap();
+
+        // 初始：b 后插入，last_used_at 较新，排在最前。
+        let listed = db.list_clipboard_entries(20, None, None).unwrap();
+        assert_eq!(listed[0].id, b.id);
+
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        let touched = db.touch_clipboard_entry(&a.id).unwrap();
+        // touch 只刷新 last_used_at（视为"又用了一次"），不改 updated_at —— 不算内容修改。
+        assert_eq!(touched.updated_at, a.updated_at);
+        assert_ne!(touched.last_used_at, a.last_used_at);
+
+        // 重新 list：a 因最近被使用而排到最前。
+        let listed = db.list_clipboard_entries(20, None, None).unwrap();
+        assert_eq!(listed[0].id, a.id);
     }
 
     #[test]
@@ -3135,7 +3214,7 @@ mod tests {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 7);
+        assert_eq!(version, 8);
     }
 
     #[test]

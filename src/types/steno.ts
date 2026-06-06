@@ -170,6 +170,8 @@ export interface ClipboardEntry {
   updatedAt: string;
   sizeBytes: number;
   pinnedAt?: string | null;
+  /** 最近一次复制/粘贴/编辑/新建的时间，用于列表排序与卡片时间显示（与"已修改"解耦）。 */
+  lastUsedAt?: string | null;
 }
 
 // ----- 前端独有：窗口模式（不进 Rust） -----------------------------------
