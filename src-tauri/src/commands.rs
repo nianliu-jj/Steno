@@ -700,9 +700,17 @@ pub async fn export_note_markdown(db: State<'_, Db>, id: String) -> Result<Strin
             .ok_or_else(|| format!("笔记不存在：{id}"))?;
         let (data_dir, _db_path, _backup) = db.paths();
         let exports_dir = data_dir.join("exports");
-        let path = export::build_output_path(&exports_dir, &note, "md");
-        export::export_markdown(&note, &path).map_err(to_msg)?;
-        Ok(path.to_string_lossy().into_owned())
+        // 含本地图片时打包成文件夹（.md + assets/），否则保持单文件导出。
+        if export::has_local_images(&note.content, &data_dir) {
+            let bundle_dir = exports_dir.join(export::default_filename(&note));
+            let md_path =
+                export::export_markdown_bundle(&note, &data_dir, &bundle_dir).map_err(to_msg)?;
+            Ok(md_path.to_string_lossy().into_owned())
+        } else {
+            let path = export::build_output_path(&exports_dir, &note, "md");
+            export::export_markdown(&note, &path).map_err(to_msg)?;
+            Ok(path.to_string_lossy().into_owned())
+        }
     })
     .await
     .map_err(to_msg)?

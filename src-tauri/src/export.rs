@@ -14,6 +14,7 @@
 //! ## 错误处理
 //! 导出失败时不动原数据，仅向调用方返回 `io::Error` / `ExportError`。
 
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::models::Note;
@@ -37,6 +38,204 @@ pub fn export_markdown(note: &Note, output_path: &Path) -> Result<(), ExportErro
     }
     std::fs::write(output_path, body)?;
     Ok(())
+}
+
+/// 把笔记导出成自包含文件夹：`<bundle_dir>/<filename>.md` + `<bundle_dir>/assets/<图片>`。
+///
+/// 正文中引用的本地图片（`steno-asset:` 协议、`~/.steno/`、`file://`、本地绝对路径）会被
+/// 复制进 `assets/` 并把引用改成相对路径；`data:` 内联与 `http(s)` 外链原样保留。
+/// 返回写入的 `.md` 文件完整路径。
+pub fn export_markdown_bundle(
+    note: &Note,
+    data_dir: &Path,
+    bundle_dir: &Path,
+) -> Result<PathBuf, ExportError> {
+    std::fs::create_dir_all(bundle_dir)?;
+    let assets_dir = bundle_dir.join("assets");
+    let content = copy_images_and_rewrite(&note.content, data_dir, &assets_dir)?;
+    let body = render_markdown_with(note, &content);
+    let md_path = bundle_dir.join(format!("{}.md", default_filename(note)));
+    std::fs::write(&md_path, body)?;
+    Ok(md_path)
+}
+
+/// 判断正文是否引用了至少一张「存在的本地图片」—— 用于决定导出 Markdown 时
+/// 是否需要打包成文件夹（无本地图片时退化为单文件导出，不必多一层目录）。
+pub fn has_local_images(content: &str, data_dir: &Path) -> bool {
+    let mut found = false;
+    rewrite_markdown_images(content, |url| {
+        if !found {
+            if let Some(src) = resolve_local_image(url, data_dir) {
+                if src.is_file() {
+                    found = true;
+                }
+            }
+        }
+        None
+    });
+    found
+}
+
+/// 扫描正文图片引用，把本地图片复制进 `assets_dir`，返回改写后的正文。
+fn copy_images_and_rewrite(
+    content: &str,
+    data_dir: &Path,
+    assets_dir: &Path,
+) -> Result<String, ExportError> {
+    let mut copied: HashMap<PathBuf, String> = HashMap::new();
+    let mut used: HashSet<String> = HashSet::new();
+    let mut assets_ready = false;
+    let mut io_err: Option<std::io::Error> = None;
+
+    let rewritten = rewrite_markdown_images(content, |url| {
+        if io_err.is_some() {
+            return None;
+        }
+        let src = resolve_local_image(url, data_dir)?;
+        if !src.is_file() {
+            return None;
+        }
+        if let Some(rel) = copied.get(&src) {
+            return Some(rel.clone());
+        }
+        if !assets_ready {
+            if let Err(e) = std::fs::create_dir_all(assets_dir) {
+                io_err = Some(e);
+                return None;
+            }
+            assets_ready = true;
+        }
+        let base = src
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "image".to_string());
+        let name = unique_asset_name(&base, &used);
+        if let Err(e) = std::fs::copy(&src, assets_dir.join(&name)) {
+            io_err = Some(e);
+            return None;
+        }
+        used.insert(name.clone());
+        let rel = format!("assets/{name}");
+        copied.insert(src, rel.clone());
+        Some(rel)
+    });
+
+    if let Some(e) = io_err {
+        return Err(e.into());
+    }
+    Ok(rewritten)
+}
+
+/// 把图片引用 URL 解析为本地文件绝对路径；外链 / 内联 / 非本地一律返回 `None`。
+fn resolve_local_image(url: &str, data_dir: &Path) -> Option<PathBuf> {
+    let url = url.trim();
+    if url.is_empty()
+        || url.starts_with("data:")
+        || url.starts_with("http://")
+        || url.starts_with("https://")
+    {
+        return None;
+    }
+    if let Some(rel) = url.strip_prefix("steno-asset:") {
+        return safe_data_relative(rel, data_dir);
+    }
+    if let Some(rel) = url
+        .strip_prefix("~/.steno/")
+        .or_else(|| url.strip_prefix("～/.steno/"))
+    {
+        return safe_data_relative(rel, data_dir);
+    }
+    if let Some(rest) = url.strip_prefix("file://") {
+        let path = rest.strip_prefix("localhost").unwrap_or(rest);
+        return Some(PathBuf::from(path));
+    }
+    let path = Path::new(url);
+    if path.is_absolute() {
+        return Some(path.to_path_buf());
+    }
+    None
+}
+
+/// 校验相对路径安全（无越级 / 反斜杠 / 绝对），再拼到 `data_dir` 下。
+fn safe_data_relative(rel: &str, data_dir: &Path) -> Option<PathBuf> {
+    if rel.is_empty() || rel.starts_with('/') || rel.contains("..") || rel.contains('\\') {
+        return None;
+    }
+    Some(data_dir.join(rel))
+}
+
+/// 为 `assets/` 内的图片取不冲突的文件名：basename 已占用时追加 `-1` / `-2`…
+fn unique_asset_name(base: &str, used: &HashSet<String>) -> String {
+    if !used.contains(base) {
+        return base.to_string();
+    }
+    let (stem, ext) = match base.rfind('.') {
+        Some(i) if i > 0 => (&base[..i], &base[i..]),
+        _ => (base, ""),
+    };
+    let mut n = 1;
+    loop {
+        let candidate = format!("{stem}-{n}{ext}");
+        if !used.contains(&candidate) {
+            return candidate;
+        }
+        n += 1;
+    }
+}
+
+/// 手写扫描 `![alt](url)` 并按 `map_url` 改写 url（返回 `None` 表示保留原样）。
+///
+/// 仅按 ASCII 字节 `!` `[` `]` `(` `)` 与空白定位标记 —— UTF-8 多字节字符的每个
+/// 字节都 ≥ 0x80，绝不会与这些 ASCII 标记冲突，故按字节切片对中文安全。
+/// 规则与前端 `MARKDOWN_IMAGE_RE` 一致：alt 不含 `]`，url 到首个 `)` 或空白为止。
+fn rewrite_markdown_images(
+    content: &str,
+    mut map_url: impl FnMut(&str) -> Option<String>,
+) -> String {
+    let bytes = content.as_bytes();
+    let n = bytes.len();
+    let mut out = String::with_capacity(n);
+    let mut last = 0;
+    let mut i = 0;
+    while i + 1 < n {
+        if bytes[i] == b'!' && bytes[i + 1] == b'[' {
+            if let Some((url_start, url_end)) = parse_image_url_span(bytes, i) {
+                let url = &content[url_start..url_end];
+                if let Some(new_url) = map_url(url) {
+                    out.push_str(&content[last..url_start]);
+                    out.push_str(&new_url);
+                    last = url_end;
+                }
+                i = url_end;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    out.push_str(&content[last..]);
+    out
+}
+
+/// 从 `![` 起点（`excl_start` 指向 `!`）解析 url 在 `bytes` 中的 `[start, end)`，
+/// `end` 指向闭合的 `)`。形如 `![](url "title")` 的 title 形式不支持（与前端一致）。
+fn parse_image_url_span(bytes: &[u8], excl_start: usize) -> Option<(usize, usize)> {
+    let n = bytes.len();
+    let mut j = excl_start + 2;
+    while j < n && bytes[j] != b']' {
+        j += 1;
+    }
+    if j >= n || j + 1 >= n || bytes[j + 1] != b'(' {
+        return None;
+    }
+    let url_start = j + 2;
+    let mut k = url_start;
+    while k < n && bytes[k] != b')' && !bytes[k].is_ascii_whitespace() {
+        k += 1;
+    }
+    if k >= n || bytes[k] != b')' || k == url_start {
+        return None;
+    }
+    Some((url_start, k))
 }
 
 pub fn export_html(note: &Note, output_path: &Path) -> Result<(), ExportError> {
@@ -95,6 +294,12 @@ pub fn build_output_path(exports_dir: &Path, note: &Note, ext: &str) -> PathBuf 
 /// 生成包含 frontmatter（标题/标签/时间）+ 正文的 Markdown 文档。
 /// frontmatter 用 YAML 风格，便于第三方工具识别。
 fn render_markdown(note: &Note) -> String {
+    render_markdown_with(note, &note.content)
+}
+
+/// 与 [`render_markdown`] 相同，但正文用传入的 `content`
+/// （导出为文件夹时正文里的图片引用已被改写为相对路径）。
+fn render_markdown_with(note: &Note, content: &str) -> String {
     let mut buf = String::new();
     buf.push_str("---\n");
     buf.push_str(&format!("title: {}\n", yaml_escape(&note.title)));
@@ -110,8 +315,8 @@ fn render_markdown(note: &Note) -> String {
     if !note.title.is_empty() {
         buf.push_str(&format!("# {}\n\n", note.title));
     }
-    buf.push_str(&note.content);
-    if !note.content.ends_with('\n') {
+    buf.push_str(content);
+    if !content.ends_with('\n') {
         buf.push('\n');
     }
     buf
@@ -244,5 +449,81 @@ mod tests {
             Some("笔记标题-abcdef12.md")
         );
         assert_eq!(path.parent(), Some(Path::new("/tmp/exports")));
+    }
+
+    #[test]
+    fn export_markdown_bundle_copies_images_and_rewrites_relative_paths() {
+        let tmp = std::env::temp_dir().join(format!("steno-bundle-{}", uuid::Uuid::new_v4()));
+        let data_dir = tmp.join("data");
+        let img_abs = data_dir.join("images/2026-05-28/paste.png");
+        std::fs::create_dir_all(img_abs.parent().unwrap()).unwrap();
+        std::fs::write(&img_abs, b"PNGDATA").unwrap();
+
+        let mut note = make_note();
+        note.content = "![截图](steno-asset:images/2026-05-28/paste.png)\n\n![外链](https://example.com/x.png)\n\n![内联](data:image/png;base64,AAAA)".into();
+
+        let bundle_dir = tmp.join("out");
+        let md_path = export_markdown_bundle(&note, &data_dir, &bundle_dir).expect("bundle");
+
+        // 本地图片复制进 assets/，正文引用改为相对路径
+        assert!(bundle_dir.join("assets").join("paste.png").exists());
+        let md = std::fs::read_to_string(&md_path).unwrap();
+        assert!(md.contains("](assets/paste.png)"));
+        assert!(!md.contains("steno-asset:"));
+        // 外链与 data: 内联原样保留
+        assert!(md.contains("](https://example.com/x.png)"));
+        assert!(md.contains("](data:image/png;base64,AAAA)"));
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn export_markdown_bundle_deduplicates_same_basename() {
+        let tmp = std::env::temp_dir().join(format!("steno-bundle-{}", uuid::Uuid::new_v4()));
+        let data_dir = tmp.join("data");
+        let a = data_dir.join("images/a/pic.png");
+        let b = data_dir.join("images/b/pic.png");
+        std::fs::create_dir_all(a.parent().unwrap()).unwrap();
+        std::fs::create_dir_all(b.parent().unwrap()).unwrap();
+        std::fs::write(&a, b"AAA").unwrap();
+        std::fs::write(&b, b"BBB").unwrap();
+
+        let mut note = make_note();
+        note.content = "![1](steno-asset:images/a/pic.png) ![2](steno-asset:images/b/pic.png)".into();
+
+        let bundle_dir = tmp.join("out");
+        let md_path = export_markdown_bundle(&note, &data_dir, &bundle_dir).expect("bundle");
+        let md = std::fs::read_to_string(&md_path).unwrap();
+
+        // 同名 basename 不互相覆盖：第二个被改名
+        assert!(bundle_dir.join("assets").join("pic.png").exists());
+        assert!(bundle_dir.join("assets").join("pic-1.png").exists());
+        assert!(md.contains("](assets/pic.png)"));
+        assert!(md.contains("](assets/pic-1.png)"));
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn has_local_images_detects_existing_local_assets_only() {
+        let tmp = std::env::temp_dir().join(format!("steno-has-{}", uuid::Uuid::new_v4()));
+        let data_dir = tmp.join("data");
+        let img = data_dir.join("images/x.png");
+        std::fs::create_dir_all(img.parent().unwrap()).unwrap();
+        std::fs::write(&img, b"P").unwrap();
+
+        // 存在的本地图片 → true
+        assert!(has_local_images("![a](steno-asset:images/x.png)", &data_dir));
+        // 仅外链 / 内联 → false
+        assert!(!has_local_images(
+            "![a](https://e.com/x.png) ![b](data:image/png;base64,AA)",
+            &data_dir
+        ));
+        // 无图片 → false
+        assert!(!has_local_images("纯文本，没有任何图片", &data_dir));
+        // 引用的本地图片不存在（已丢） → false，不必创建空文件夹
+        assert!(!has_local_images("![a](steno-asset:images/missing.png)", &data_dir));
+
+        std::fs::remove_dir_all(&tmp).ok();
     }
 }
