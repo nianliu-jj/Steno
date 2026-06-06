@@ -74,6 +74,12 @@ const shellModes = new Set<WindowMode>([
 
 // 启动加载 settings（Pinia store 自行缓存）。失败不阻塞 UI，错误会进 store.error。
 onMounted(() => {
+  // 待办浮窗是透明窗口：给根 html 打标记，让 #app / .app-theme-root 不绘制
+  // 不透明背景与圆角，避免其圆角在浮窗四角外露出 --app-bg 形成白边（见 global.css）。
+  if (ui.mode === 'todo-panel') {
+    document.documentElement.classList.add('window-todo-panel');
+  }
+
   void listenThemeModeChanged(mode => {
     if (settingsLoadPending) {
       themeModeDuringLoad = mode;
@@ -180,6 +186,13 @@ watch(
   clip-path: inset(0 round var(--app-window-radius, 12px));
   overflow: hidden;
   isolation: isolate;
+}
+
+/* 待办浮窗（透明窗口）：与 #app 一样去掉不透明背景与圆角裁剪，避免四角白边。 */
+:global(html.window-todo-panel) .app-theme-root {
+  background: transparent;
+  border-radius: 0;
+  clip-path: none;
 }
 
 .mode-fallback {

@@ -53,6 +53,7 @@ const content = ref('');
 const tagsInput = ref('');
 const isClipboardView = ref(false);
 const clipboardEntryId = ref<string | null>(null);
+const clipboardInitialContent = ref('');
 const clipboardDirty = ref(false);
 const loaded = ref(!isSticky.value);
 
@@ -98,6 +99,9 @@ const { status, savedAt, error, scheduleSave, flushSave } = useAutosave(
 
 watch([title, content, tagsInput], () => {
   if (!loaded.value) return;
+  // 粘贴板模式：浮窗只用于查看 / 编辑剪贴板条目，绝不写入笔记库（不创建草稿笔记）。
+  // 配合 useAutosave —— 永不 scheduleSave，pending 恒为空，flushSave 自然成为 no-op。
+  if (isClipboardView.value) return;
   if (isEmpty.value && !currentNoteId.value) return;
   if (isSticky.value) {
     scheduleSave({
@@ -126,7 +130,17 @@ let clipboardSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
 function scheduleClipboardSave() {
   if (!clipboardEntryId.value) return;
-  clipboardDirty.value = true;
+  // 只有内容相对"打开时的原始内容"真正改变了才算脏 —— 程序填充初始内容
+  // （quicknote:open 回填）不应触发保存，否则会无谓 bump updated_at 而被误标"已修改"。
+  clipboardDirty.value = content.value !== clipboardInitialContent.value;
+  if (!clipboardDirty.value) {
+    // 内容与原始值一致（含"改了又改回"）：撤销待保存，保持条目不被触碰。
+    if (clipboardSaveTimer) {
+      clearTimeout(clipboardSaveTimer);
+      clipboardSaveTimer = null;
+    }
+    return;
+  }
   if (clipboardSaveTimer) clearTimeout(clipboardSaveTimer);
   clipboardSaveTimer = setTimeout(async () => {
     if (!clipboardEntryId.value || !clipboardDirty.value) return;
@@ -256,6 +270,7 @@ function resetState() {
   tagsInput.value = '';
   isClipboardView.value = false;
   clipboardEntryId.value = null;
+  clipboardInitialContent.value = '';
   clipboardDirty.value = false;
   titleEditing.value = false;
   tagsEditing.value = false;
@@ -419,9 +434,12 @@ onMounted(async () => {
         // 如果有直接传入的初始内容，优先使用它。
         if (payload.initialContent) {
           resetState();
-          content.value = payload.initialContent;
+          // 先记录原始内容与上下文，再回填 content —— content 的 watch 异步触发，
+          // 届时这些基准值已就绪，初始回填便不会被误判为"用户编辑"。
+          clipboardInitialContent.value = payload.initialContent;
           isClipboardView.value = !!payload.clipboardContext;
           clipboardEntryId.value = payload.clipboardEntryId ?? null;
+          content.value = payload.initialContent;
           return;
         }
         isClipboardView.value = false;

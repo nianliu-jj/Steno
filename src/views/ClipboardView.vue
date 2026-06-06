@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useMessage } from 'naive-ui';
 
 import { useClipboardStore } from '@/stores/clipboard';
 import { useWindow } from '@/composables/useWindow';
@@ -8,6 +9,7 @@ import type { ClipboardContentType, ClipboardEntry } from '@/types/steno';
 
 const store = useClipboardStore();
 const win = useWindow();
+const message = useMessage();
 const pendingDeleteId = ref<string | null>(null);
 const previewImage = ref<ClipboardEntry | null>(null);
 
@@ -105,9 +107,14 @@ function closeImagePreview() {
 }
 
 async function confirmDelete(id: string) {
-  await store.deleteEntry(id);
-  if (pendingDeleteId.value === id) {
-    pendingDeleteId.value = null;
+  try {
+    await store.deleteEntry(id);
+    if (pendingDeleteId.value === id) {
+      pendingDeleteId.value = null;
+    }
+    message.success('已删除');
+  } catch {
+    message.error('删除失败');
   }
 }
 
@@ -118,19 +125,23 @@ async function handleOpen(entry: ClipboardEntry) {
       case 'rich_text':
       case 'code':
         await win.openQuicknote({ fresh: true, initialContent: entry.content, clipboardContext: true, clipboardEntryId: entry.id });
+        message.success('已在浮窗中打开');
         break;
       case 'url':
         await win.openUrl(entry.content);
+        message.success('已在浏览器中打开');
         break;
       case 'image':
         previewImage.value = entry;
         break;
       case 'file':
         await win.openPathInFileManager(entry.content);
+        message.success('已在文件管理器中显示');
         break;
     }
   } catch {
-    // 静默处理：目标应用可能未安装
+    // 目标应用可能未安装 / 路径已失效等
+    message.error('打开失败');
   }
 }
 
@@ -138,16 +149,39 @@ async function handlePin(entry: ClipboardEntry) {
   try {
     if (isPinned(entry)) {
       await store.unpinEntry(entry.id);
+      message.success('已取消置顶');
     } else {
       await store.pinEntry(entry.id);
+      message.success('已置顶');
     }
   } catch {
-    // 静默
+    message.error('操作失败');
+  }
+}
+
+async function handleCopy(entry: ClipboardEntry) {
+  try {
+    await store.copyEntry(entry.id);
+    message.success('已复制到剪贴板');
+  } catch {
+    message.error('复制失败');
   }
 }
 
 async function handleDoubleClick(entry: ClipboardEntry) {
-  await store.pasteEntry(entry.id);
+  // 双击 = 粘贴到上一个聚焦应用的光标处。
+  //
+  // 模拟系统粘贴（后端 SendKeys Ctrl+V）会发给「当前前台窗口」，因此必须先让主
+  // 窗口让出前台焦点 —— 这里最小化主窗口，OS 随即把前台还给用户上一个应用，后端
+  // paste 命令内置的短延迟过后再模拟 Ctrl+V，内容便落到那个应用的光标处。
+  // 主窗口最小化到任务栏，用户可从任务栏一键恢复。
+  try {
+    await win.minimizeCurrent();
+    await store.pasteEntry(entry.id);
+    message.success('已粘贴');
+  } catch {
+    message.error('粘贴失败');
+  }
 }
 </script>
 
@@ -333,7 +367,7 @@ async function handleDoubleClick(entry: ClipboardEntry) {
               :data-testid="`clipboard-copy-${entry.id}`"
               aria-label="复制"
               title="复制"
-              @click.stop="store.copyEntry(entry.id)"
+              @click.stop="handleCopy(entry)"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M8 8h11v11H8z" />
@@ -571,12 +605,10 @@ async function handleDoubleClick(entry: ClipboardEntry) {
   font: 13px/1.5 ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
   white-space: nowrap;
   text-overflow: ellipsis;
-  max-height: 1.5em;
 }
 
 .clipboard-preview--code {
   white-space: pre-wrap;
-  max-height: 4.5em;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;

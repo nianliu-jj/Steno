@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, h, nextTick } from 'vue';
 
@@ -11,12 +11,9 @@ let quicknoteOpenHandler:
       payload: {
         fresh: boolean;
         noteId: string | null;
-        clipboardPreview?: {
-          content: string;
-          contentType: 'text' | 'url' | 'code' | 'image' | 'file' | 'rich_text';
-          htmlContent?: string | null;
-          source?: string | null;
-        } | null;
+        initialContent?: string | null;
+        clipboardContext?: boolean | null;
+        clipboardEntryId?: string | null;
       };
     }) => void)
   | undefined;
@@ -25,6 +22,7 @@ const saveDraft = vi.fn();
 const scheduleSave = vi.fn();
 const flushSave = vi.fn(() => Promise.resolve());
 const hideCurrent = vi.fn(() => Promise.resolve());
+const updateEntry = vi.fn(() => Promise.resolve());
 
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(async (event: string, handler: typeof quicknoteOpenHandler) => {
@@ -67,6 +65,12 @@ vi.mock('@/stores/notes', () => ({
     saveDraft,
     syncExternalNote: vi.fn(),
     unpinNote: vi.fn(),
+  }),
+}));
+
+vi.mock('@/stores/clipboard', () => ({
+  useClipboardStore: () => ({
+    updateEntry,
   }),
 }));
 
@@ -170,35 +174,74 @@ describe('FloatingEditor clipboard preview', () => {
     scheduleSave.mockClear();
     flushSave.mockClear();
     hideCurrent.mockClear();
+    updateEntry.mockClear();
   });
 
-  it.skip('loads code clipboard preview as a fenced code block and does not autosave edits', async () => {
+  it('打开剪贴板文本后不修改内容直接关闭，不创建笔记草稿', async () => {
     const wrapper = mount(FloatingEditor);
-    await vi.dynamicImportSettled();
+    await flushPromises();
 
     quicknoteOpenHandler?.({
       payload: {
-        fresh: false,
+        fresh: true,
         noteId: null,
-        clipboardPreview: {
-          content: 'const value = 1;',
-          contentType: 'code',
-          htmlContent: null,
-          source: '系统剪贴板',
-        },
+        initialContent: '这是一段被复制的文本',
+        clipboardContext: true,
+        clipboardEntryId: 'clip-1',
+      },
+    });
+    await nextTick();
+
+    await wrapper.get('[data-testid="floating-close"]').trigger('click');
+    await flushPromises();
+
+    expect(scheduleSave).not.toHaveBeenCalled();
+    expect(saveDraft).not.toHaveBeenCalled();
+  });
+
+  it('打开剪贴板文本后不修改内容直接关闭，不更新剪贴板条目（不会被标记为已修改）', async () => {
+    const wrapper = mount(FloatingEditor);
+    await flushPromises();
+
+    quicknoteOpenHandler?.({
+      payload: {
+        fresh: true,
+        noteId: null,
+        initialContent: '这是一段被复制的文本',
+        clipboardContext: true,
+        clipboardEntryId: 'clip-1',
+      },
+    });
+    await nextTick();
+
+    await wrapper.get('[data-testid="floating-close"]').trigger('click');
+    await flushPromises();
+
+    expect(updateEntry).not.toHaveBeenCalled();
+  });
+
+  it('打开剪贴板文本后修改内容再关闭，写回剪贴板条目', async () => {
+    const wrapper = mount(FloatingEditor);
+    await flushPromises();
+
+    quicknoteOpenHandler?.({
+      payload: {
+        fresh: true,
+        noteId: null,
+        initialContent: '原始内容',
+        clipboardContext: true,
+        clipboardEntryId: 'clip-1',
       },
     });
     await nextTick();
 
     const editor = wrapper.get('[data-testid="floating-markdown-editor"]');
-    expect((editor.element as HTMLTextAreaElement).value).toBe(
-      '```text\nconst value = 1;\n```',
-    );
-    expect(wrapper.get('[data-testid="floating-title-text"]').text()).toBe('剪贴板 · 代码');
+    await editor.setValue('用户修改后的内容');
+    await nextTick();
 
-    await editor.setValue('用户临时修改');
+    await wrapper.get('[data-testid="floating-close"]').trigger('click');
+    await flushPromises();
 
-    expect(scheduleSave).not.toHaveBeenCalled();
-    expect(saveDraft).not.toHaveBeenCalled();
+    expect(updateEntry).toHaveBeenCalledWith('clip-1', '用户修改后的内容');
   });
 });

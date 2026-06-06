@@ -4,7 +4,7 @@
  *
  * 设计要点：
  * - 仅显示"今天"维度（未完成 + 今日已完成可切换显示）
- * - 顶部拖拽区（`data-tauri-drag-region`）+ "今天 N" 计数 + 关闭按钮
+ * - 顶部拖拽区（pointerdown → `startDragging`）+ "今天 N" 计数 + 关闭按钮
  * - 输入区：Enter 提交（最多 500 字符），Shift+Enter 暂不支持换行
  * - 列表区：勾选 → 完成；hover 显示删除按钮
  * - 空态：圆形 ✓ + "太棒了！所有任务都已完成"
@@ -35,6 +35,8 @@ const includeCompleted = ref(true);
 const submitting = ref(false);
 const activeTab = ref<'todos' | 'clipboard'>('todos');
 const isPinned = ref(false);
+// 头部栏拖动期间会短暂失焦，dragUntil 期间忽略失焦关闭（见 onFocusChanged）。
+const dragUntil = ref(0);
 
 const today = new Date();
 const todayLabel = computed(() => {
@@ -101,9 +103,12 @@ onMounted(async () => {
     const win = getCurrentWindow();
     await win.setAlwaysOnTop(false);
     unlistenFocus = await win.onFocusChanged(({ payload }) => {
-      if (!payload && !isPinned.value) {
-        void closePanel();
-      }
+      if (payload) return;
+      if (isPinned.value) return;
+      // 拖动窗口（startDragging）会触发一次失焦，dragUntil 期间忽略，
+      // 否则"单击头部栏 → 失焦 → 关闭"会让浮窗一点就消失。
+      if (Date.now() < dragUntil.value) return;
+      void closePanel();
     });
   } catch {
     // 测试/浏览器预览环境可能没有完整窗口 API，浮窗业务不因此中断。
@@ -178,6 +183,24 @@ async function togglePinned() {
   }
 }
 
+/**
+ * 头部栏按下 = 程序化拖动窗口（`startDragging`）。
+ *
+ * 取代 `data-tauri-drag-region`：后者的 OS 拖动会立刻让窗口失焦并触发关闭。
+ * 这里只在非按钮区域、左键按下时启动拖动，并设置 dragUntil 让失焦守卫放行。
+ */
+async function onHeaderPointerdown(e: PointerEvent) {
+  if (e.button !== 0) return;
+  if ((e.target as HTMLElement | null)?.closest('button, input')) return;
+  e.preventDefault();
+  dragUntil.value = Date.now() + 500;
+  try {
+    await getCurrentWindow().startDragging();
+  } catch {
+    // 测试 / 浏览器预览环境无窗口 API，忽略。
+  }
+}
+
 function clipboardTypeLabel(entry: ClipboardEntry) {
   switch (entry.contentType) {
     case 'url':
@@ -196,6 +219,11 @@ function clipboardTypeLabel(entry: ClipboardEntry) {
 }
 
 function clipboardPreview(entry: ClipboardEntry) {
+  // 图片项不返回 base64（否则会作为超长字符串显示/进 title），改用预览文案；
+  // 模板里图片走 <img> 缩略图分支。
+  if (entry.contentType === 'image') {
+    return entry.preview || '图片';
+  }
   return entry.content || entry.preview;
 }
 
@@ -214,16 +242,16 @@ async function pasteClipboardEntry(entry: ClipboardEntry) {
 <template>
   <div class="todo-panel-root">
     <!-- 顶部拖拽 + 日期 + 计数 + 关闭 -->
-    <header class="todo-panel-header" data-tauri-drag-region>
-      <div class="todo-panel-title" data-tauri-drag-region>
-        <NIcon size="18" data-tauri-drag-region>
+    <header class="todo-panel-header" @pointerdown="onHeaderPointerdown">
+      <div class="todo-panel-title">
+        <NIcon size="18">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path
               d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V10h14v10z"
             />
           </svg>
         </NIcon>
-        <div class="todo-panel-date" data-tauri-drag-region>
+        <div class="todo-panel-date">
           <span class="date-line">今天 · {{ todayLabel }}</span>
           <span class="count-line">共 {{ pendingCount }} 个任务</span>
         </div>
@@ -383,11 +411,18 @@ async function pasteClipboardEntry(entry: ClipboardEntry) {
             <button
               type="button"
               class="todo-panel-clipboard-content"
+              :class="{ 'todo-panel-clipboard-content--image': entry.contentType === 'image' }"
               :data-testid="`todo-panel-clipboard-content-${entry.id}`"
               :title="clipboardPreview(entry)"
               @dblclick="pasteClipboardEntry(entry)"
             >
-              {{ clipboardPreview(entry) }}
+              <img
+                v-if="entry.contentType === 'image'"
+                class="todo-panel-clipboard-thumb"
+                :src="entry.content"
+                alt="剪贴板图片预览"
+              >
+              <span v-else>{{ clipboardPreview(entry) }}</span>
             </button>
           </li>
         </ul>
@@ -430,7 +465,6 @@ async function pasteClipboardEntry(entry: ClipboardEntry) {
   align-items: center;
   justify-content: space-between;
   padding: 12px 14px 8px;
-  -webkit-app-region: drag;
   cursor: default;
 }
 
@@ -461,7 +495,6 @@ async function pasteClipboardEntry(entry: ClipboardEntry) {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  -webkit-app-region: no-drag;
 }
 
 .todo-panel-icon-button {
@@ -474,7 +507,6 @@ async function pasteClipboardEntry(entry: ClipboardEntry) {
   border-radius: 6px;
   display: inline-grid;
   place-items: center;
-  -webkit-app-region: no-drag;
   transition: background 120ms, color 120ms;
 }
 
@@ -689,6 +721,20 @@ async function pasteClipboardEntry(entry: ClipboardEntry) {
 .todo-panel-clipboard-content:focus-visible {
   outline: 2px solid rgba(232, 173, 122, 0.5);
   outline-offset: 3px;
+}
+
+.todo-panel-clipboard-content--image {
+  cursor: pointer;
+  white-space: normal;
+}
+
+.todo-panel-clipboard-thumb {
+  display: block;
+  max-width: 100%;
+  max-height: 44px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: rgba(251, 250, 248, 0.06);
 }
 
 .todo-panel-delete {

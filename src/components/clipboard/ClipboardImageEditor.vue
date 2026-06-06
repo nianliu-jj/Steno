@@ -307,7 +307,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <Teleport to="body">
+  <Teleport to=".app-theme-root">
     <div
       ref="rootEl"
       class="clip-editor"
@@ -461,7 +461,9 @@ onBeforeUnmount(() => {
 <style scoped>
 .clip-editor {
   position: fixed;
-  z-index: 30;
+  /* teleport 到 .app-theme-root 后与主窗口外壳同处一个堆叠上下文：z-index 需高于
+     外壳的功能菜单（z-index:60）等悬浮层；无需盖过 Naive 模态（≈2000）。 */
+  z-index: 100;
   display: grid;
   grid-template-rows: auto auto 1fr auto;
   background: var(--app-bg);

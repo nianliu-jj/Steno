@@ -81,6 +81,28 @@ describe('ClipboardImageEditor', () => {
     w.unmount();
   });
 
+  it('teleports into .app-theme-root so it inherits the --app-* theme variables', () => {
+    // App.vue 把主题变量（--app-bg/-surface/-border/-muted…）只挂在
+    // .app-theme-root 的内联 style 上。编辑器若 teleport 到 <body>（在该子树之外），
+    // 这些 var() 全部解析失败 → 背景/边框/图标透明，工具栏按钮整排不可见。
+    // 因此编辑器必须落在 .app-theme-root 内部。这里不 stub teleport，验证真实落点。
+    const root = document.createElement('div');
+    root.className = 'app-theme-root';
+    document.body.appendChild(root);
+
+    const w = mount(ClipboardImageEditor, {
+      props: { entry },
+      attachTo: document.body,
+    });
+
+    const editor = document.querySelector('[data-testid="clip-image-editor"]');
+    expect(editor).not.toBeNull();
+    expect(root.contains(editor)).toBe(true);
+
+    w.unmount();
+    root.remove();
+  });
+
   it('emits close on the close button', async () => {
     const w = mountEditor();
     await w.get('[data-testid="clip-editor-close"]').trigger('click');

@@ -419,28 +419,38 @@ pub async fn clear_clipboard_entries(app: AppHandle, db: State<'_, Db>) -> Resul
 }
 
 #[tauri::command]
-pub async fn copy_clipboard_entry(db: State<'_, Db>, id: String) -> Result<(), String> {
+pub async fn copy_clipboard_entry(
+    db: State<'_, Db>,
+    echo: State<'_, clipboard::ClipboardEcho>,
+    id: String,
+) -> Result<(), String> {
     let db = db.inner().clone();
+    let echo = echo.inner().clone();
     tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
         let entry = db
             .get_clipboard_entry(&id)
             .map_err(to_msg)?
             .ok_or_else(|| format!("剪贴板条目不存在：{id}"))?;
-        clipboard::write_entry_to_system_clipboard(&entry)
+        clipboard::write_entry_to_system_clipboard(&entry, &echo)
     })
     .await
     .map_err(to_msg)?
 }
 
 #[tauri::command]
-pub async fn paste_clipboard_entry(db: State<'_, Db>, id: String) -> Result<(), String> {
+pub async fn paste_clipboard_entry(
+    db: State<'_, Db>,
+    echo: State<'_, clipboard::ClipboardEcho>,
+    id: String,
+) -> Result<(), String> {
     let db = db.inner().clone();
+    let echo = echo.inner().clone();
     tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
         let entry = db
             .get_clipboard_entry(&id)
             .map_err(to_msg)?
             .ok_or_else(|| format!("剪贴板条目不存在：{id}"))?;
-        clipboard::paste_entry_to_active_cursor(&entry)
+        clipboard::paste_entry_to_active_cursor(&entry, &echo)
     })
     .await
     .map_err(to_msg)?

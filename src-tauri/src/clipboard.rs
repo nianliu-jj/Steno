@@ -3,8 +3,9 @@ use std::hash::{Hash, Hasher};
 use std::io::Cursor;
 use std::path::Path;
 use std::process::Command;
+use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use arboard::{Clipboard, ImageData};
 use base64::Engine;
@@ -116,16 +117,25 @@ pub fn entry_from_system_clipboard() -> Option<NewClipboardEntry> {
     None
 }
 
-pub fn write_entry_to_system_clipboard(entry: &ClipboardEntry) -> Result<(), String> {
-    let mut clipboard = Clipboard::new().map_err(|e| e.to_string())?;
-    if entry.content_type == "image" && entry.content.starts_with("data:image/") {
-        let image = image_data_url_to_arboard(&entry.content)?;
-        clipboard.set_image(image).map_err(|e| e.to_string())?;
-        return Ok(());
-    }
-    clipboard
-        .set_text(entry.content.clone())
-        .map_err(|e| e.to_string())
+pub fn write_entry_to_system_clipboard(
+    entry: &ClipboardEntry,
+    echo: &ClipboardEcho,
+) -> Result<(), String> {
+    {
+        let mut clipboard = Clipboard::new().map_err(|e| e.to_string())?;
+        if entry.content_type == "image" && entry.content.starts_with("data:image/") {
+            let image = image_data_url_to_arboard(&entry.content)?;
+            clipboard.set_image(image).map_err(|e| e.to_string())?;
+        } else {
+            clipboard
+                .set_text(entry.content.clone())
+                .map_err(|e| e.to_string())?;
+        }
+    } // 先释放写句柄，再读回，避免在同一作用域内持有两个 Clipboard。
+      // 记录"自身写入回显"：读回剪贴板真实内容的 hash，供监视器下次轮询时跳过，
+      // 避免把 Steno 自己的复制/粘贴当成新内容而 bump updated_at。
+    echo.remember_current();
+    Ok(())
 }
 
 pub fn write_image_data_url_to_system_clipboard(data_url: &str) -> Result<(), String> {
@@ -134,8 +144,11 @@ pub fn write_image_data_url_to_system_clipboard(data_url: &str) -> Result<(), St
     clipboard.set_image(image).map_err(|e| e.to_string())
 }
 
-pub fn paste_entry_to_active_cursor(entry: &ClipboardEntry) -> Result<(), String> {
-    write_entry_to_system_clipboard(entry)?;
+pub fn paste_entry_to_active_cursor(
+    entry: &ClipboardEntry,
+    echo: &ClipboardEcho,
+) -> Result<(), String> {
+    write_entry_to_system_clipboard(entry, echo)?;
     trigger_system_paste()
 }
 
@@ -186,7 +199,65 @@ pub fn should_process_hash(last_hash: Option<&str>, next_hash: &str) -> bool {
     last_hash != Some(next_hash)
 }
 
-pub fn start_monitor(app: AppHandle, db: Db) {
+/// 记录 Steno 自己写入系统剪贴板的内容（复制 / 粘贴）的"回显"标记。
+///
+/// 监视器轮询到剪贴板变化时会先比对此标记：若本次变化正是 Steno 自身刚写入的
+/// 内容，则跳过入库，避免无谓地 bump `updated_at`（否则会导致卡片错误地重排到
+/// 列表顶部、并被打上"已修改"标记）。标记带 [`ClipboardEcho::TTL`] 过期时间，
+/// 超时即失效，防止误伤后续用户真实的相同内容复制。
+#[derive(Clone, Default)]
+pub struct ClipboardEcho {
+    inner: Arc<Mutex<Option<EchoMark>>>,
+}
+
+struct EchoMark {
+    hash: String,
+    at: Instant,
+}
+
+impl ClipboardEcho {
+    /// 回显标记有效期：监视器轮询间隔为 600ms，2s 足够覆盖一次自身写入的回显，
+    /// 同时足够短以避免长期残留误伤后续复制。
+    const TTL: Duration = Duration::from_secs(2);
+
+    /// 直接记录一个 hash（带当前时间戳）。
+    fn remember(&self, hash: String) {
+        if let Ok(mut guard) = self.inner.lock() {
+            *guard = Some(EchoMark {
+                hash,
+                at: Instant::now(),
+            });
+        }
+    }
+
+    /// 读回当前系统剪贴板内容并记录其 hash。
+    ///
+    /// 这正是监视器下次轮询时会算出的 hash，因此对文本 / 图片都能精确匹配，
+    /// 无需预测文本分类结果或图片重编码后的字节。
+    pub fn remember_current(&self) {
+        if let Some(entry) = entry_from_system_clipboard() {
+            self.remember(entry.content_hash);
+        }
+    }
+
+    /// 若 `hash` 与未过期的回显标记匹配，则消费该标记并返回 `true`（应跳过入库）。
+    /// 顺带清理已过期的标记。
+    pub fn take_if_matches(&self, hash: &str) -> bool {
+        if let Ok(mut guard) = self.inner.lock() {
+            if let Some(mark) = guard.as_ref() {
+                if mark.at.elapsed() > Self::TTL {
+                    *guard = None;
+                } else if mark.hash == hash {
+                    *guard = None;
+                    return true;
+                }
+            }
+        }
+        false
+    }
+}
+
+pub fn start_monitor(app: AppHandle, db: Db, echo: ClipboardEcho) {
     thread::spawn(move || {
         let mut last_hash = entry_from_system_clipboard().map(|entry| entry.content_hash);
         loop {
@@ -198,6 +269,11 @@ pub fn start_monitor(app: AppHandle, db: Db) {
                 continue;
             }
             last_hash = Some(entry.content_hash.clone());
+            // 跳过 Steno 自身复制 / 粘贴写入剪贴板产生的回显，避免 bump updated_at
+            // 导致卡片重排与误报"已修改"。
+            if echo.take_if_matches(&entry.content_hash) {
+                continue;
+            }
             match db.upsert_clipboard_entry(entry) {
                 Ok(saved) => {
                     let _ = app.emit(CLIPBOARD_UPDATED_EVENT, saved);
@@ -394,5 +470,24 @@ mod tests {
     fn should_process_hash_accepts_first_or_changed_clipboard_content() {
         assert!(should_process_hash(None, "text:abc"));
         assert!(should_process_hash(Some("text:abc"), "text:def"));
+    }
+
+    #[test]
+    fn echo_matches_then_consumes_self_write() {
+        // 模拟 Steno 自身写入剪贴板后记下回显 hash；监视器轮询到同一 hash 时应跳过，
+        // 且仅跳过一次（消费后再查为 false），避免误伤后续真实复制。
+        let echo = ClipboardEcho::default();
+        echo.remember("text:abc".to_string());
+        assert!(echo.take_if_matches("text:abc"));
+        assert!(!echo.take_if_matches("text:abc"));
+    }
+
+    #[test]
+    fn echo_ignores_non_matching_hash_and_retains_mark() {
+        // 不匹配的 hash 不应消费标记：真实的新内容照常入库，自身写入回显仍待命。
+        let echo = ClipboardEcho::default();
+        echo.remember("text:abc".to_string());
+        assert!(!echo.take_if_matches("text:def"));
+        assert!(echo.take_if_matches("text:abc"));
     }
 }

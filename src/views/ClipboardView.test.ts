@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
 import { nextTick } from 'vue';
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useClipboardStore } from '@/stores/clipboard';
 import type { ClipboardEntry } from '@/types/steno';
@@ -19,6 +19,32 @@ const clearClipboardEntries = vi.fn(async () => {});
 const copyClipboardEntry = vi.fn(async () => {});
 const pasteClipboardEntry = vi.fn(async () => {});
 const openUrl = vi.fn(async () => {});
+const hideCurrent = vi.fn(async () => {});
+const minimizeCurrent = vi.fn(async () => {});
+const pinClipboardEntry = vi.fn(async (id: string) => ({
+  id,
+  contentType: 'text' as const,
+  content: 'hello',
+  htmlContent: null,
+  preview: 'hello',
+  createdAt: '2026-05-25T00:00:00Z',
+  updatedAt: '2026-05-25T00:00:00Z',
+  sizeBytes: 5,
+  pinnedAt: '2026-05-25T00:00:02Z',
+}));
+const unpinClipboardEntry = vi.fn(async (id: string) => ({
+  id,
+  contentType: 'text' as const,
+  content: 'hello',
+  htmlContent: null,
+  preview: 'hello',
+  createdAt: '2026-05-25T00:00:00Z',
+  updatedAt: '2026-05-25T00:00:00Z',
+  sizeBytes: 5,
+  pinnedAt: null,
+}));
+const messageSuccess = vi.fn();
+const messageError = vi.fn();
 
 vi.mock('@/composables/useDb', () => ({
   useDb: () => ({
@@ -27,26 +53,62 @@ vi.mock('@/composables/useDb', () => ({
     clearClipboardEntries,
     copyClipboardEntry,
     pasteClipboardEntry,
+    pinClipboardEntry,
+    unpinClipboardEntry,
     addImageClipboardEntry: vi.fn(async () => ({})),
     copyEditedImageToClipboard: vi.fn(async () => {}),
   }),
 }));
+
+vi.mock('naive-ui', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    useMessage: () => ({
+      success: messageSuccess,
+      error: messageError,
+      warning: vi.fn(),
+      info: vi.fn(),
+      loading: vi.fn(),
+    }),
+  };
+});
 
 vi.mock('@/composables/useWindow', () => ({
   useWindow: () => ({
     openQuicknote: vi.fn(async () => {}),
     openUrl,
     openPathInFileManager: vi.fn(async () => {}),
+    hideCurrent,
+    minimizeCurrent,
   }),
 }));
 
 describe('ClipboardView', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    // ClipboardView 在真实应用里始终渲染于 .app-theme-root 内（主题变量作用域，
+    // 也是 ClipboardImageEditor 的 teleport 目标）。单测补一个同名容器复刻该前提。
+    if (!document.querySelector('.app-theme-root')) {
+      const root = document.createElement('div');
+      root.className = 'app-theme-root';
+      document.body.appendChild(root);
+    }
     listClipboardEntries.mockResolvedValue([]);
     copyClipboardEntry.mockClear();
     pasteClipboardEntry.mockClear();
+    pinClipboardEntry.mockClear();
+    unpinClipboardEntry.mockClear();
+    deleteClipboardEntry.mockClear();
     openUrl.mockClear();
+    hideCurrent.mockClear();
+    minimizeCurrent.mockClear();
+    messageSuccess.mockClear();
+    messageError.mockClear();
+  });
+
+  afterEach(() => {
+    document.querySelector('.app-theme-root')?.remove();
   });
 
   it('renders an empty state when there is no clipboard history', async () => {
@@ -200,7 +262,7 @@ describe('ClipboardView', () => {
     wrapper.unmount();
   });
 
-  it('pastes an entry when double clicking the clipboard content area only', async () => {
+  it('双击内容区=最小化主窗口并粘贴到光标，提示已粘贴', async () => {
     listClipboardEntries.mockResolvedValueOnce([
       {
         id: '1',
@@ -217,11 +279,115 @@ describe('ClipboardView', () => {
     const wrapper = mount(ClipboardView);
     await vi.dynamicImportSettled();
 
+    // 头部双击不触发任何动作（@dblclick 仅绑定在内容区）。
     await wrapper.get('[data-testid="clipboard-card-header-1"]').trigger('dblclick');
     expect(pasteClipboardEntry).not.toHaveBeenCalled();
+    expect(minimizeCurrent).not.toHaveBeenCalled();
 
+    // 内容区双击 = 最小化主窗口让出前台焦点 → 粘贴到上一个应用光标 → 提示已粘贴。
+    // 双击不再走「复制」路径（复制由 footer 的复制按钮承担）。
     await wrapper.get('[data-testid="clipboard-card-content-1"]').trigger('dblclick');
+    await flushPromises();
+    expect(minimizeCurrent).toHaveBeenCalled();
     expect(pasteClipboardEntry).toHaveBeenCalledWith('1');
-    expect(copyClipboardEntry).not.toHaveBeenCalledWith('1');
+    expect(copyClipboardEntry).not.toHaveBeenCalled();
+    expect(messageSuccess).toHaveBeenCalledWith('已粘贴');
+  });
+
+  it('点击复制按钮后弹出已复制提示', async () => {
+    listClipboardEntries.mockResolvedValueOnce([
+      {
+        id: '1',
+        contentType: 'text',
+        content: 'hello',
+        htmlContent: null,
+        preview: 'hello',
+        createdAt: '2026-05-25T00:00:00Z',
+        updatedAt: '2026-05-25T00:00:00Z',
+        sizeBytes: 5,
+      },
+    ]);
+
+    const wrapper = mount(ClipboardView);
+    await vi.dynamicImportSettled();
+
+    await wrapper.get('[data-testid="clipboard-copy-1"]').trigger('click');
+    await flushPromises();
+
+    expect(copyClipboardEntry).toHaveBeenCalledWith('1');
+    expect(messageSuccess).toHaveBeenCalledWith('已复制到剪贴板');
+  });
+
+  it('置顶后弹出已置顶提示', async () => {
+    listClipboardEntries.mockResolvedValueOnce([
+      {
+        id: '1',
+        contentType: 'text',
+        content: 'hello',
+        htmlContent: null,
+        preview: 'hello',
+        createdAt: '2026-05-25T00:00:00Z',
+        updatedAt: '2026-05-25T00:00:00Z',
+        sizeBytes: 5,
+      },
+    ]);
+
+    const wrapper = mount(ClipboardView);
+    await vi.dynamicImportSettled();
+
+    await wrapper.get('[data-testid="clipboard-pin-1"]').trigger('click');
+    await flushPromises();
+
+    expect(pinClipboardEntry).toHaveBeenCalledWith('1');
+    expect(messageSuccess).toHaveBeenCalledWith('已置顶');
+  });
+
+  it('删除确认后弹出已删除提示', async () => {
+    listClipboardEntries.mockResolvedValueOnce([
+      {
+        id: '1',
+        contentType: 'text',
+        content: 'hello',
+        htmlContent: null,
+        preview: 'hello',
+        createdAt: '2026-05-25T00:00:00Z',
+        updatedAt: '2026-05-25T00:00:00Z',
+        sizeBytes: 5,
+      },
+    ]);
+
+    const wrapper = mount(ClipboardView);
+    await vi.dynamicImportSettled();
+
+    await wrapper.get('[data-testid="clipboard-delete-1"]').trigger('click');
+    await wrapper.get('[data-testid="clipboard-delete-confirm-1"]').trigger('click');
+    await flushPromises();
+
+    expect(deleteClipboardEntry).toHaveBeenCalledWith('1');
+    expect(messageSuccess).toHaveBeenCalledWith('已删除');
+  });
+
+  it('打开链接后弹出提示', async () => {
+    listClipboardEntries.mockResolvedValueOnce([
+      {
+        id: '1',
+        contentType: 'url',
+        content: 'https://example.com',
+        htmlContent: null,
+        preview: 'https://example.com',
+        createdAt: '2026-05-25T00:00:00Z',
+        updatedAt: '2026-05-25T00:00:00Z',
+        sizeBytes: 19,
+      },
+    ]);
+
+    const wrapper = mount(ClipboardView);
+    await vi.dynamicImportSettled();
+
+    await wrapper.get('[data-testid="clipboard-open-1"]').trigger('click');
+    await flushPromises();
+
+    expect(openUrl).toHaveBeenCalledWith('https://example.com');
+    expect(messageSuccess).toHaveBeenCalledWith('已在浏览器中打开');
   });
 });

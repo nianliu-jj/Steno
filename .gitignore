@@ -41,6 +41,8 @@ yarn.lock
 .worktrees/
 agentignore/
 
+fix-doc
+
 # Tauri / Rust build artifacts
 src-tauri/target/
 src-tauri/gen/schemas/

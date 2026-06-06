@@ -137,12 +137,20 @@ pub fn run() {
             // 把 db 交给 State。reload_shortcuts command 后续会从 State 拿。
             shortcut::register_from_settings(app.handle(), &database)?;
 
-            clipboard::start_monitor(app.handle().clone(), database.clone());
+            // 剪贴板监视器与 copy/paste 命令共享的回显守卫（去重 Steno 自身写入）。
+            let clipboard_echo = clipboard::ClipboardEcho::default();
+            clipboard::start_monitor(
+                app.handle().clone(),
+                database.clone(),
+                clipboard_echo.clone(),
+            );
 
             // 提醒调度器需要持有 Db 克隆，单独保留以传给后台 tokio 任务。
             let db_for_scheduler = database.clone();
 
             app.manage(database);
+            // 剪贴板"自身写入回显"守卫：供 copy/paste 命令记录、监视器消费。
+            app.manage(clipboard_echo);
 
             tray::setup(app)?;
 

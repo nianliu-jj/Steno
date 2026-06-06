@@ -22,6 +22,24 @@ body,
   isolation: isolate;
 }
 
+/*
+ * 待办浮窗（透明窗口）专用：根层不绘制不透明背景与圆角。
+ *
+ * 否则 #app 的 12px 圆角会在浮窗 .todo-panel-root 的 18px 圆角四角之外露出
+ * 不透明的 --app-bg（浅色主题下即"白边"）。标记类由 App.vue 在 mode==='todo-panel'
+ * 时打到 <html> 上。圆角与背景完全交给浮窗自身处理。
+ */
+html.window-todo-panel,
+html.window-todo-panel body {
+  background: transparent;
+}
+
+html.window-todo-panel #app {
+  background: transparent;
+  border-radius: 0;
+  clip-path: none;
+}
+
 body {
   font-family:
     -apple-system,
