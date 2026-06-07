@@ -36,9 +36,11 @@ const { buildOutline } = useMarkdownOutline();
 const message = useMessage();
 const session = useWritingSession(ref(ui.noteId ?? readIdFromUrl()));
 
-const title = ref('');
-const content = ref('');
-const tags = ref<string[]>([]);
+// 标题/正文/标签直接复用 writing session 的响应式状态（与 NoteEditorView 一致），
+// 这样进入 Zen 时能回显当前笔记内容，且编辑会写回同一笔记。
+const title = session.title;
+const content = session.content;
+const tags = session.tags;
 
 const titleEditing = ref(false);
 const titleInputRef = ref<{ focus: () => void } | null>(null);

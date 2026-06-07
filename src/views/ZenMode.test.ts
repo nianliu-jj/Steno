@@ -54,6 +54,17 @@ vi.mock('@/composables/useMarkdown', () => ({
   }),
 }));
 
+vi.mock('@/components/MarkdownEditor.vue', () => ({
+  default: defineComponent({
+    props: ['modelValue'],
+    emits: ['update:modelValue'],
+    setup(props: { modelValue?: string }, { expose }) {
+      expose({ focus: vi.fn(), scrollToLine: vi.fn() });
+      return () => h('textarea', { value: props.modelValue });
+    },
+  }),
+}));
+
 vi.mock('@/components/writing/WritingSurface.vue', () => ({
   default: {
     props: ['mode', 'headings', 'outlineOpen', 'outlineWidth'],
@@ -109,6 +120,27 @@ describe('ZenMode', () => {
 
     expect(wrapper.get('[data-testid="zen-writing-surface"]').text()).toBe('rich-edit');
     expect(ZenModeSource).toContain('data-testid="zen-outline-shell"');
+  });
+
+  it('echoes the current note content into the editor when entered with a note id', async () => {
+    getNote.mockResolvedValueOnce({
+      id: 'note-1',
+      title: 'Zen 标题',
+      content: '# 回显内容\n正文',
+      tags: [],
+      isPinned: false,
+      pinnedWindowConfig: null,
+      canvasPosition: null,
+      createdAt: '2026-06-01T00:00:00.000Z',
+      updatedAt: '2026-06-01T00:00:00.000Z',
+      wordCount: 4,
+      isDraft: false,
+    } as never);
+
+    const wrapper = mount(WrappedZenMode);
+    await flushPromises();
+
+    expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toContain('回显内容');
   });
 
   it('delegates exit routing to the ui store', async () => {
