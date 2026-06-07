@@ -729,7 +729,7 @@ pub async fn export_note_html(db: State<'_, Db>, id: String) -> Result<String, S
         let (data_dir, _db_path, _backup) = db.paths();
         let exports_dir = data_dir.join("exports");
         let path = export::build_output_path(&exports_dir, &note, "html");
-        export::export_html(&note, &path).map_err(to_msg)?;
+        export::export_html(&note, &data_dir, &path).map_err(to_msg)?;
         Ok(path.to_string_lossy().into_owned())
     })
     .await

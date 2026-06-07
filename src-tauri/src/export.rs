@@ -17,6 +17,8 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
+use base64::Engine;
+
 use crate::models::Note;
 
 #[derive(Debug, thiserror::Error)]
@@ -238,8 +240,8 @@ fn parse_image_url_span(bytes: &[u8], excl_start: usize) -> Option<(usize, usize
     Some((url_start, k))
 }
 
-pub fn export_html(note: &Note, output_path: &Path) -> Result<(), ExportError> {
-    let body = render_html(note);
+pub fn export_html(note: &Note, data_dir: &Path, output_path: &Path) -> Result<(), ExportError> {
+    let body = render_html(note, data_dir);
     if let Some(parent) = output_path.parent() {
         if !parent.as_os_str().is_empty() {
             std::fs::create_dir_all(parent)?;
@@ -322,12 +324,81 @@ fn render_markdown_with(note: &Note, content: &str) -> String {
     buf
 }
 
-fn render_html(note: &Note) -> String {
+fn render_html(note: &Note, data_dir: &Path) -> String {
     let title = html_escape(&note.title);
+    let body = inline_html_images(&note.html_content, data_dir);
     format!(
-        "<!doctype html>\n<html lang=\"zh-CN\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>{title}</title>\n<style>body{{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;line-height:1.65;max-width:760px;margin:40px auto;padding:0 20px;color:#242424;}}main{{display:block;}}</style>\n</head>\n<body>\n<main>\n<h1>{title}</h1>\n{}\n</main>\n</body>\n</html>\n",
-        note.html_content
+        "<!doctype html>\n<html lang=\"zh-CN\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>{title}</title>\n<style>body{{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;line-height:1.65;max-width:760px;margin:40px auto;padding:0 20px;color:#242424;}}main{{display:block;}}img{{max-width:100%;height:auto;}}</style>\n</head>\n<body>\n<main>\n<h1>{title}</h1>\n{}\n</main>\n</body>\n</html>\n",
+        body
     )
+}
+
+/// 把 HTML 正文里引用的本地图片内联为 base64 data URL，使导出的 `.html` 自包含、双击即见图。
+fn inline_html_images(html: &str, data_dir: &Path) -> String {
+    rewrite_html_img_src(html, |url| inline_local_image(url, data_dir))
+}
+
+/// 读取本地图片并编码成 base64 data URL；外链 / 内联 / 读取失败返回 `None`（保留原 src）。
+fn inline_local_image(url: &str, data_dir: &Path) -> Option<String> {
+    let src = resolve_local_image(url, data_dir)?;
+    let bytes = std::fs::read(&src).ok()?;
+    let mime = image_mime_from_path(&src);
+    let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    Some(format!("data:{mime};base64,{encoded}"))
+}
+
+fn image_mime_from_path(path: &Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|s| s.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("webp") => "image/webp",
+        Some("svg") => "image/svg+xml",
+        Some("bmp") => "image/bmp",
+        _ => "application/octet-stream",
+    }
+}
+
+/// 扫描 HTML 里所有 `src="..."`（pulldown-cmark 输出的双引号格式），按 `map` 改写。
+/// 仅按 ASCII 字节扫描 —— HTML 属性值里的 `"` 已被实体转义、不会裸现，且 UTF-8
+/// 多字节字符不与这些 ASCII 标记冲突，故对中文文件名安全。
+fn rewrite_html_img_src(html: &str, mut map: impl FnMut(&str) -> Option<String>) -> String {
+    const NEEDLE: &[u8] = b"src=\"";
+    let bytes = html.as_bytes();
+    let n = bytes.len();
+    let mut out = String::with_capacity(n);
+    let mut last = 0;
+    let mut i = 0;
+    while i + NEEDLE.len() <= n {
+        if &bytes[i..i + NEEDLE.len()] == NEEDLE {
+            let val_start = i + NEEDLE.len();
+            if let Some(val_end) = find_byte(bytes, val_start, b'"') {
+                let url = &html[val_start..val_end];
+                if let Some(new_url) = map(url) {
+                    out.push_str(&html[last..val_start]);
+                    out.push_str(&new_url);
+                    last = val_end;
+                }
+                i = val_end + 1;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    out.push_str(&html[last..]);
+    out
+}
+
+fn find_byte(bytes: &[u8], from: usize, target: u8) -> Option<usize> {
+    bytes[from..]
+        .iter()
+        .position(|&b| b == target)
+        .map(|pos| from + pos)
 }
 
 fn html_escape(s: &str) -> String {
@@ -397,7 +468,7 @@ mod tests {
     #[test]
     fn export_html_writes_full_html_document() {
         let tmp = std::env::temp_dir().join(format!("steno-export-{}.html", uuid::Uuid::new_v4()));
-        export_html(&make_note(), &tmp).expect("write html");
+        export_html(&make_note(), &std::env::temp_dir(), &tmp).expect("write html");
         let content = std::fs::read_to_string(&tmp).expect("read html");
         assert!(content.contains("<!doctype html>"));
         assert!(content.contains("<title>笔记标题</title>"));
@@ -405,6 +476,32 @@ mod tests {
         assert!(content.contains("<p>...</p>"));
         assert!(content.contains("</html>"));
         let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn export_html_inlines_local_images_as_base64() {
+        let tmp = std::env::temp_dir().join(format!("steno-html-{}", uuid::Uuid::new_v4()));
+        let data_dir = tmp.join("data");
+        let img = data_dir.join("images/x.png");
+        std::fs::create_dir_all(img.parent().unwrap()).unwrap();
+        std::fs::write(&img, b"PNGDATA").unwrap();
+
+        let mut note = make_note();
+        note.html_content =
+            "<p><img src=\"steno-asset:images/x.png\" alt=\"a\"></p><p><img src=\"https://e.com/y.png\"></p>"
+                .into();
+
+        let out = tmp.join("out.html");
+        export_html(&note, &data_dir, &out).expect("write html");
+        let html = std::fs::read_to_string(&out).unwrap();
+
+        // 本地图片内联为 base64 data URL，原 steno-asset: 引用消失
+        assert!(html.contains("src=\"data:image/png;base64,"));
+        assert!(!html.contains("steno-asset:"));
+        // 外链原样保留
+        assert!(html.contains("https://e.com/y.png"));
+
+        std::fs::remove_dir_all(&tmp).ok();
     }
 
     #[test]
