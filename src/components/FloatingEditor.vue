@@ -823,38 +823,6 @@ async function onPinClick() {
   min-height: 0;
 }
 
-/* 浮窗 / 便签是固定暗色容器，给 CodeMirror 编辑器适配深色背景。 */
-.floating-body :deep(.cm-editor) {
-  font-size: 13px;
-}
-.floating-body :deep(.cm-scroller) {
-  padding: 8px 12px;
-}
-.floating-body :deep(.cm-placeholder) {
-  color: rgba(180, 180, 184, 0.55);
-}
-.floating-body :deep(.cm-md-inline-code) {
-  background: rgba(255, 255, 255, 0.12);
-}
-.floating-body :deep(.cm-md-code-block) {
-  background: rgba(255, 255, 255, 0.08);
-  color: #f0f0f2;
-}
-.floating-body :deep(.cm-md-code-fence-line) {
-  color: rgba(220, 220, 224, 0.72);
-}
-.floating-body :deep(.cm-md-code-fence-mark) {
-  color: rgba(220, 220, 224, 0.42);
-}
-.floating-body :deep(.cm-md-quote) {
-  border-left-color: rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(220, 220, 224, 0.86);
-}
-.floating-body :deep(.cm-md-link) {
-  color: #60a5fa;
-}
-
 .floating-footer {
   display: flex;
   align-items: center;

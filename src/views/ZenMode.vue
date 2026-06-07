@@ -5,7 +5,7 @@
  *
  * **布局**：
  * - 头部栏：左侧标题（含编辑按钮），右侧导出 / 退出按钮
- * - 编辑区：全宽 CodeMirror 6 编辑器（`MarkdownEditor`），背景透明沉浸式
+ * - 编辑区：全宽 ProseMirror 编辑器（`MarkdownEditor`），背景透明沉浸式
  * - 底部栏：左侧标签列表，右侧字数 + 保存状态
  * - 大纲：右下角 FAB 按钮，点击弹出大纲面板
  *
@@ -428,11 +428,27 @@ onUnmounted(() => {
 
 .zen-stage {
   flex: 1;
+  min-height: 0;
   position: relative;
   display: flex;
   justify-content: center;
   padding: 24px 24px 24px;
-  overflow: auto;
+  /* 滚动交给内部编辑器（.md-editor）承担，stage 自身不滚动，
+     这样绝对定位的大纲 FAB / 面板才能稳定悬浮在编辑区上层、不随内容滚动。 */
+  overflow: hidden;
+}
+
+/* 让编辑器在 paper 内占满可用高度并由其内部滚动（配合 .zen-stage overflow:hidden）。 */
+.zen-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.zen-body :deep(.md-editor) {
+  flex: 1;
+  min-height: 0;
 }
 
 .zen-paper {
@@ -449,49 +465,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   color: #f0f0f2;
-}
-
-/* 沉浸式编辑器：背景透明、字号略大、暗色光标 */
-.zen-body :deep(.cm-editor) {
-  background: transparent;
-  font-size: 16px;
-  line-height: 1.8;
-  color: #f0f0f2;
-}
-.zen-body :deep(.cm-scroller) {
-  padding: 8px 0;
-}
-.zen-body :deep(.cm-cursor),
-.zen-body :deep(.cm-dropCursor) {
-  border-left-color: #f0f0f2 !important;
-  border-left-width: 2px;
-}
-.zen-body :deep(.cm-content) {
-  caret-color: #f0f0f2;
-}
-.zen-body :deep(.cm-placeholder) {
-  color: rgba(180, 180, 184, 0.55);
-}
-.zen-body :deep(.cm-md-inline-code) {
-  background: rgba(255, 255, 255, 0.1);
-}
-.zen-body :deep(.cm-md-code-block) {
-  background: rgba(255, 255, 255, 0.07);
-  color: #f0f0f2;
-}
-.zen-body :deep(.cm-md-code-fence-line) {
-  color: rgba(220, 220, 224, 0.72);
-}
-.zen-body :deep(.cm-md-code-fence-mark) {
-  color: rgba(220, 220, 224, 0.42);
-}
-.zen-body :deep(.cm-md-quote) {
-  border-left-color: rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.03);
-  color: rgba(220, 220, 224, 0.88);
-}
-.zen-body :deep(.cm-md-link) {
-  color: #60a5fa;
 }
 
 .zen-outline-fab {
