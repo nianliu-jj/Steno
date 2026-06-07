@@ -33,7 +33,7 @@ pub fn start_scheduler(app: AppHandle, db: Db) {
         tokio::time::sleep(Duration::from_secs(2)).await;
         loop {
             if let Err(err) = tick(app.as_ref(), &db).await {
-                eprintln!("[reminder_scheduler] tick error: {err}");
+                log::error!("[reminder_scheduler] tick error: {err}");
             }
             tokio::time::sleep(TICK_INTERVAL).await;
         }
@@ -87,7 +87,7 @@ async fn tick(app: &AppHandle, db: &Db) -> Result<(), String> {
             .body(body)
             .show();
         if let Err(err) = notify_result {
-            eprintln!("[reminder_scheduler] notification show failed: {err}");
+            log::warn!("[reminder_scheduler] notification show failed: {err}");
             // 已 CAS 标记，不再回滚（避免下周期重复弹）；用户在 TodoView
             // 看任务行的"已过期未提醒"角标也能感知。
         }

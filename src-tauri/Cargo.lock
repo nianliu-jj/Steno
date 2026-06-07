@@ -3484,6 +3484,7 @@ dependencies = [
  "chrono",
  "dirs",
  "image",
+ "log",
  "pulldown-cmark",
  "rusqlite",
  "serde",

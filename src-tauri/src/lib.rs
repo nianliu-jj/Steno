@@ -21,6 +21,7 @@ pub mod clipboard;
 mod commands;
 mod db;
 mod export;
+mod logging;
 mod models;
 mod quicknote;
 mod reminder_scheduler;
@@ -120,6 +121,11 @@ pub fn run() {
             // macOS：隐藏 Dock 图标，仅保留任务栏托盘。
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
+            // 初始化文件日志（~/.steno/data/logs），失败不致命。
+            if let Ok(dir) = db::Db::data_dir() {
+                logging::init(&dir);
+            }
 
             // SQLite 句柄进 Tauri State，供后续 commands 通过
             // `tauri::State<'_, db::Db>` 取用。
