@@ -97,6 +97,8 @@
 | 🔒 | **本地优先**        | 所有数据存本机 SQLite（`~/.steno/data.db`），默认不上传                           |
 | 📤 | **Markdown 导出** | 单条导出含 YAML frontmatter；HTML 导出含内联样式                                |
 | 🎨 | **Markdown 渲染** | markdown-it 管线 + shiki 双主题代码高亮 + KaTeX 行内/块级公式 + Mermaid 图表 + DOMPurify 净化 |
+| ⌨ | **编辑器快捷键**     | WYSIWYG 即时渲染（输入 `# ` 即转标题）；`Ctrl+1~6` 套用标题、`Ctrl+0` 段落、`Ctrl+B/I/E` 等格式化 |
+| 🧹 | **自动清理 & 日志**  | 定时清理过期未保存草稿与粘贴板条目（保留天数可在设置中配置）；运行日志按日期目录落盘、10MB 切分、保留 30 天 |
 
 ---
 
@@ -237,6 +239,7 @@ steno/
 | `~/.steno/data.db` | SQLite 数据库（`notes` + `settings` 两表） |
 | `~/.steno/backup/` | 每累计 10 次修改触发一次的 `.db` 副本 |
 | `~/.steno/exports/` | 导出的 Markdown / HTML 文件（`<title>-<short_id>.md`） |
+| `~/.steno/data/logs/` | 运行日志，按日期分目录（`YYYY-MM-DD/`）、单文件 10MB 切分、保留最近 30 天 |
 
 数据目录可在「设置 → 存储区域」查看完整路径并一键复制。
 
