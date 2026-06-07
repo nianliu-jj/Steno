@@ -205,6 +205,14 @@ function createMarkKeymap(): Record<string, Command> {
     'Mod-Alt-5': setHeading(5),
     'Mod-Alt-6': setHeading(6),
     'Mod-Alt-0': setParagraph,
+    // Ctrl/Cmd + 数字 直接套用标题（需求：Ctrl+1 = H1）
+    'Mod-1': setHeading(1),
+    'Mod-2': setHeading(2),
+    'Mod-3': setHeading(3),
+    'Mod-4': setHeading(4),
+    'Mod-5': setHeading(5),
+    'Mod-6': setHeading(6),
+    'Mod-0': setParagraph,
   };
 }
 
