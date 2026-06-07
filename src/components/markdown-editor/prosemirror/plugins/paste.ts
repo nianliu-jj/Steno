@@ -21,8 +21,8 @@
  * - `any` 替换为具体类型。
  */
 
-import { Plugin, PluginKey } from 'prosemirror-state';
-import { Slice } from 'prosemirror-model';
+import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from 'prosemirror-state';
+import { Slice, type Node } from 'prosemirror-model';
 import type { EditorView } from 'prosemirror-view';
 import { parseMarkdown } from '../parser';
 import { decorationPluginKey } from '../decorations';
@@ -123,6 +123,24 @@ export function createPastePlugin(config: PastePluginConfig = {}): Plugin {
 }
 
 /**
+ * 在当前选区插入 block 图片，并把光标放到图片之后的文本块（必要时补空段落），
+ * 避免光标停留在图片之前导致后续换行/输入落在图片前面。
+ */
+export function insertImageWithCaretAfter(state: EditorState, imageNode: Node): Transaction {
+  let tr = state.tr.replaceSelectionWith(imageNode);
+  const sel = tr.selection;
+  const landedInTextblock = sel instanceof TextSelection && sel.$from.parent.isTextblock;
+  if (!landedInTextblock) {
+    // 图片处于文档末块等位置、其后无文本块：补一个空段落并把光标放进去。
+    const pos = sel.$to.pos;
+    const paragraph = state.schema.nodes.paragraph.create();
+    tr = tr.insert(pos, paragraph);
+    tr = tr.setSelection(TextSelection.near(tr.doc.resolve(pos + 1), 1));
+  }
+  return tr.scrollIntoView();
+}
+
+/**
  * 处理图片粘贴：把每个图片读成 data URL，经 onPasteImage 存储为短 URL 后插入 image 节点。
  */
 async function handleImagePaste(
@@ -149,8 +167,7 @@ async function handleImagePaste(
 
       const imageNode = imageType.createAndFill({ src, alt: file.name, title: '' });
       if (imageNode) {
-        const { $from } = view.state.selection;
-        view.dispatch(view.state.tr.insert($from.pos, imageNode));
+        view.dispatch(insertImageWithCaretAfter(view.state, imageNode));
       }
     } catch (error) {
       console.error('[steno-prosemirror] failed to process pasted image:', error);
