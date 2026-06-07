@@ -315,6 +315,16 @@ describe('NoteEditorView', () => {
     expect(NoteEditorViewSource).toMatch(/color: #7e7469(?: !important)?;/);
   });
 
+  it('fixes the header/footer and anchors the outline panel above its toggle', () => {
+    // 顶/底栏不随内容滚动：根容器定高 + 头尾栏不收缩
+    expect(NoteEditorViewSource).toMatch(/\.note-editor-root\s*\{[^}]*height: 100%;/);
+    expect(NoteEditorViewSource).toMatch(/\.note-editor-header\s*\{[^}]*flex-shrink: 0;/);
+    expect(NoteEditorViewSource).toMatch(/\.note-editor-footer\s*\{[^}]*flex-shrink: 0;/);
+    // 大纲面板锚定在 FAB 上方（bottom 对齐），不再固定在文档开头（top:18px）
+    expect(NoteEditorViewSource).toMatch(/\.note-editor-outline-panel\s*\{[^}]*bottom: 72px;/);
+    expect(NoteEditorViewSource).not.toMatch(/\.note-editor-outline-panel\s*\{[^}]*top: 18px;/);
+  });
+
   it.skip('renders the lifted rounded editor card shell for the main editor', async () => {
     const wrapper = mount(WrappedNoteEditorView);
     await flushPromises();

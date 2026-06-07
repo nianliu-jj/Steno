@@ -443,11 +443,13 @@ function onSelectOutline(node: { line: number; id: string }) {
 .note-editor-root {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
   color: #2a2a2a;
 }
 
 .note-editor-header {
+  flex-shrink: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -511,9 +513,11 @@ function onSelectOutline(node: { line: number; id: string }) {
   flex-direction: column;
   padding: 14px 24px 8px;
   position: relative;
+  overflow: hidden;
 }
 
 .note-editor-footer {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -802,7 +806,7 @@ function onSelectOutline(node: { line: number; id: string }) {
   position: absolute;
   right: 40px;
   bottom: 32px;
-  z-index: 2;
+  z-index: 4;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -838,10 +842,10 @@ function onSelectOutline(node: { line: number; id: string }) {
 .note-editor-outline-panel {
   position: absolute;
   right: 24px;
-  top: 18px;
+  bottom: 72px;
   z-index: 3;
   width: 220px;
-  max-height: calc(100% - 36px);
+  max-height: calc(100% - 96px);
   overflow: auto;
   padding: 14px;
   border: 1px solid rgba(55, 46, 36, 0.12);
