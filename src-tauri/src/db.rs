@@ -1403,6 +1403,29 @@ impl Db {
         Ok(())
     }
 
+    /// 删除最后修改时间早于 cutoff（RFC3339）的未保存草稿（`is_draft=1`），返回删除条数。
+    /// 正式笔记（`is_draft=0`）不受影响。
+    pub fn cleanup_expired_drafts(&self, cutoff_rfc3339: &str) -> Result<usize, DbError> {
+        let conn = self.lock()?;
+        let n = conn.execute(
+            "DELETE FROM notes WHERE is_draft = 1 AND updated_at < ?1",
+            rusqlite::params![cutoff_rfc3339],
+        )?;
+        Ok(n)
+    }
+
+    /// 删除早于 cutoff（RFC3339）且未置顶的粘贴板条目，返回删除条数。
+    /// 时间基准为「最近使用」（`COALESCE(last_used_at, updated_at)`），置顶项（`pinned_at` 非空）豁免。
+    pub fn cleanup_expired_clipboard(&self, cutoff_rfc3339: &str) -> Result<usize, DbError> {
+        let conn = self.lock()?;
+        let n = conn.execute(
+            "DELETE FROM clipboard_history
+             WHERE pinned_at IS NULL AND COALESCE(last_used_at, updated_at) < ?1",
+            rusqlite::params![cutoff_rfc3339],
+        )?;
+        Ok(n)
+    }
+
     pub fn update_clipboard_entry_content(
         &self,
         id: &str,
@@ -2916,6 +2939,67 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn cleanup_expired_drafts_removes_only_old_drafts() {
+        let db = fresh_db();
+        let conn_exec = |sql: &str, params: &[&dyn rusqlite::ToSql]| {
+            db.lock().unwrap().execute(sql, params).unwrap();
+        };
+        let now = chrono::Utc::now().to_rfc3339();
+        // 旧草稿（应删）
+        conn_exec(
+            "INSERT INTO notes (id,title,content,html_content,tags,is_pinned,created_at,updated_at,word_count,is_draft)
+             VALUES ('old','t','c','','[]',0,'2020-01-01T00:00:00Z','2020-01-01T00:00:00Z',0,1)",
+            &[],
+        );
+        // 新草稿（应留）
+        conn_exec(
+            "INSERT INTO notes (id,title,content,html_content,tags,is_pinned,created_at,updated_at,word_count,is_draft)
+             VALUES ('new','t','c','','[]',0,?1,?1,0,1)",
+            &[&now],
+        );
+        // 旧但正式笔记（应留）
+        conn_exec(
+            "INSERT INTO notes (id,title,content,html_content,tags,is_pinned,created_at,updated_at,word_count,is_draft)
+             VALUES ('note','t','c','','[]',0,'2020-01-01T00:00:00Z','2020-01-01T00:00:00Z',0,0)",
+            &[],
+        );
+
+        let cutoff = (chrono::Utc::now() - chrono::Duration::days(30)).to_rfc3339();
+        let removed = db.cleanup_expired_drafts(&cutoff).unwrap();
+        assert_eq!(removed, 1);
+        assert!(db.get_note("new").unwrap().is_some());
+        assert!(db.get_note("note").unwrap().is_some());
+        assert!(db.get_note("old").unwrap().is_none());
+    }
+
+    #[test]
+    fn cleanup_expired_clipboard_respects_pin_and_age() {
+        let db = fresh_db();
+        let old = "2020-01-01T00:00:00Z";
+        let conn_exec = |sql: &str, params: &[&dyn rusqlite::ToSql]| {
+            db.lock().unwrap().execute(sql, params).unwrap();
+        };
+        // 旧未置顶（应删）
+        conn_exec(
+            "INSERT INTO clipboard_history (id,content_type,content,preview,content_hash,created_at,updated_at,last_used_at,size_bytes)
+             VALUES ('a','text','x','x','h1',?1,?1,?1,1)",
+            &[&old],
+        );
+        // 旧但置顶（应留）
+        conn_exec(
+            "INSERT INTO clipboard_history (id,content_type,content,preview,content_hash,created_at,updated_at,last_used_at,size_bytes,pinned_at)
+             VALUES ('b','text','y','y','h2',?1,?1,?1,1,?1)",
+            &[&old],
+        );
+
+        let cutoff = (chrono::Utc::now() - chrono::Duration::days(7)).to_rfc3339();
+        let removed = db.cleanup_expired_clipboard(&cutoff).unwrap();
+        assert_eq!(removed, 1);
+        assert!(db.get_clipboard_entry("a").unwrap().is_none());
+        assert!(db.get_clipboard_entry("b").unwrap().is_some());
     }
 
     #[test]

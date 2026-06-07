@@ -18,6 +18,7 @@
 
 mod backup;
 pub mod clipboard;
+mod cleanup_scheduler;
 mod commands;
 mod db;
 mod export;
@@ -154,6 +155,8 @@ pub fn run() {
 
             // 提醒调度器需要持有 Db 克隆，单独保留以传给后台 tokio 任务。
             let db_for_scheduler = database.clone();
+            // 清理调度器同样需要独立的 Db 克隆。
+            let db_for_cleanup = database.clone();
 
             app.manage(database);
             // 剪贴板"自身写入回显"守卫：供 copy/paste 命令记录、监视器消费。
@@ -163,6 +166,9 @@ pub fn run() {
 
             // 启动 30s 周期的提醒调度器：扫描到期任务并触发系统通知。
             reminder_scheduler::start_scheduler(app.handle().clone(), db_for_scheduler);
+
+            // 启动 6h 周期的清理调度器：清除过期未保存草稿与粘贴板条目。
+            cleanup_scheduler::start_scheduler(app.handle().clone(), db_for_cleanup);
 
             // 异步按需请求通知权限：仅当库里至少有一条 reminder_time 时弹权限框。
             let handle_for_perm = app.handle().clone();
