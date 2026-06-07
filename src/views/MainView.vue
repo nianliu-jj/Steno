@@ -304,7 +304,8 @@ function onContextEdit() {
   const note = contextTargetNote.value;
   if (!note) return;
   closeContextMenu();
-  void onOpenNoteEditor(note);
+  // 右键"进入 Zen 模式"：打开 Zen 页面回显当前笔记内容，退出后返回笔记列表。
+  ui.navigateTo('zen', note.id, { mode: 'main', noteId: null });
 }
 
 async function onContextSaveDraft() {
@@ -881,7 +882,7 @@ function formatUpdatedAt(iso: string): string {
         role="menuitem"
         @click="onContextEdit"
       >
-        编辑
+        进入 Zen 模式
       </button>
       <button
         class="context-item"
@@ -1516,12 +1517,12 @@ function formatUpdatedAt(iso: string): string {
 .note-card-draft-tag {
   flex-shrink: 0;
   padding: 1px 6px;
-  border: 1px solid oklch(85% 0.005 80);
+  border: 1px solid oklch(52% 0.2 25);
   border-radius: 4px;
-  background: oklch(94% 0.005 80);
-  color: oklch(55% 0.012 80);
+  background: oklch(57% 0.2 25);
+  color: #fff;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.4;
   letter-spacing: 0.02em;
   cursor: default;

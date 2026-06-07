@@ -314,6 +314,46 @@ describe('MainView', () => {
       expect(openQuicknote).not.toHaveBeenCalled();
     });
 
+    it('enters Zen mode from the note card context menu', async () => {
+      setNotesState([
+        {
+          id: 'note-zen',
+          title: 'Zen 目标笔记',
+          content: '正文内容',
+          htmlContent: '<p>正文内容</p>',
+          tags: [],
+          isPinned: false,
+          pinnedWindowConfig: null,
+          canvasPosition: null,
+          createdAt: '2026-05-14T09:00:00.000Z',
+          updatedAt: '2026-05-14T10:30:00.000Z',
+          wordCount: 4,
+          isDraft: false,
+        },
+      ]);
+
+      const wrapper = mount(WrappedMainView);
+      await flushPromises();
+
+      await wrapper.get('.note-card').trigger('contextmenu', {
+        preventDefault: vi.fn(),
+        clientX: 40,
+        clientY: 60,
+      });
+
+      const editItem = wrapper.get('[data-testid="context-edit"]');
+      expect(editItem.text()).toBe('进入 Zen 模式');
+
+      await editItem.trigger('click');
+
+      expect(navigateTo).toHaveBeenCalledWith('zen', 'note-zen', { mode: 'main', noteId: null });
+    });
+
+    it('renders the unsaved draft badge with a red background', () => {
+      expect(MainViewSource).toMatch(/\.note-card-draft-tag\s*\{[^}]*background: oklch\(57% 0\.2 25\)/);
+      expect(MainViewSource).toMatch(/\.note-card-draft-tag\s*\{[^}]*color: #fff;/);
+    });
+
     it('renders the main toolbar by default and keeps action behavior working', async () => {
       setNotesState([
         {
