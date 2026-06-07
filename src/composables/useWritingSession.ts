@@ -28,6 +28,13 @@ export function useWritingSession(initialNoteId: Ref<string | null>) {
   const headings = computed(() => extractHeadings(content.value));
   const wordCount = computed(() => countWords(content.value));
 
+  // 打开/加载完成时的内容基准快照。watch 据此判断是否发生真实修改，
+  // 避免"打开未改动直接关闭"也触发保存（无意义地 bump updated_at、移动笔记卡片位置）。
+  let initialSnapshot: string | null = null;
+  function currentSnapshot(): string {
+    return JSON.stringify({ title: title.value, content: content.value, tags: tags.value });
+  }
+
   function hydrateFromNote(note: Note) {
     currentNoteId.value = note.id;
     title.value = note.title;
@@ -69,6 +76,8 @@ export function useWritingSession(initialNoteId: Ref<string | null>) {
       };
     }
     loaded.value = true;
+    // hydrate 完成后记录基准快照，使后续异步回填触发的 watch 不被误判为"用户修改"。
+    initialSnapshot = currentSnapshot();
   });
 
   const { status, savedAt, error, scheduleSave, flushSave } = useAutosave(
@@ -97,6 +106,9 @@ export function useWritingSession(initialNoteId: Ref<string | null>) {
 
   watch([title, content, tags], () => {
     if (!loaded.value) return;
+    // 内容相对打开时的基准未发生变化（含异步 hydrate 回填）则跳过保存，
+    // 确保"打开未改动直接关闭"不会更新修改时间、不移动笔记卡片位置。
+    if (initialSnapshot !== null && currentSnapshot() === initialSnapshot) return;
     scheduleSave({
       id: currentNoteId.value ?? undefined,
       title: title.value || undefined,

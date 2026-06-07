@@ -6,7 +6,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { useWritingSession } from './useWritingSession';
 
-const getEditorEntry = vi.fn(() => Promise.resolve(null));
+const getEditorEntry = vi.fn(
+  (): Promise<Record<string, unknown> | null> => Promise.resolve(null),
+);
 const getNote = vi.fn(() => Promise.resolve(null));
 const saveDocumentEntry = vi.fn(() => Promise.resolve({ id: 'doc-1' }));
 
@@ -107,6 +109,38 @@ describe('useWritingSession', () => {
       workspaceId: 'workspace-1',
       folderEntryId: 'folder-1',
       content: '文档正文',
+    }));
+  });
+
+  it('打开已有笔记但未修改时不触发保存，真实修改后才保存', async () => {
+    saveDocumentEntry.mockClear();
+    getEditorEntry.mockResolvedValueOnce({
+      id: 'note-1',
+      title: '标题',
+      content: '正文',
+      tags: ['a'],
+      kind: 'document',
+      workspaceId: 'ws-1',
+      parentId: null,
+    });
+
+    const wrapper = mount(Harness);
+    await flushPromises();
+
+    const vm = wrapper.vm as unknown as {
+      $: { setupState: { session: ReturnType<typeof useWritingSession> } };
+    };
+    const session = vm.$.setupState.session;
+
+    // hydrate 回填内容，但未发生真实修改：不应触发保存（不 bump updated_at）
+    expect(session.content.value).toBe('正文');
+    expect(saveDocumentEntry).not.toHaveBeenCalled();
+
+    // 真实修改后才保存
+    session.content.value = '正文已修改';
+    await flushPromises();
+    expect(saveDocumentEntry).toHaveBeenCalledWith(expect.objectContaining({
+      content: '正文已修改',
     }));
   });
 });
