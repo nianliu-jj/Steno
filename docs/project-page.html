@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Steno 是一款本地优先的桌面速记与 Markdown 工作台，用于快速捕获、整理和导出想法。">
+  <title>Steno 项目介绍</title>
+  <style>
+    :root {
+      --bg: #f6f7f2;
+      --bg-strong: #eef1ea;
+      --surface: #ffffff;
+      --surface-soft: #fbfcf8;
+      --ink: #191b18;
+      --muted: #626860;
+      --faint: #8a9086;
+      --line: #dfe4d8;
+      --accent: #2f8f72;
+      --accent-strong: #1f6f59;
+      --accent-soft: #dcefe7;
+      --shadow: 0 26px 70px rgba(39, 49, 42, 0.14);
+      --radius: 18px;
+      color-scheme: light;
+    }
+
+    * {
+      box-sizing: border-box;
+      letter-spacing: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(180deg, var(--bg) 0%, #ffffff 54%, var(--bg-strong) 100%);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.6;
+    }
+
+    img {
+      display: block;
+      max-width: 100%;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .page {
+      min-height: 100dvh;
+      overflow: hidden;
+    }
+
+    .shell {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      min-height: 72px;
+      padding: 14px 0;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      font-weight: 800;
+      font-size: 18px;
+    }
+
+    .brand img {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      color: var(--muted);
+      font-size: 14px;
+      white-space: nowrap;
+    }
+
+    .nav-links a:hover {
+      color: var(--accent-strong);
+    }
+
+    .hero {
+      position: relative;
+      min-height: clamp(540px, 78dvh, 760px);
+      display: flex;
+      align-items: center;
+      padding: 64px 0 86px;
+      overflow: hidden;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: var(--bg);
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      background:
+        linear-gradient(90deg, rgba(246, 247, 242, 0.98) 0%, rgba(246, 247, 242, 0.92) 38%, rgba(246, 247, 242, 0.62) 64%, rgba(246, 247, 242, 0.2) 100%),
+        linear-gradient(180deg, rgba(246, 247, 242, 0.14), rgba(246, 247, 242, 0.46));
+      pointer-events: none;
+    }
+
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center top;
+      opacity: 0.9;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 2;
+    }
+
+    .eyebrow {
+      margin: 0 0 18px;
+      color: var(--accent-strong);
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      max-width: 620px;
+      margin-bottom: 22px;
+      font-size: clamp(48px, 7vw, 88px);
+      line-height: 0.96;
+      font-weight: 900;
+    }
+
+    .hero-copy {
+      max-width: 580px;
+    }
+
+    .hero-copy > p:not(.eyebrow) {
+      max-width: 560px;
+      margin-bottom: 28px;
+      color: var(--muted);
+      font-size: 19px;
+      line-height: 1.72;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 0 18px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 800;
+      box-shadow: 0 10px 28px rgba(39, 49, 42, 0.08);
+    }
+
+    .button.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #ffffff;
+      box-shadow: 0 18px 34px rgba(47, 143, 114, 0.24);
+    }
+
+    .button:active {
+      transform: translateY(1px);
+    }
+
+    .intro {
+      padding: 58px 0 38px;
+      border-top: 1px solid var(--line);
+    }
+
+    .intro-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+      gap: 48px;
+      align-items: start;
+    }
+
+    h2 {
+      max-width: 720px;
+      margin-bottom: 18px;
+      font-size: clamp(32px, 4vw, 54px);
+      line-height: 1.06;
+      font-weight: 900;
+    }
+
+    .lead {
+      max-width: 680px;
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    .signal-list {
+      display: grid;
+      gap: 12px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .signal-list li {
+      display: grid;
+      grid-template-columns: 128px minmax(0, 1fr);
+      gap: 18px;
+      padding: 15px 0;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .signal-list strong {
+      color: var(--ink);
+      font-size: 15px;
+    }
+
+    .feature-band {
+      padding: 52px 0;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .feature {
+      min-height: 210px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-soft);
+    }
+
+    .feature h3 {
+      margin-bottom: 12px;
+      font-size: 19px;
+      line-height: 1.25;
+    }
+
+    .feature p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .showcase {
+      padding: 46px 0 70px;
+    }
+
+    .showcase-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 34px;
+      align-items: center;
+      padding: 34px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .showcase-copy h3 {
+      margin-bottom: 12px;
+      font-size: clamp(26px, 3vw, 38px);
+      line-height: 1.1;
+    }
+
+    .showcase-copy p {
+      max-width: 520px;
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .screen {
+      overflow: hidden;
+      border: 1px solid rgba(47, 143, 114, 0.18);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: 0 20px 54px rgba(39, 49, 42, 0.12);
+    }
+
+    .screen img {
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      object-fit: cover;
+      object-position: center top;
+    }
+
+    .compact-shot img {
+      aspect-ratio: 4 / 3;
+      object-fit: contain;
+      background: #fdfdfb;
+    }
+
+    .stack {
+      padding: 64px 0;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: var(--bg-strong);
+      color: var(--ink);
+    }
+
+    .stack .shell {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+      gap: 48px;
+      align-items: start;
+    }
+
+    .stack h2 {
+      color: var(--ink);
+    }
+
+    .stack p {
+      color: var(--muted);
+    }
+
+    .tech-list {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .tech-list li {
+      display: grid;
+      grid-template-columns: 150px minmax(0, 1fr);
+      gap: 18px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .tech-list strong {
+      color: var(--ink);
+    }
+
+    .final {
+      padding: 66px 0 76px;
+    }
+
+    .final-panel {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 28px;
+      align-items: center;
+      padding: 34px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: 0 18px 50px rgba(39, 49, 42, 0.1);
+    }
+
+    .final h2 {
+      margin-bottom: 12px;
+      font-size: clamp(30px, 4vw, 48px);
+    }
+
+    .final p {
+      max-width: 680px;
+      margin-bottom: 0;
+      color: var(--muted);
+    }
+
+    footer {
+      padding: 28px 0 38px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    @media (max-width: 980px) {
+      .nav-links {
+        display: none;
+      }
+
+      .intro-grid,
+      .showcase-row,
+      .stack .shell,
+      .final-panel {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        padding-top: 30px;
+      }
+
+      .feature-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .hero::before {
+        background:
+          linear-gradient(90deg, rgba(246, 247, 242, 0.98) 0%, rgba(246, 247, 242, 0.92) 58%, rgba(246, 247, 242, 0.7) 100%),
+          linear-gradient(180deg, rgba(246, 247, 242, 0.18), rgba(246, 247, 242, 0.58));
+      }
+    }
+
+    @media (max-width: 640px) {
+      .shell {
+        width: min(100% - 28px, 1180px);
+      }
+
+      .hero {
+        min-height: 560px;
+        padding-bottom: 52px;
+      }
+
+      .hero-copy > p:not(.eyebrow),
+      .lead,
+      .showcase-copy p {
+        font-size: 16px;
+      }
+
+      .actions {
+        align-items: stretch;
+      }
+
+      .button {
+        width: 100%;
+      }
+
+      .feature-grid,
+      .signal-list li,
+      .tech-list li {
+        grid-template-columns: 1fr;
+      }
+
+      .feature {
+        min-height: 0;
+      }
+
+      .final-panel {
+        padding: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="shell nav" aria-label="项目导航">
+      <a class="brand" href="#top" aria-label="Steno 首页">
+        <img src="../src-tauri/icons/128x128.png" alt="Steno 标志">
+        <span>Steno</span>
+      </a>
+      <nav class="nav-links" aria-label="页面章节">
+        <a href="#why">定位</a>
+        <a href="#features">功能</a>
+        <a href="#screens">截图</a>
+        <a href="#stack">技术栈</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <img class="hero-bg" src="screenshots/main-window.png" alt="Steno 主窗口界面" loading="eager">
+        <div class="shell hero-content">
+          <div class="hero-copy">
+            <p class="eyebrow">本地优先桌面速记</p>
+            <h1 id="hero-title">Steno</h1>
+            <p>把闪念、待办和粘贴板内容收进一个本地 Markdown 工作台。快速捕获，稍后整理，默认不离开你的电脑。</p>
+            <div class="actions">
+              <a class="button primary" href="../README.md">查看项目 README</a>
+              <a class="button" href="#screens">浏览界面截图</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="why" class="intro">
+        <div class="shell intro-grid">
+          <div>
+            <h2>为不中断心流的记录设计</h2>
+            <p class="lead">Steno 不要求你先选文件夹、打开编辑器、整理标题。它先让内容安全落地，再把整理工作交给主窗口、画布和 Zen 模式。</p>
+          </div>
+          <ul class="signal-list">
+            <li>
+              <strong>快速入口</strong>
+              <span>托盘常驻和全局快捷键让速记浮窗随时出现。</span>
+            </li>
+            <li>
+              <strong>本地数据</strong>
+              <span>笔记、待办、粘贴板和设置默认写入本机 SQLite。</span>
+            </li>
+            <li>
+              <strong>Markdown 输出</strong>
+              <span>编辑体验接近所见即所得，底层仍是可迁移的 Markdown。</span>
+            </li>
+            <li>
+              <strong>桌面协同</strong>
+              <span>置顶便签、系统通知、本地文件夹和打印窗口都接入桌面环境。</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="features" class="shell feature-band" aria-labelledby="features-title">
+        <h2 id="features-title">一个窗口，覆盖记录后的整理路径</h2>
+        <div class="feature-grid">
+          <article class="feature">
+            <h3>速记浮窗</h3>
+            <p>从任何应用呼出，输入停顿后自动保存。草稿会回到主窗口，之后可以继续编辑、置顶或归档。</p>
+          </article>
+          <article class="feature">
+            <h3>Markdown 写作</h3>
+            <p>ProseMirror 内核保留 Markdown 源码语义，支持代码、公式、图表、图片和大纲跳转。</p>
+          </article>
+          <article class="feature">
+            <h3>无限画布</h3>
+            <p>把笔记变成可拖拽卡片，通过空间位置建立上下文，适合会议、项目和灵感整理。</p>
+          </article>
+          <article class="feature">
+            <h3>待办和粘贴板</h3>
+            <p>今日待办浮窗、提醒、统计、粘贴板历史和图片编辑补齐桌面工作流中的轻任务。</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="screens" class="shell showcase" aria-labelledby="screens-title">
+        <h2 id="screens-title">从捕获到整理，界面保持克制</h2>
+        <div class="showcase-row">
+          <div class="showcase-copy">
+            <h3>随时呼出的速记入口</h3>
+            <p>速记浮窗覆盖在当前应用上方，输入内容会自动保存为本地草稿，之后可以继续编辑或转成置顶便签。</p>
+          </div>
+          <div class="screen compact-shot">
+            <img src="screenshots/quicknote-window.png" alt="Steno 速记浮窗截图" loading="lazy">
+          </div>
+        </div>
+        <div class="showcase-row">
+          <div class="showcase-copy">
+            <h3>空间化整理</h3>
+            <p>无限画布支持平移、缩放和卡片拖拽。双击卡片可以进入 Zen 写作，快速从结构整理切换到长文编辑。</p>
+          </div>
+          <div class="screen">
+            <img src="screenshots/canvas-view.png" alt="Steno 无限画布截图" loading="lazy">
+          </div>
+        </div>
+        <div class="showcase-row">
+          <div class="screen">
+            <img src="screenshots/zen-mode.png" alt="Steno Zen 模式截图" loading="lazy">
+          </div>
+          <div class="showcase-copy">
+            <h3>沉浸写作</h3>
+            <p>Zen 模式保留标题、字数、保存状态和大纲，让短笔记可以自然扩展成完整文档。</p>
+          </div>
+        </div>
+        <div class="showcase-row">
+          <div class="showcase-copy">
+            <h3>透明的本地设置</h3>
+            <p>主题、语言、快捷键、提醒、保留天数和数据路径集中在设置面板中管理，所有路径都可以直接查看。</p>
+          </div>
+          <div class="screen compact-shot">
+            <img src="screenshots/settings-panel.png" alt="Steno 设置面板截图" loading="lazy">
+          </div>
+        </div>
+      </section>
+
+      <section id="stack" class="stack" aria-labelledby="stack-title">
+        <div class="shell">
+          <div>
+            <h2 id="stack-title">为跨平台桌面应用构建</h2>
+            <p>Steno 的前端负责交互密度和写作体验，Rust 后端负责窗口、快捷键、托盘、SQLite、文件系统和系统能力。</p>
+          </div>
+          <ul class="tech-list">
+            <li>
+              <strong>桌面壳</strong>
+              <span>Tauri 2，系统托盘，多窗口，全局快捷键。</span>
+            </li>
+            <li>
+              <strong>前端</strong>
+              <span>Vue 3，TypeScript，Vite，Pinia，Naive UI，UnoCSS。</span>
+            </li>
+            <li>
+              <strong>后端</strong>
+              <span>Rust 2024，rusqlite，tokio，arboard，walkdir。</span>
+            </li>
+            <li>
+              <strong>编辑器</strong>
+              <span>ProseMirror Markdown 内核，代码块内嵌 CodeMirror 6。</span>
+            </li>
+            <li>
+              <strong>渲染</strong>
+              <span>markdown-it，Shiki，KaTeX，Mermaid，DOMPurify。</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="shell final" aria-labelledby="final-title">
+        <div class="final-panel">
+          <div>
+            <h2 id="final-title">从一条闪念开始</h2>
+            <p>Steno 适合需要频繁切换上下文的人：开发者、写作者、研究者、会议记录者，以及所有希望把桌面零散输入沉淀为 Markdown 的用户。</p>
+          </div>
+          <div class="actions">
+            <a class="button primary" href="../README.md">进入项目文档</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="shell">
+      Steno · 本地优先桌面速记与 Markdown 工作台
+    </footer>
+  </div>
+</body>
+</html>
