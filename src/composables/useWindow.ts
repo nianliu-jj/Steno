@@ -75,6 +75,16 @@ export function useWindow() {
     return invoke<void>('open_zen_window', { id: id ?? null });
   }
 
+  /**
+   * 打开「打印 / 导出 PDF」窗口。
+   *
+   * @param id - 笔记 UUID；后端按 label `print-{id}` 创建独立 webview，
+   *             前端渲染只读笔记后自动调用系统打印（用户另存为 PDF）。
+   */
+  function openPrintWindow(id: string) {
+    return invoke<void>('open_print_window', { id });
+  }
+
   function openPathInFileManager(path: string) {
     return invoke<void>('open_path_in_file_manager', { path });
   }
@@ -189,6 +199,7 @@ export function useWindow() {
     openCanvas,
     openSettings,
     openZen,
+    openPrintWindow,
     openPathInFileManager,
     openUrl,
     hideCurrent,

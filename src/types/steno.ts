@@ -203,7 +203,8 @@ export type WindowMode =
   | 'todo-panel'
   | 'screenshot'
   | 'ocr'
-  | 'translate';
+  | 'translate'
+  | 'print';
 
 // ----- 工作区与文库条目（library_entries）DTO ----------------------------
 

@@ -66,6 +66,15 @@ describe('ui store', () => {
     expect(ui.noteId).toBeNull();
   });
 
+  it('resolves print mode and note id from a print-{id} window label', () => {
+    currentLabel = 'print-note-42';
+
+    const ui = useUiStore();
+
+    expect(ui.mode).toBe('print');
+    expect(ui.noteId).toBe('note-42');
+  });
+
   it('uses the hash route when the main window is created directly for a page', () => {
     window.location.hash = '#canvas';
 

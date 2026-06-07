@@ -349,11 +349,14 @@ async function onCardExportSelect(key: string, note: Note) {
 
 async function exportNote(note: Note, format: 'markdown' | 'html' | 'pdf') {
   try {
+    if (format === 'pdf') {
+      // PDF 走打印窗口：渲染笔记后调用系统打印，由用户在对话框「另存为 PDF」。
+      await win.openPrintWindow(note.id);
+      return;
+    }
     const path = format === 'markdown'
         ? await db.exportNoteMarkdown(note.id)
-        : format === 'html'
-            ? await db.exportNoteHtml(note.id)
-            : await db.exportNotePdf(note.id);
+        : await db.exportNoteHtml(note.id);
     message.success(`已导出：${path}`);
   } catch (e) {
     message.error(String(e));

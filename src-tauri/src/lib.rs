@@ -85,6 +85,7 @@ pub fn run() {
             commands::open_settings_window,
             commands::open_quicknote_window,
             commands::open_zen_window,
+            commands::open_print_window,
             commands::open_path_in_file_manager,
             commands::open_url,
             commands::reload_shortcuts,

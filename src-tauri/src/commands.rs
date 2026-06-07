@@ -604,6 +604,11 @@ pub fn open_zen_window(app: AppHandle, id: Option<String>) -> Result<(), String>
 }
 
 #[tauri::command]
+pub fn open_print_window(app: AppHandle, id: String) -> Result<(), String> {
+    window_manager::open_print(&app, &id).map_err(to_msg)
+}
+
+#[tauri::command]
 pub async fn open_path_in_file_manager(path: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || open_path_in_file_manager_sync(&path))
         .await

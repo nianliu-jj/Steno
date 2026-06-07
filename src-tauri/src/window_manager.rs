@@ -168,6 +168,29 @@ pub fn open_zen(app: &AppHandle, note_id: Option<&str>) -> tauri::Result<()> {
     navigate_main(app, "zen", note_id)
 }
 
+// ----- 打印 / 导出 PDF 窗口 -------------------------------------------
+
+fn print_label(note_id: &str) -> String {
+    format!("print-{note_id}")
+}
+
+/// 打开「打印」窗口（导出 PDF）：独立 webview，label = `print-{id}`，前端按 label
+/// 解析出 print 模式 + noteId，渲染只读笔记并自动调用系统打印。已存在则聚焦复用。
+pub fn open_print(app: &AppHandle, note_id: &str) -> tauri::Result<()> {
+    let label = print_label(note_id);
+    if let Some(w) = app.get_webview_window(&label) {
+        let _ = w.show();
+        let _ = w.set_focus();
+        return Ok(());
+    }
+    WebviewWindowBuilder::new(app, &label, WebviewUrl::App(PathBuf::from("index.html")))
+        .title("Steno · 打印 / 导出 PDF")
+        .inner_size(820.0, 1000.0)
+        .center()
+        .build()?;
+    Ok(())
+}
+
 // ----- 待办浮窗（todo-panel） ------------------------------------------
 
 /// 待办浮窗的位置策略 — 与 settings.`todoQuickPanelPosition` 三选一对应。

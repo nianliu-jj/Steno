@@ -78,6 +78,7 @@ const VALID_MODES: ReadonlySet<WindowMode> = new Set<WindowMode>([
   'screenshot',
   'ocr',
   'translate',
+  'print',
 ]);
 
 /** 所有支持导航的页面型模式，用于校验事件 payload。 */
@@ -164,6 +165,10 @@ function parseFromLabel(label: string, search: string): ParsedRoute {
   if (label.startsWith('sticky-')) {
     // label = "sticky-550e8400-..." → noteId = "550e8400-..."
     return { mode: 'sticky', noteId: label.slice('sticky-'.length) };
+  }
+  if (label.startsWith('print-')) {
+    // label = "print-{uuid}" → 打印窗口（导出 PDF），noteId = uuid
+    return { mode: 'print', noteId: label.slice('print-'.length) };
   }
   if (label === 'canvas') return { mode: 'canvas', noteId: null };
   if (label === 'settings') return { mode: 'settings', noteId: null };

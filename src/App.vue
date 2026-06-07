@@ -22,6 +22,7 @@ import CanvasView from '@/views/CanvasView.vue';
 import ClipboardView from '@/views/ClipboardView.vue';
 import MainView from '@/views/MainView.vue';
 import NoteEditorView from '@/views/NoteEditorView.vue';
+import PrintView from '@/views/PrintView.vue';
 import SettingsView from '@/views/SettingsView.vue';
 import TodoQuickPanel from '@/views/TodoQuickPanel.vue';
 import TodoView from '@/views/TodoView.vue';
@@ -164,6 +165,11 @@ watch(
         />
         <SettingsView v-else-if="ui.mode === 'settings'" />
         <ZenMode v-else-if="ui.mode === 'zen'" />
+        <PrintView
+          v-else-if="ui.mode === 'print' && ui.noteId"
+          :key="ui.noteId"
+          :note-id="ui.noteId"
+        />
         <section v-else class="mode-fallback">
           <h1>Steno · {{ ui.mode }}</h1>
           <p>
