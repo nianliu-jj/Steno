@@ -10,6 +10,8 @@ import { EditorState, type Transaction } from 'prosemirror-state';
 
 import { stenoSchema } from '../schema';
 import { createInputRulesPlugin } from '../plugins/input-rules';
+import { serializeDoc } from '../serializer';
+import { parseMarkdown } from '../parser';
 
 /** 模拟逐字符输入序列，返回最终编辑器状态。 */
 function typeSequence(seq: string): EditorState {
@@ -59,5 +61,35 @@ describe('input rules — 标题即时渲染', () => {
   it('普通文本不会被误转换为标题', () => {
     const state = typeSequence('hello ');
     expect(state.doc.firstChild?.type.name).toBe('paragraph');
+  });
+});
+
+describe('input rules — 标题 Markdown 往返（回归：速记/编辑页重新进入标题失效）', () => {
+  it('输入 "# 标题" 序列化后保留 # 级别标记', () => {
+    // 此前 headingRule 直接 delete 掉 "#"，导致序列化丢失级别标记，
+    // 保存到库后再次解析就退化成普通段落（标题失效）。
+    const state = typeSequence('# 标题');
+    expect(serializeDoc(state.doc)).toContain('# 标题');
+  });
+
+  it('输入 "### 三级标题" 序列化后保留 ### 标记', () => {
+    const state = typeSequence('### 三级标题');
+    expect(serializeDoc(state.doc)).toContain('### 三级标题');
+  });
+
+  it('标题完整往返：输入 → 序列化 → 重新解析仍是对应级别 heading', () => {
+    const state = typeSequence('## 二级');
+    const md = serializeDoc(state.doc);
+    const reparsed = parseMarkdown(md).doc;
+    expect(reparsed.firstChild?.type.name).toBe('heading');
+    expect(reparsed.firstChild?.attrs.level).toBe(2);
+  });
+
+  it('标题中的行内强调随 # 一并正确往返', () => {
+    const state = typeSequence('# 标题**粗**');
+    const md = serializeDoc(state.doc);
+    expect(md).toContain('# 标题');
+    expect(md).toContain('**粗**');
+    expect(parseMarkdown(md).doc.firstChild?.type.name).toBe('heading');
   });
 });

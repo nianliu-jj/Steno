@@ -111,9 +111,14 @@ export class MarkdownSerializer {
     },
 
     heading: (node, lines, indent) => {
-      // serializeInline 已经输出包含 syntax_marker 的 `#` 与空格
-      const text = this.serializeInline(node);
-      lines.push(indent + text);
+      const level = (node.attrs.level as number) || 1;
+      // serializeInline 会输出节点内可能保留的 "# " 标记文本（parser / input-rules 路径）。
+      // 以 attrs.level 为权威级别统一重建 "#" 前缀：先剥离开头可能存在的标记，再按 level 补回。
+      // 这样无论 heading 由何种途径产生（parser / input-rules / setHeading 命令），都能稳定
+      // 序列化出正确级别标记，避免标记丢失（旧 input-rules 删 "#" 导致重新加载标题失效）
+      // 或 "#" 数量与 level 不一致。
+      const body = this.serializeInline(node).replace(/^#{1,6}[ \t]/, '');
+      lines.push(`${indent}${'#'.repeat(level)} ${body}`);
       if (!this.options.compact) lines.push('');
     },
 

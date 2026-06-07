@@ -27,12 +27,31 @@ function headingRule(nodeType: NodeType): InputRule {
     const decorationState = decorationPluginKey.getState(state);
     if (decorationState?.sourceView) return null;
 
-    const level = match[1].length;
+    const hashes = match[1];
+    const level = hashes.length;
     const $start = state.doc.resolve(start);
     if (!$start.node(-1).canReplaceWith($start.index(-1), $start.indexAfter(-1), nodeType)) {
       return null;
     }
-    return state.tr.delete(start, end).setBlockType(start, start, nodeType, { level });
+
+    const syntaxMarkerType = state.schema.marks.syntax_marker;
+    // 关键修复：保留 "#" 作为带 syntax_marker(heading) 的可见文本，与 parser.parseHeading
+    // 的文档结构（"#" + 普通空格 + 内容）保持一致。
+    //
+    // 旧实现 `delete(start, end)` 删掉了 "#"，使 heading 节点不含任何级别标记；而
+    // serializer 的 heading 处理器只遍历文本节点、不主动补 "#"，于是序列化结果丢失级别
+    // 标记，保存后再次解析就退化成普通段落 —— 即"速记/编辑页重新进入标题失效"的根因。
+    let tr = state.tr.setBlockType(start, end, nodeType, { level });
+    if (syntaxMarkerType) {
+      // 此时触发规则的空格尚未插入，start..end 恰好是已输入的 "#"
+      tr = tr.addMark(start, end, syntaxMarkerType.create({ syntaxType: 'heading' }));
+      // 在 "#" 后补一个分隔空格，并清除其继承的 syntax_marker，使空格保持普通文本
+      tr = tr.insertText(' ', end);
+      tr = tr.removeMark(end, end + 1, syntaxMarkerType);
+    } else {
+      tr = tr.insertText(' ', end);
+    }
+    return tr;
   });
 }
 

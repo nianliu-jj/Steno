@@ -23,6 +23,7 @@ import { createHtmlBlockNodeView } from '../nodeviews/html-block';
 import { createMathBlockNodeView } from '../nodeviews/math-block';
 import { createMermaidBlockNodeView } from '../nodeviews/mermaid-block';
 import { createCodeBlockNodeView } from '../nodeviews/code-block';
+import { setStenoAssetDataDir } from '@/utils/stenoAssets';
 
 /** 创建一个最小的 EditorView 桩，仅暴露 state.tr / dispatch 用于 task-list-item 的 setNodeMarkup 路径。 */
 function stubView(): { view: EditorView; dispatched: unknown[] } {
@@ -111,6 +112,24 @@ describe('image NodeView', () => {
 
     expect(path.hidden).toBe(false);
     expect(path.textContent).toBe('assets/image-20240718101650827.png');
+  });
+
+  it('数据目录在图片渲染后才就绪时刷新已渲染图片的 src（修复速记浮窗图片不显示）', () => {
+    // 模拟首帧渲染时数据目录尚未就绪（cachedDataDir 为空）
+    setStenoAssetDataDir(null);
+    const node = stenoSchema.nodes.image.create({ src: 'steno-asset:foo.png' });
+    const { view } = stubView();
+    const nv = createImageNodeView(node, view, getPos);
+    const before = (nv.dom.querySelector('img') as HTMLImageElement).src;
+    expect(before).not.toContain('tmp/steno');
+
+    // 数据目录异步就绪：应触发 NodeView 重建，使 src 指向真实数据目录
+    setStenoAssetDataDir('/tmp/steno');
+    const after = (nv.dom.querySelector('img') as HTMLImageElement).src;
+    expect(after).toContain('tmp/steno');
+
+    nv.destroy?.();
+    setStenoAssetDataDir(null);
   });
 });
 

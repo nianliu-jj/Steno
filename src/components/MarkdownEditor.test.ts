@@ -125,6 +125,17 @@ describe('MarkdownEditor（ProseMirror 内核）', () => {
     wrapper.unmount();
   });
 
+  it('外部回填含 # 标题的 Markdown 时渲染为 h1（模拟重新进入编辑页/速记浮窗加载内容）', async () => {
+    // 编辑页/浮窗挂载时 v-model 常为空，内容由异步 hydrate 后经 setContent 回填；
+    // 只要保存的 Markdown 保留了 "#"，回填解析就应还原为标题（对应本次修复的目标场景）。
+    const wrapper = mountEditor('');
+    await wrapper.setProps({ modelValue: '# 重新进入的标题\n\n正文' });
+    await nextTick();
+    expect(wrapper.find('h1').exists()).toBe(true);
+    expect(wrapper.text()).toContain('重新进入的标题');
+    wrapper.unmount();
+  });
+
   it('暴露 focus 与 scrollToLine 且不抛错', () => {
     const wrapper = mountEditor('line 1\n\nline 2\n\nline 3\n\nline 4');
     const exposed = wrapper.vm as unknown as {

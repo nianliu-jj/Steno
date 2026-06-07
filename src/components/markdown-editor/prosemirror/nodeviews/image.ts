@@ -14,7 +14,7 @@
 import type { NodeView, EditorView } from 'prosemirror-view';
 import type { Node } from 'prosemirror-model';
 
-import { stenoAssetDisplaySrc } from '@/utils/stenoAssets';
+import { stenoAssetDisplaySrc, subscribeStenoAssetDataDir } from '@/utils/stenoAssets';
 
 /**
  * 创建 image NodeView。
@@ -34,6 +34,16 @@ export function createImageNodeView(
   let pathVisible = false;
   let dom: HTMLElement = buildDom(node);
   attachErrorHandler();
+
+  // 数据目录可能在图片渲染之后才异步就绪（getDataPaths 是异步 IPC；速记浮窗是独立
+  // webview，其 cachedDataDir 初始为空）。订阅其变化，就绪后重建 DOM 重新解析 src，
+  // 避免图片永久停留在加载失败/占位状态 —— 即"速记浮窗不显示笔记图片"的根因之一。
+  const unsubscribeDataDir = subscribeStenoAssetDataDir(() => {
+    const next = buildDom(node);
+    dom.replaceWith(next);
+    dom = next;
+    attachErrorHandler();
+  });
 
   function buildDom(currentNode: Node): HTMLElement {
     const wrapper = document.createElement('div');
@@ -117,6 +127,7 @@ export function createImageNodeView(
     },
     destroy() {
       // 浏览器会在 dom 被替换/移除时自动清理 once: true 监听器，这里仅做防御。
+      unsubscribeDataDir();
       const img = dom.querySelector('img');
       img?.removeEventListener('error', onError);
       img?.removeEventListener('click', onImageClick);

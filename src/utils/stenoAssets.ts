@@ -10,6 +10,10 @@ let cachedDataDir: string | null = null;
 const LEGACY_HOME_STENO_RE = /^(?:~|～)\/\.steno\//;
 const MARKDOWN_IMAGE_RE = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
 
+/** 数据目录变化监听器集合 —— 供图片 NodeView 在 dataDir 异步就绪后刷新自身。 */
+type DataDirListener = () => void;
+const dataDirListeners = new Set<DataDirListener>();
+
 function trimTrailingSlashes(path: string): string {
   return path.replace(/[\\/]+$/, '');
 }
@@ -42,7 +46,34 @@ function fileUrlPath(url: string): string | null {
 }
 
 export function setStenoAssetDataDir(dataDir: string | null | undefined) {
-  cachedDataDir = dataDir || null;
+  const next = dataDir || null;
+  if (next === cachedDataDir) return;
+  cachedDataDir = next;
+  // 通知所有订阅者（图片 NodeView）数据目录已变化，以便刷新已渲染但当时 dataDir
+  // 尚未就绪的图片。单个监听器抛错不应影响其余刷新。
+  for (const listener of dataDirListeners) {
+    try {
+      listener();
+    } catch {
+      // 忽略单个监听器异常
+    }
+  }
+}
+
+/**
+ * 订阅数据目录变化。
+ *
+ * 图片 NodeView 据此在数据目录异步就绪后刷新已渲染图片：首帧渲染时 `cachedDataDir`
+ * 可能尚未就绪（`getDataPaths` 是异步 IPC），导致 `steno-asset:` 路径无法解析、图片
+ * 加载失败；速记浮窗是独立 webview，其 `cachedDataDir` 初始为空，尤为明显。
+ *
+ * @returns 取消订阅函数
+ */
+export function subscribeStenoAssetDataDir(listener: DataDirListener): () => void {
+  dataDirListeners.add(listener);
+  return () => {
+    dataDirListeners.delete(listener);
+  };
 }
 
 export function isStenoAssetUrl(url: string): boolean {

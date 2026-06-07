@@ -6,6 +6,7 @@ import {
   stenoAssetAbsolutePath,
   stenoAssetDisplaySrc,
   stenoAssetRelativePath,
+  subscribeStenoAssetDataDir,
 } from './stenoAssets';
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -50,5 +51,21 @@ describe('stenoAssets', () => {
     expect(stenoAssetDisplaySrc('https://example.com/a.png', '/tmp/steno')).toBe(
       'https://example.com/a.png',
     );
+  });
+
+  it('notifies subscribers when the data dir changes, dedupes equal values, and stops after unsubscribe', () => {
+    let count = 0;
+    const unsubscribe = subscribeStenoAssetDataDir(() => {
+      count++;
+    });
+    setStenoAssetDataDir('/tmp/steno'); // null → 值：触发
+    expect(count).toBe(1);
+    setStenoAssetDataDir('/tmp/steno'); // 相同值：去重，不触发
+    expect(count).toBe(1);
+    setStenoAssetDataDir('/another'); // 变化：触发
+    expect(count).toBe(2);
+    unsubscribe();
+    setStenoAssetDataDir('/tmp/steno'); // 已取消订阅：不再触发
+    expect(count).toBe(2);
   });
 });
