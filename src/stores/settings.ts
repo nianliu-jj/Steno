@@ -100,6 +100,10 @@ export interface StenoSettings {
   locale: Locale;
   /** 主窗口圆角半径（px）。 */
   windowBorderRadius: number;
+  /** 未保存笔记保留天数（最后修改超过该天数的草稿会被定时清理）。 */
+  unsavedNoteRetentionDays: number;
+  /** 粘贴板条目保留天数（超过该天数未使用的条目会被定时清理，置顶项豁免）。 */
+  clipboardRetentionDays: number;
 }
 
 export const DEFAULT_REMINDER_QUICK_OPTIONS: ReminderOption[] = [
@@ -183,6 +187,8 @@ const DEFAULTS: StenoSettings = {
   reminderQuickOptions: DEFAULT_REMINDER_QUICK_OPTIONS,
   locale: 'zh-CN',
   windowBorderRadius: 12,
+  unsavedNoteRetentionDays: 30,
+  clipboardRetentionDays: 7,
 };
 
 function cloneReminderOptions(options: ReminderOption[]): ReminderOption[] {
@@ -266,7 +272,9 @@ function decode<K extends keyof StenoSettings>(
     case 'backupEveryChanges':
     case 'mainSidebarWidth':
     case 'noteEditorOutlineWidth':
-    case 'zenOutlineWidth': {
+    case 'zenOutlineWidth':
+    case 'unsavedNoteRetentionDays':
+    case 'clipboardRetentionDays': {
       const n = Number.parseInt(raw, 10);
       // 解析失败或 ≤0 时使用默认值
       return (Number.isFinite(n) && n > 0 ? n : defaultValue(key)) as StenoSettings[K];

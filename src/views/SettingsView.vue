@@ -258,7 +258,7 @@ function labelOf(
 }
 
 async function onUpdateNumber<
-  K extends 'floatingWidth' | 'floatingHeight' | 'blurCloseDelayMs' | 'backupEveryChanges' | 'windowBorderRadius',
+  K extends 'floatingWidth' | 'floatingHeight' | 'blurCloseDelayMs' | 'backupEveryChanges' | 'windowBorderRadius' | 'unsavedNoteRetentionDays' | 'clipboardRetentionDays',
 >(key: K, value: number | null) {
   if (value == null || !Number.isFinite(value)) return;
   if (value === settings.state[key]) return;
@@ -1161,6 +1161,56 @@ const headerSub = computed(() =>
                 :step="1"
                 size="small"
                 @update:value="value => onUpdateNumber('backupEveryChanges', value)"
+              />
+            </div>
+
+            <h3 class="settings-group">数据清理</h3>
+            <div class="settings-row">
+              <div class="settings-row__meta">
+                <strong>未保存笔记保留天数
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
+                      </svg>
+                    </template>
+                    "未保存"草稿最后修改超过该天数后会被定时清理。
+                  </NTooltip>
+                </strong>
+              </div>
+              <NInputNumber
+                :value="settings.state.unsavedNoteRetentionDays"
+                :min="1"
+                :max="3650"
+                :step="1"
+                size="small"
+                data-testid="settings-unsaved-retention"
+                @update:value="value => onUpdateNumber('unsavedNoteRetentionDays', value)"
+              />
+            </div>
+            <div class="settings-row">
+              <div class="settings-row__meta">
+                <strong>粘贴板保留天数
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
+                      </svg>
+                    </template>
+                    粘贴板复制项超过该天数未使用后会被定时清理（置顶项不清理）。
+                  </NTooltip>
+                </strong>
+              </div>
+              <NInputNumber
+                :value="settings.state.clipboardRetentionDays"
+                :min="1"
+                :max="3650"
+                :step="1"
+                size="small"
+                data-testid="settings-clipboard-retention"
+                @update:value="value => onUpdateNumber('clipboardRetentionDays', value)"
               />
             </div>
           </section>

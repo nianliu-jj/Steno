@@ -151,6 +151,40 @@ describe('settings store', () => {
     expect(dbSetSettingMock).toHaveBeenNthCalledWith(4, 'todoQuickPanelLastPos', '320,240');
   });
 
+  it('uses the default retention days when nothing is persisted', async () => {
+    const store = useSettingsStore();
+    await store.load();
+
+    expect(store.state.unsavedNoteRetentionDays).toBe(30);
+    expect(store.state.clipboardRetentionDays).toBe(7);
+  });
+
+  it('decodes persisted retention days and falls back on invalid values', async () => {
+    dbGetSettingMock.mockImplementation(async (key: string) => {
+      const map: Record<string, string | null> = {
+        unsavedNoteRetentionDays: '45',
+        clipboardRetentionDays: '0', // 非法（≤0）→ 回退默认 7
+      };
+      return map[key] ?? null;
+    });
+
+    const store = useSettingsStore();
+    await store.load();
+
+    expect(store.state.unsavedNoteRetentionDays).toBe(45);
+    expect(store.state.clipboardRetentionDays).toBe(7);
+  });
+
+  it('persists retention day updates through the db adapter', async () => {
+    const store = useSettingsStore();
+
+    await store.update('unsavedNoteRetentionDays', 60);
+    await store.update('clipboardRetentionDays', 14);
+
+    expect(dbSetSettingMock).toHaveBeenNthCalledWith(1, 'unsavedNoteRetentionDays', '60');
+    expect(dbSetSettingMock).toHaveBeenNthCalledWith(2, 'clipboardRetentionDays', '14');
+  });
+
   it('uses the default reminder quick options when nothing is persisted', async () => {
     const store = useSettingsStore();
     await store.load();
