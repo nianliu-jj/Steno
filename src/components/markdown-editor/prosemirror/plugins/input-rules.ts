@@ -20,6 +20,22 @@ import { Plugin, TextSelection } from 'prosemirror-state';
 import { stenoSchema } from '../schema';
 import { decorationPluginKey } from '../decorations';
 
+/** 标题：行首 `#`~`######` + 空格 → 对应级别 heading（即时渲染） */
+function headingRule(nodeType: NodeType): InputRule {
+  return new InputRule(/^(#{1,6})\s$/, (state, match, start, end) => {
+    // 源码视图模式下不自动转换块类型
+    const decorationState = decorationPluginKey.getState(state);
+    if (decorationState?.sourceView) return null;
+
+    const level = match[1].length;
+    const $start = state.doc.resolve(start);
+    if (!$start.node(-1).canReplaceWith($start.index(-1), $start.indexAfter(-1), nodeType)) {
+      return null;
+    }
+    return state.tr.delete(start, end).setBlockType(start, start, nodeType, { level });
+  });
+}
+
 /** 引用块：`> ` */
 function blockquoteRule(nodeType: NodeType): InputRule {
   return wrappingInputRule(/^>\s$/, nodeType);
@@ -557,7 +573,10 @@ function containerRule(nodeType: NodeType): InputRule {
 export function createInputRulesPlugin(schema: Schema = stenoSchema): Plugin {
   const rules: InputRule[] = [];
 
-  // 块级规则（标题由解析时被动渲染，不使用 input rule）
+  // 块级规则（标题 `# ` 即时转换；其余块级语法见下）
+  if (schema.nodes.heading) {
+    rules.push(headingRule(schema.nodes.heading));
+  }
   if (schema.nodes.blockquote) {
     rules.push(blockquoteRule(schema.nodes.blockquote));
   }
