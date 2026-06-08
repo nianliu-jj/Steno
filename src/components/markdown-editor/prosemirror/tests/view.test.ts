@@ -34,7 +34,7 @@ const SAMPLE_MARKDOWN = [
   '',
   '---',
   '',
-  '[a](hh)',
+  '[a](hh)'
 ].join('\n');
 
 /**
@@ -45,21 +45,24 @@ const SAMPLE_MARKDOWN = [
  * 这里把单元格/标记两侧空白、表格分隔行折叠后再比较，断言"归一化等价"。
  */
 function normalize(md: string): string {
-  return md
-    .replace(/\r\n?/g, '\n')
-    .split('\n')
-    .map(l => l.trimEnd())
-    .join('\n')
-    .replace(/\n{2,}/g, '\n\n')
-    .trim()
-    // 表格分隔行统一为 ---（忽略对齐/破折号数量差异）
-    .replace(/\|[\s:-]+(?=\|)/g, '|---')
-    // 去掉表格/引用标记两侧的额外空白，统一管道与内容贴合
-    .replace(/\|\s+/g, '|')
-    .replace(/\s+\|/g, '|')
-    .replace(/^>\s+/gm, '>');
+  return (
+    md
+      .replace(/\r\n?/g, '\n')
+      .split('\n')
+      .map(l => l.trimEnd())
+      .join('\n')
+      .replace(/\n{2,}/g, '\n\n')
+      .trim()
+      // 表格分隔行统一为 ---（忽略对齐/破折号数量差异）
+      .replace(/\|[\s:-]+(?=\|)/g, '|---')
+      // 去掉表格/引用标记两侧的额外空白，统一管道与内容贴合
+      .replace(/\|\s+/g, '|')
+      .replace(/\s+\|/g, '|')
+      .replace(/^>\s+/gm, '>')
+  );
 }
 
+// 测试用例：验证「createEditor」场景，锁定 view 的用户可见行为。
 describe('createEditor', () => {
   let view: EditorView | null = null;
   let mount: HTMLDivElement | null = null;
@@ -71,12 +74,14 @@ describe('createEditor', () => {
     mount = null;
   });
 
+  // 测试用例：验证「挂载图一 markdown 后 DOM 含 ul / table / hr / a」场景，锁定 view 的用户可见行为。
   it('挂载图一 markdown 后 DOM 含 ul / table / hr / a', () => {
     mount = document.createElement('div');
     document.body.appendChild(mount);
 
     view = createEditor({ mount, initialValue: SAMPLE_MARKDOWN });
 
+    // 局部常量 dom：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const dom = view.dom as HTMLElement;
     expect(dom.querySelector('ul')).not.toBeNull();
     expect(dom.querySelector('table')).not.toBeNull();
@@ -84,6 +89,7 @@ describe('createEditor', () => {
     expect(dom.querySelector('a')).not.toBeNull();
   });
 
+  // 测试用例：验证「只读模式下 editable=false 且 spellcheck=false」场景，锁定 view 的用户可见行为。
   it('只读模式下 editable=false 且 spellcheck=false', () => {
     mount = document.createElement('div');
     document.body.appendChild(mount);
@@ -95,6 +101,7 @@ describe('createEditor', () => {
   });
 });
 
+// 测试用例：验证「createEditorBridge」场景，锁定 view 的用户可见行为。
 describe('createEditorBridge', () => {
   let bridge: EditorBridge | null = null;
   let mount: HTMLDivElement | null = null;
@@ -106,19 +113,23 @@ describe('createEditorBridge', () => {
     mount = null;
   });
 
+  // 函数 makeBridge：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function makeBridge(initialValue: string, onChange?: (md: string) => void): EditorBridge {
     mount = document.createElement('div');
     document.body.appendChild(mount);
     return createEditorBridge({ mount, initialValue, onChange });
   }
 
+  // 测试用例：验证「setContent / getContent round-trip 归一化等价」场景，锁定 view 的用户可见行为。
   it('setContent / getContent round-trip 归一化等价', () => {
     bridge = makeBridge('');
     bridge.setContent(SAMPLE_MARKDOWN);
     expect(normalize(bridge.getContent())).toBe(normalize(SAMPLE_MARKDOWN));
   });
 
+  // 测试用例：验证「setContent 相同内容时不触发多余 onChange（无死循环）」场景，锁定 view 的用户可见行为。
   it('setContent 相同内容时不触发多余 onChange（无死循环）', () => {
+    // 局部常量 onChange：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const onChange = vi.fn();
     bridge = makeBridge(SAMPLE_MARKDOWN, onChange);
 
@@ -128,7 +139,9 @@ describe('createEditorBridge', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  // 测试用例：验证「setContent 写入新内容时不向外冒泡 onChange（外部回写静默）」场景，锁定 view 的用户可见行为。
   it('setContent 写入新内容时不向外冒泡 onChange（外部回写静默）', () => {
+    // 局部常量 onChange：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const onChange = vi.fn();
     bridge = makeBridge('初始', onChange);
 
@@ -138,6 +151,7 @@ describe('createEditorBridge', () => {
     expect(normalize(bridge.getContent())).toBe(normalize('# 新标题'));
   });
 
+  // 测试用例：验证「scrollToLine 不抛错且能定位到目标块」场景，锁定 view 的用户可见行为。
   it('scrollToLine 不抛错且能定位到目标块', () => {
     bridge = makeBridge(SAMPLE_MARKDOWN);
     expect(() => bridge!.scrollToLine(0)).not.toThrow();
@@ -145,12 +159,14 @@ describe('createEditorBridge', () => {
     expect(() => bridge!.scrollToLine(9999)).not.toThrow();
   });
 
+  // 测试用例：验证「scrollToHeading 不抛错」场景，锁定 view 的用户可见行为。
   it('scrollToHeading 不抛错', () => {
     bridge = makeBridge('# 标题一\n\n正文');
     expect(() => bridge!.scrollToHeading('标题一')).not.toThrow();
     expect(() => bridge!.scrollToHeading('不存在')).not.toThrow();
   });
 
+  // 测试用例：验证「focus 不抛错」场景，锁定 view 的用户可见行为。
   it('focus 不抛错', () => {
     bridge = makeBridge('内容');
     expect(() => bridge!.focus()).not.toThrow();

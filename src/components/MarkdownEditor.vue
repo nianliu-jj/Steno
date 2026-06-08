@@ -1,4 +1,12 @@
+<!--
+  @file 前端通用组件 - Markdown Editor
+
+  承载 Markdown Editor 的界面结构、响应式状态和用户交互，是 前端通用组件 模块的可视入口之一。
+  注释重点标明模板结构、脚本状态、事件派发和样式隔离边界。
+-->
+
 <script setup lang="ts">
+// 脚本区：组织 Markdown Editor 的响应式状态、计算属性、事件处理和外部模块协作。
 /**
  * @component MarkdownEditor
  * @description 通用 Markdown 编辑器 — 基于 ProseMirror 的 Typora 风格 WYSIWYG 内核。
@@ -42,25 +50,31 @@ import { createEditorBridge, type EditorBridge } from './markdown-editor/prosemi
 import { useDb } from '@/composables/useDb';
 import { setStenoAssetDataDir } from '@/utils/stenoAssets';
 
+// 类型 Props：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
 interface Props {
   modelValue: string;
   autofocus?: boolean;
   placeholder?: string;
 }
 
+// 局部常量 props：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const props = withDefaults(defineProps<Props>(), {
   autofocus: false,
-  placeholder: '此刻在想什么？支持 Markdown',
+  placeholder: '此刻在想什么？支持 Markdown'
 });
 
+// 局部常量 emit：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const emit = defineEmits<{
   'update:modelValue': [value: string];
   focus: [];
   blur: [];
 }>();
 
+// 局部常量 containerRef：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const containerRef = useTemplateRef<HTMLDivElement>('container');
+// 局部常量 bridge：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const bridge = ref<EditorBridge | null>(null);
+// 局部常量 db：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const db = useDb();
 
 onMounted(() => {
@@ -68,7 +82,8 @@ onMounted(() => {
 
   // 解析数据目录，供图片相对路径渲染（Tauri 内会经 convertFileSrc）。
   if (typeof db.getDataPaths === 'function') {
-    void db.getDataPaths()
+    void db
+      .getDataPaths()
       .then(paths => {
         setStenoAssetDataDir(paths.dataDir);
       })
@@ -89,9 +104,10 @@ onMounted(() => {
       else emit('blur');
     },
     onPasteImage: async dataUrl => {
+      // 局部常量 saved：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const saved = await db.savePastedImage(dataUrl);
       return saved.markdownUrl;
-    },
+    }
   });
 });
 
@@ -105,7 +121,7 @@ watch(
   () => props.modelValue,
   next => {
     bridge.value?.setContent(next);
-  },
+  }
 );
 
 /** 程序化聚焦编辑器。 */
@@ -126,17 +142,19 @@ defineExpose({ focus, scrollToLine });
 </script>
 
 <template>
+  <!-- 模板区：描述 Markdown Editor 的 DOM 层级、可交互区域和条件渲染边界。 -->
   <div ref="container" class="md-editor" data-testid="md-editor" />
 </template>
 
 <style scoped>
+/* 样式区：限定 Markdown Editor 的布局、主题色和响应式细节。 */
 .md-editor {
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
   overflow: auto;
-  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 .md-editor :deep(.ProseMirror) {

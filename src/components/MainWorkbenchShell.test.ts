@@ -1,3 +1,10 @@
+/**
+ * @file 前端通用组件 - Main Workbench Shell
+ *
+ * 覆盖 Main Workbench Shell 的主要行为、边界条件和跨模块契约，帮助重构时快速定位预期。
+ * 注释重点标明数据入口、状态边界、事件通道和协作风险点，便于逐行阅读时快速判断代码意图。
+ */
+
 // @vitest-environment jsdom
 
 import { mount } from '@vue/test-utils';
@@ -7,29 +14,37 @@ import { nextTick, reactive } from 'vue';
 import MainWorkbenchShell from './MainWorkbenchShell.vue';
 import MainWorkbenchShellSource from './MainWorkbenchShell.vue?raw';
 
+// 局部常量 navigateTo：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const navigateTo = vi.fn();
+// 局部常量 navigateToMain：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const navigateToMain = vi.fn();
+// 局部常量 startDragCurrent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const startDragCurrent = vi.fn();
+// 局部常量 minimizeCurrent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const minimizeCurrent = vi.fn();
+// 局部常量 toggleMaximizeCurrent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const toggleMaximizeCurrent = vi.fn();
+// 局部常量 closeCurrent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const closeCurrent = vi.fn();
+// 局部常量 openQuicknote：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const openQuicknote = vi.fn(() => Promise.resolve());
+// 局部常量 settingsState：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const settingsState = reactive({
   mainSidebarWidth: 220,
-  mainSidebarCollapsed: false,
+  mainSidebarCollapsed: false
 });
 
 vi.mock('@/stores/ui', () => ({
   useUiStore: () => ({
     navigateTo,
-    navigateToMain,
-  }),
+    navigateToMain
+  })
 }));
 
 vi.mock('@/stores/settings', () => ({
   useSettingsStore: () => ({
-    state: settingsState,
-  }),
+    state: settingsState
+  })
 }));
 
 vi.mock('@/composables/useWindow', () => ({
@@ -38,16 +53,17 @@ vi.mock('@/composables/useWindow', () => ({
     minimizeCurrent,
     toggleMaximizeCurrent,
     closeCurrent,
-    openQuicknote,
-  }),
+    openQuicknote
+  })
 }));
 
+// 测试用例：验证「MainWorkbenchShell」场景，锁定 Main Workbench Shell 的用户可见行为。
 describe('MainWorkbenchShell', () => {
   beforeEach(() => {
     Object.defineProperty(window, 'innerWidth', {
       configurable: true,
       value: 1024,
-      writable: true,
+      writable: true
     });
     navigateTo.mockClear();
     navigateToMain.mockClear();
@@ -60,14 +76,16 @@ describe('MainWorkbenchShell', () => {
     settingsState.mainSidebarCollapsed = false;
   });
 
+  // 测试用例：验证「renders the workbench frame and slot content」场景，锁定 Main Workbench Shell 的用户可见行为。
   it('renders the workbench frame and slot content', () => {
+    // 局部常量 wrapper：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const wrapper = mount(MainWorkbenchShell, {
       props: {
-        navItems: [{ key: 'main', label: '笔记列表', active: true }],
+        navItems: [{ key: 'main', label: '笔记列表', active: true }]
       },
       slots: {
-        default: '<div class="page-body">body</div>',
-      },
+        default: '<div class="page-body">body</div>'
+      }
     });
 
     expect(wrapper.find('.workbench-page-header').exists()).toBe(false);
@@ -75,14 +93,16 @@ describe('MainWorkbenchShell', () => {
     expect(wrapper.find('.page-body').exists()).toBe(true);
   });
 
+  // 测试用例：验证「navigates from the sidebar main item with navigateToMain and other items with navigateTo」场景，锁定 Main Workbench Shell 的用户可见行为。
   it('navigates from the sidebar main item with navigateToMain and other items with navigateTo', async () => {
+    // 局部常量 wrapper：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const wrapper = mount(MainWorkbenchShell, {
       props: {
         navItems: [
           { key: 'main', label: '笔记列表', active: true },
-          { key: 'canvas', label: '画布', active: false },
-        ],
-      },
+          { key: 'canvas', label: '画布', active: false }
+        ]
+      }
     });
 
     await wrapper.find('[data-nav="main"]').trigger('click');
@@ -93,11 +113,13 @@ describe('MainWorkbenchShell', () => {
     expect(navigateTo).toHaveBeenCalledWith('canvas');
   });
 
+  // 测试用例：验证「marks the custom titlebar as a native drag region and keeps window controls interactive」场景，锁定 Main Workbench Shell 的用户可见行为。
   it('marks the custom titlebar as a native drag region and keeps window controls interactive', async () => {
+    // 局部常量 wrapper：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const wrapper = mount(MainWorkbenchShell, {
       props: {
-        navItems: [{ key: 'main', label: '笔记列表', active: true }],
-      },
+        navItems: [{ key: 'main', label: '笔记列表', active: true }]
+      }
     });
 
     await wrapper.findAll('.win-btn')[0].trigger('click');
@@ -107,36 +129,33 @@ describe('MainWorkbenchShell', () => {
     expect(wrapper.get('.workbench-titlebar').attributes('data-tauri-drag-region')).toBe('true');
     expect(wrapper.get('.topbar-brand').attributes('data-tauri-drag-region')).toBe('true');
     expect(wrapper.get('.topbar-center').attributes('data-tauri-drag-region')).toBe('true');
-    expect(wrapper.get('.workbench-window-controls').attributes('data-tauri-drag-region')).toBe(
-      'false',
-    );
+    expect(wrapper.get('.workbench-window-controls').attributes('data-tauri-drag-region')).toBe('false');
     expect(startDragCurrent).not.toHaveBeenCalled();
     expect(minimizeCurrent).toHaveBeenCalledOnce();
     expect(toggleMaximizeCurrent).toHaveBeenCalledOnce();
     expect(closeCurrent).toHaveBeenCalledOnce();
   });
 
+  // 测试用例：验证「keeps Windows titlebar controls on the right and centers the feature search」场景，锁定 Main Workbench Shell 的用户可见行为。
   it('keeps Windows titlebar controls on the right and centers the feature search', () => {
-    expect(MainWorkbenchShellSource).toContain(
-      'grid-template-columns: var(--rail-w) minmax(0, 1fr) auto;',
-    );
+    expect(MainWorkbenchShellSource).toContain('grid-template-columns: var(--rail-w) minmax(0, 1fr) auto;');
     expect(MainWorkbenchShellSource).toContain('justify-content: center;');
     expect(MainWorkbenchShellSource).toContain('justify-self: end;');
   });
 
+  // 测试用例：验证「renders v2 titlebar controls and excludes interactive controls from drag」场景，锁定 Main Workbench Shell 的用户可见行为。
   it('renders v2 titlebar controls and excludes interactive controls from drag', async () => {
+    // 局部常量 wrapper：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const wrapper = mount(MainWorkbenchShell, {
       props: {
-        navItems: [{ key: 'main', label: '笔记列表', active: true }],
-      },
+        navItems: [{ key: 'main', label: '笔记列表', active: true }]
+      }
     });
 
     expect(wrapper.find('.brand-mark').text()).toBe('S');
     expect(wrapper.find('.brand-name').text()).toBe('Steno');
     expect(wrapper.find('.back-btn').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="feature-search-input"]').attributes('placeholder')).toBe(
-      '搜索功能、设置…',
-    );
+    expect(wrapper.find('[data-testid="feature-search-input"]').attributes('placeholder')).toBe('搜索功能、设置…');
     expect(wrapper.find('.kbd').exists()).toBe(false);
     expect(wrapper.findAll('.wc-btn')).toHaveLength(3);
 
@@ -145,11 +164,13 @@ describe('MainWorkbenchShell', () => {
     expect(startDragCurrent).not.toHaveBeenCalled();
   });
 
+  // 测试用例：验证「opens the feature menu when focusing the search input and filters by query」场景，锁定 Main Workbench Shell 的用户可见行为。
   it('opens the feature menu when focusing the search input and filters by query', async () => {
+    // 局部常量 wrapper：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const wrapper = mount(MainWorkbenchShell, {
       props: {
-        navItems: [{ key: 'main', label: '笔记列表', active: true }],
-      },
+        navItems: [{ key: 'main', label: '笔记列表', active: true }]
+      }
     });
 
     expect(wrapper.find('[data-testid="feature-search-menu"]').exists()).toBe(false);
@@ -160,9 +181,7 @@ describe('MainWorkbenchShell', () => {
     expect(wrapper.find('[data-testid="feature-search-item-nav-canvas"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="feature-search-item-action-settings"]').exists()).toBe(true);
 
-    await wrapper
-      .get('[data-testid="feature-search-input"]')
-      .setValue('设置');
+    await wrapper.get('[data-testid="feature-search-input"]').setValue('设置');
     expect(wrapper.find('[data-testid="feature-search-item-action-settings"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="feature-search-item-nav-canvas"]').exists()).toBe(false);
 
@@ -170,11 +189,13 @@ describe('MainWorkbenchShell', () => {
     expect(wrapper.find('[data-testid="feature-search-empty"]').exists()).toBe(true);
   });
 
+  // 测试用例：验证「routes feature menu entries to navigateTo, navigateToMain, and openQuicknote」场景，锁定 Main Workbench Shell 的用户可见行为。
   it('routes feature menu entries to navigateTo, navigateToMain, and openQuicknote', async () => {
+    // 局部常量 wrapper：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const wrapper = mount(MainWorkbenchShell, {
       props: {
-        navItems: [{ key: 'main', label: '笔记列表', active: true }],
-      },
+        navItems: [{ key: 'main', label: '笔记列表', active: true }]
+      }
     });
 
     await wrapper.get('[data-testid="feature-search-input"]').trigger('focus');
@@ -198,7 +219,9 @@ describe('MainWorkbenchShell', () => {
     expect(openQuicknote).toHaveBeenCalledOnce();
   });
 
+  // 测试用例：验证「renders rail navigation with active state, counts, and footer actions」场景，锁定 Main Workbench Shell 的用户可见行为。
   it('renders rail navigation with active state, counts, and footer actions', async () => {
+    // 局部常量 wrapper：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const wrapper = mount(MainWorkbenchShell, {
       props: {
         navItems: [
@@ -209,9 +232,9 @@ describe('MainWorkbenchShell', () => {
           { key: 'stats', label: '统计', active: false },
           { key: 'screenshot', label: '截图', active: false, count: '⌘⇧4' },
           { key: 'ocr', label: 'OCR', active: false },
-          { key: 'translate', label: '翻译', active: false },
-        ],
-      },
+          { key: 'translate', label: '翻译', active: false }
+        ]
+      }
     });
 
     expect(wrapper.get('.workbench-root').attributes('data-rail')).toBe('expanded');
@@ -237,11 +260,13 @@ describe('MainWorkbenchShell', () => {
     expect(wrapper.get('.workbench-root').attributes('data-rail')).toBe('expanded');
   });
 
+  // 测试用例：验证「hides the main resize handle when the rail is collapsed」场景，锁定 Main Workbench Shell 的用户可见行为。
   it('hides the main resize handle when the rail is collapsed', async () => {
+    // 局部常量 wrapper：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const wrapper = mount(MainWorkbenchShell, {
       props: {
-        navItems: [{ key: 'main', label: '笔记列表', active: true }],
-      },
+        navItems: [{ key: 'main', label: '笔记列表', active: true }]
+      }
     });
 
     expect(wrapper.find('[data-testid="workbench-rail-resize"]').exists()).toBe(true);
@@ -251,11 +276,13 @@ describe('MainWorkbenchShell', () => {
     expect(wrapper.find('[data-testid="workbench-rail-resize"]').exists()).toBe(false);
   });
 
+  // 测试用例：验证「does not load pinned notes or render legacy footer chrome」场景，锁定 Main Workbench Shell 的用户可见行为。
   it('does not load pinned notes or render legacy footer chrome', () => {
+    // 局部常量 wrapper：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const wrapper = mount(MainWorkbenchShell, {
       props: {
-        navItems: [{ key: 'main', label: '笔记列表', active: true }],
-      },
+        navItems: [{ key: 'main', label: '笔记列表', active: true }]
+      }
     });
 
     expect(wrapper.find('.bottombar').exists()).toBe(false);
@@ -263,20 +290,22 @@ describe('MainWorkbenchShell', () => {
     expect(wrapper.find('.workbench-page-header').exists()).toBe(false);
   });
 
+  // 测试用例：验证「applies narrow-screen collapse behavior and keeps responsive truncation rules」场景，锁定 Main Workbench Shell 的用户可见行为。
   it('applies narrow-screen collapse behavior and keeps responsive truncation rules', async () => {
     Object.defineProperty(window, 'innerWidth', {
       configurable: true,
       value: 640,
-      writable: true,
+      writable: true
     });
 
+    // 局部常量 wrapper：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const wrapper = mount(MainWorkbenchShell, {
       props: {
         navItems: [
           { key: 'main', label: '笔记列表', active: true, count: '24' },
-          { key: 'canvas', label: '画布', active: false, count: '3' },
-        ],
-      },
+          { key: 'canvas', label: '画布', active: false, count: '3' }
+        ]
+      }
     });
 
     expect(wrapper.get('.workbench-root').attributes('data-compact')).toBe('true');
@@ -286,7 +315,7 @@ describe('MainWorkbenchShell', () => {
     Object.defineProperty(window, 'innerWidth', {
       configurable: true,
       value: 1024,
-      writable: true,
+      writable: true
     });
     window.dispatchEvent(new Event('resize'));
     await nextTick();

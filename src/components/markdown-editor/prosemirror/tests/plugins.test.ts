@@ -33,30 +33,36 @@ import { createEditorPlugins } from '../plugins';
 import {
   decorationPluginKey,
   findSyntaxMarkerRegions,
-  type DecorationPluginState,
+  // 类型 DecorationPluginState：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
+  type DecorationPluginState
 } from '../decorations';
 
 /** 在指定 doc 上挂载一个带 instant-render 插件的 EditorView。 */
 function mountWithInstantRender(doc: Node): { view: EditorView; place: HTMLElement } {
+  // 局部常量 place：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const place = document.createElement('div');
   document.body.appendChild(place);
+  // 局部常量 state：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const state = EditorState.create({
     schema: stenoSchema,
     doc,
-    plugins: createInstantRenderPlugin(),
+    plugins: createInstantRenderPlugin()
   });
+  // 局部常量 view：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const view = new EditorView(place, { state });
   return { view, place };
 }
 
 /** 把光标设置到指定文档位置。 */
 function setCursor(view: EditorView, pos: number): void {
+  // 局部常量 tr：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const tr = view.state.tr.setSelection(TextSelection.create(view.state.doc, pos));
   view.dispatch(tr);
 }
 
 /** 读出当前 decoration 插件状态。 */
 function decoState(view: EditorView): DecorationPluginState {
+  // 局部常量 s：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const s = decorationPluginKey.getState(view.state);
   if (!s) throw new Error('decoration plugin state missing');
   return s;
@@ -64,7 +70,9 @@ function decoState(view: EditorView): DecorationPluginState {
 
 /** 收集某区间内 decoration 的 class（用于断言隐藏/显示）。 */
 function decoClassesIn(view: EditorView, from: number, to: number): string[] {
+  // 局部常量 set：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const set = decoState(view).decorations;
+  // 局部常量 found：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const found = set.find(from, to);
   return found
     .map(d => {
@@ -75,6 +83,7 @@ function decoClassesIn(view: EditorView, from: number, to: number): string[] {
     .filter(Boolean);
 }
 
+// 测试用例：验证「instant-render — syntax_marker 显隐」场景，锁定 plugins 的用户可见行为。
 describe('instant-render — syntax_marker 显隐', () => {
   /**
    * 解析 `**粗体**` 得到一个段落，结构为：
@@ -87,10 +96,13 @@ describe('instant-render — syntax_marker 显隐', () => {
     return doc;
   }
 
+  // 测试用例：验证「光标在文档别处时，** 语法标记被 decoration 隐藏」场景，锁定 plugins 的用户可见行为。
   it('光标在文档别处时，** 语法标记被 decoration 隐藏', () => {
+    // 局部常量 doc：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const doc = makeBoldDoc();
     const { view } = mountWithInstantRender(doc);
 
+    // 局部常量 regions：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const regions = findSyntaxMarkerRegions(view.state.doc).filter(r => r.syntaxType === 'strong');
     expect(regions.length).toBe(2); // 前后两个 **
 
@@ -98,6 +110,7 @@ describe('instant-render — syntax_marker 显隐', () => {
     setCursor(view, 1);
 
     for (const region of regions) {
+      // 局部常量 classes：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const classes = decoClassesIn(view, region.from, region.to);
       expect(classes).toContain('puremark-syntax-hidden');
       expect(classes).not.toContain('puremark-syntax-visible');
@@ -106,19 +119,24 @@ describe('instant-render — syntax_marker 显隐', () => {
     view.destroy();
   });
 
+  // 测试用例：验证「光标进入粗体区域时，** 语法标记变为显示」场景，锁定 plugins 的用户可见行为。
   it('光标进入粗体区域时，** 语法标记变为显示', () => {
+    // 局部常量 doc：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const doc = makeBoldDoc();
     const { view } = mountWithInstantRender(doc);
 
+    // 局部常量 regions：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const regions = findSyntaxMarkerRegions(view.state.doc).filter(r => r.syntaxType === 'strong');
     // 第一个 ** 的结束位置之后即进入粗体内容，光标落在两个 ** 之间
     const firstMarker = regions[0];
+    // 局部常量 secondMarker：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const secondMarker = regions[1];
     // 光标放到粗体内容中间（first.to 与 second.from 之间）
     const insidePos = Math.floor((firstMarker.to + secondMarker.from) / 2);
     setCursor(view, insidePos);
 
     for (const region of regions) {
+      // 局部常量 classes：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const classes = decoClassesIn(view, region.from, region.to);
       expect(classes).toContain('puremark-syntax-visible');
       expect(classes).not.toContain('puremark-syntax-hidden');
@@ -127,14 +145,19 @@ describe('instant-render — syntax_marker 显隐', () => {
     view.destroy();
   });
 
+  // 测试用例：验证「光标直接落在 ** 标记内时也显示该标记」场景，锁定 plugins 的用户可见行为。
   it('光标直接落在 ** 标记内时也显示该标记', () => {
+    // 局部常量 doc：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const doc = makeBoldDoc();
     const { view } = mountWithInstantRender(doc);
+    // 局部常量 regions：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const regions = findSyntaxMarkerRegions(view.state.doc).filter(r => r.syntaxType === 'strong');
+    // 局部常量 firstMarker：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const firstMarker = regions[0];
     // 光标落在第一个 ** 标记中间
     setCursor(view, firstMarker.from + 1);
 
+    // 局部常量 classes：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const classes = decoClassesIn(view, firstMarker.from, firstMarker.to);
     expect(classes).toContain('puremark-syntax-visible');
 
@@ -142,15 +165,18 @@ describe('instant-render — syntax_marker 显隐', () => {
   });
 });
 
+// 测试用例：验证「input-rules — Markdown 即时转换」场景，锁定 plugins 的用户可见行为。
 describe('input-rules — Markdown 即时转换', () => {
   /** 挂载一个空段落文档 + input-rules 插件，返回 view。 */
   function mountEmpty(): EditorView {
+    // 局部常量 place：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const place = document.createElement('div');
     document.body.appendChild(place);
+    // 局部常量 state：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const state = EditorState.create({
       schema: stenoSchema,
       doc: stenoSchema.nodes.doc.create(null, [stenoSchema.nodes.paragraph.create()]),
-      plugins: [createInputRulesPlugin()],
+      plugins: [createInputRulesPlugin()]
     });
     return new EditorView(place, { state });
   }
@@ -161,7 +187,7 @@ describe('input-rules — Markdown 即时转换', () => {
       const { from, to } = view.state.selection;
       // handleTextInput 第 5 个参数 deflt 是「默认插入文本」的 transaction 工厂
       const handled = view.someProp('handleTextInput', f =>
-        f(view, from, to, ch, () => view.state.tr.insertText(ch, from, to)),
+        f(view, from, to, ch, () => view.state.tr.insertText(ch, from, to))
       );
       if (!handled) {
         // 未被 input rule 拦截，按普通文本插入
@@ -170,7 +196,9 @@ describe('input-rules — Markdown 即时转换', () => {
     }
   }
 
+  // 测试用例：验证「输入 」场景，锁定 plugins 的用户可见行为。
   it('输入 `> ` 触发引用块转换（paragraph → blockquote > paragraph）', () => {
+    // 局部常量 view：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const view = mountEmpty();
     // 光标已在段落内 pos=1
     typeText(view, '> ');
@@ -179,7 +207,9 @@ describe('input-rules — Markdown 即时转换', () => {
     view.destroy();
   });
 
+  // 测试用例：验证「输入 」场景，锁定 plugins 的用户可见行为。
   it('输入 `1. ` 触发有序列表转换', () => {
+    // 局部常量 view：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const view = mountEmpty();
     typeText(view, '1. ');
     expect(view.state.doc.firstChild?.type.name).toBe('ordered_list');
@@ -187,14 +217,18 @@ describe('input-rules — Markdown 即时转换', () => {
     view.destroy();
   });
 
+  // 测试用例：验证「输入 」场景，锁定 plugins 的用户可见行为。
   it('输入 `- ` 触发无序列表转换', () => {
+    // 局部常量 view：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const view = mountEmpty();
     typeText(view, '- ');
     expect(view.state.doc.firstChild?.type.name).toBe('bullet_list');
     view.destroy();
   });
 
+  // 测试用例：验证「行内输入 」场景，锁定 plugins 的用户可见行为。
   it('行内输入 `**粗体**` 触发粗体规则并写入 syntax_marker', () => {
+    // 局部常量 view：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const view = mountEmpty();
     typeText(view, '**粗体**');
     // 段落内应出现带 strong + syntax_marker 的结构
@@ -211,30 +245,37 @@ describe('input-rules — Markdown 即时转换', () => {
   });
 });
 
+// 测试用例：验证「createEditorPlugins — 装配 smoke」场景，锁定 plugins 的用户可见行为。
 describe('createEditorPlugins — 装配 smoke', () => {
+  // 测试用例：验证「返回非空 Plugin 数组，且能正常 EditorState.create」场景，锁定 plugins 的用户可见行为。
   it('返回非空 Plugin 数组，且能正常 EditorState.create', () => {
+    // 局部常量 plugins：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const plugins = createEditorPlugins({ placeholder: '开始记录…' });
     expect(plugins.length).toBeGreaterThan(0);
     // 能用这些插件构造 state（验证插件 key 无冲突、init 不抛错）
     const state = EditorState.create({
       schema: stenoSchema,
       doc: stenoSchema.nodes.doc.create(null, [stenoSchema.nodes.paragraph.create()]),
-      plugins,
+      plugins
     });
     // decorations 插件状态可用
     expect(decorationPluginKey.getState(state)).toBeTruthy();
   });
 
+  // 测试用例：验证「placeholder 在空文档时通过 attributes 暴露 data-placeholder」场景，锁定 plugins 的用户可见行为。
   it('placeholder 在空文档时通过 attributes 暴露 data-placeholder', () => {
+    // 局部常量 plugins：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const plugins = createEditorPlugins({ placeholder: '占位文字' });
+    // 局部常量 place：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const place = document.createElement('div');
     document.body.appendChild(place);
+    // 局部常量 view：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const view = new EditorView(place, {
       state: EditorState.create({
         schema: stenoSchema,
         doc: stenoSchema.nodes.doc.create(null, [stenoSchema.nodes.paragraph.create()]),
-        plugins,
-      }),
+        plugins
+      })
     });
     expect(view.dom.getAttribute('data-placeholder')).toBe('占位文字');
     expect(view.dom.className).toContain('steno-editor-empty');

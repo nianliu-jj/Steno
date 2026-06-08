@@ -1,4 +1,12 @@
+<!--
+  @file 前端通用组件 - Document Outline Tree
+
+  承载 Document Outline Tree 的界面结构、响应式状态和用户交互，是 前端通用组件 模块的可视入口之一。
+  注释重点标明模板结构、脚本状态、事件派发和样式隔离边界。
+-->
+
 <script setup lang="ts">
+// 脚本区：组织 Document Outline Tree 的响应式状态、计算属性、事件处理和外部模块协作。
 /**
  * @component DocumentOutlineTree
  * @description 递归渲染 Markdown 大纲树 — 每个节点显示 `H{level}` 级别标签 + 标题文本。
@@ -18,7 +26,7 @@
 import type { OutlineNode } from '@/composables/useMarkdownOutline';
 
 defineOptions({
-  name: 'DocumentOutlineTree',
+  name: 'DocumentOutlineTree'
 });
 
 defineProps<{
@@ -28,6 +36,7 @@ defineProps<{
   depth?: number;
 }>();
 
+// 局部常量 emit：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const emit = defineEmits<{
   /** 用户点击大纲条目时触发，携带完整节点信息。 */
   select: [node: OutlineNode];
@@ -40,14 +49,9 @@ function onSelect(node: OutlineNode) {
 </script>
 
 <template>
+  <!-- 模板区：描述 Document Outline Tree 的 DOM 层级、可交互区域和条件渲染边界。 -->
   <div class="outline-tree">
-    <p
-      v-if="nodes.length === 0"
-      class="outline-tree__empty"
-      data-testid="outline-empty"
-    >
-      暂无大纲
-    </p>
+    <p v-if="nodes.length === 0" class="outline-tree__empty" data-testid="outline-empty">暂无大纲</p>
     <ul v-else class="outline-tree__list">
       <li v-for="node in nodes" :key="node.id" class="outline-tree__item">
         <button
@@ -60,7 +64,9 @@ function onSelect(node: OutlineNode) {
             class="outline-tree__badge"
             :data-testid="`outline-node-level-${node.id}`"
             :aria-label="`H${node.level}`"
-          >H{{ node.level }}</span>
+          >
+            H{{ node.level }}
+          </span>
           <span class="outline-tree__text">{{ node.text }}</span>
         </button>
         <DocumentOutlineTree
@@ -75,6 +81,7 @@ function onSelect(node: OutlineNode) {
 </template>
 
 <style scoped>
+/* 样式区：限定 Document Outline Tree 的布局、主题色和响应式细节。 */
 .outline-tree {
   min-width: 0;
 }

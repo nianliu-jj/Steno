@@ -1,4 +1,12 @@
+<!--
+  @file 前端通用组件 - Workspace Picker Dialog
+
+  承载 Workspace Picker Dialog 的界面结构、响应式状态和用户交互，是 前端通用组件 模块的可视入口之一。
+  注释重点标明模板结构、脚本状态、事件派发和样式隔离边界。
+-->
+
 <script setup lang="ts">
+// 脚本区：组织 Workspace Picker Dialog 的响应式状态、计算属性、事件处理和外部模块协作。
 import type { Workspace } from '@/types/steno';
 
 defineProps<{
@@ -10,6 +18,7 @@ defineProps<{
   description?: string;
 }>();
 
+// 局部常量 emit：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const emit = defineEmits<{
   close: [];
   select: [workspace: Workspace];
@@ -18,6 +27,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
+  <!-- 模板区：描述 Workspace Picker Dialog 的 DOM 层级、可交互区域和条件渲染边界。 -->
   <div
     v-if="visible"
     class="workspace-picker-backdrop"
@@ -30,20 +40,13 @@ const emit = defineEmits<{
           <h2 id="workspace-picker-title">{{ title || '选择工作区' }}</h2>
           <p>{{ description || '选择一个已有工作区，或从本地文件夹新建工作区。' }}</p>
         </div>
-        <button
-          type="button"
-          class="workspace-picker-close"
-          aria-label="关闭工作区选择"
-          @click="emit('close')"
-        >
+        <button type="button" class="workspace-picker-close" aria-label="关闭工作区选择" @click="emit('close')">
           ×
         </button>
       </header>
 
       <div class="workspace-picker-body">
-        <div v-if="loading" class="workspace-picker-empty">
-          正在读取工作区…
-        </div>
+        <div v-if="loading" class="workspace-picker-empty">正在读取工作区…</div>
 
         <div v-else-if="workspaces.length === 0" class="workspace-picker-empty">
           还没有可用工作区，请先从文件夹创建一个。
@@ -80,6 +83,7 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
+/* 样式区：限定 Workspace Picker Dialog 的布局、主题色和响应式细节。 */
 .workspace-picker-backdrop {
   position: fixed;
   inset: 0;

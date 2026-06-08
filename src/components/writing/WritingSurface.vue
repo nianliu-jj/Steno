@@ -1,4 +1,12 @@
+<!--
+  @file 写作表面组件 - Writing Surface
+
+  承载 Writing Surface 的界面结构、响应式状态和用户交互，是 写作表面组件 模块的可视入口之一。
+  注释重点标明模板结构、脚本状态、事件派发和样式隔离边界。
+-->
+
 <script setup lang="ts">
+// 脚本区：组织 Writing Surface 的响应式状态、计算属性、事件处理和外部模块协作。
 import { onBeforeUnmount, ref } from 'vue';
 
 import MarkdownRichEditor from './MarkdownRichEditor.vue';
@@ -7,6 +15,7 @@ import MarkdownSourceEditor from './MarkdownSourceEditor.vue';
 import type { WritingMode } from '@/composables/useWritingSession';
 import type { OutlineHeading } from '@/utils/extractHeadings';
 
+// 类型 Props：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
 interface Props {
   modelValue: string;
   mode: WritingMode;
@@ -17,11 +26,13 @@ interface Props {
   showZenEntry?: boolean;
 }
 
+// 局部常量 props：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const props = withDefaults(defineProps<Props>(), {
   showFloatingOutline: false,
-  showZenEntry: false,
+  showZenEntry: false
 });
 
+// 局部常量 emit：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const emit = defineEmits<{
   'update:modelValue': [value: string];
   'toggle-readonly': [];
@@ -33,15 +44,20 @@ const emit = defineEmits<{
   'select-heading': [id: string];
 }>();
 
+// 局部常量 richEditor：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const richEditor = ref<{ scrollToHeading: (id: string) => void } | null>(null);
+// 局部常量 layout：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const layout = ref<HTMLElement | null>(null);
+// 局部常量 resizing：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const resizing = ref(false);
 
+// 函数 onSelectHeading：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onSelectHeading(id: string) {
   richEditor.value?.scrollToHeading(id);
   emit('select-heading', id);
 }
 
+// 函数 onResizePointerdown：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onResizePointerdown(event: PointerEvent) {
   event.preventDefault();
   resizing.value = true;
@@ -50,12 +66,15 @@ function onResizePointerdown(event: PointerEvent) {
   window.addEventListener('pointercancel', onResizePointerup);
 }
 
+// 函数 onResizePointermove：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onResizePointermove(event: PointerEvent) {
   if (!resizing.value || !layout.value) return;
+  // 局部常量 rect：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const rect = layout.value.getBoundingClientRect();
   emit('resize-outline', rect.right - event.clientX);
 }
 
+// 函数 onResizePointerup：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onResizePointerup() {
   resizing.value = false;
   window.removeEventListener('pointermove', onResizePointermove);
@@ -69,6 +88,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <!-- 模板区：描述 Writing Surface 的 DOM 层级、可交互区域和条件渲染边界。 -->
   <section class="writing-surface">
     <button
       v-if="props.showFloatingOutline && !props.outlineOpen"
@@ -96,11 +116,7 @@ onBeforeUnmount(() => {
         />
       </div>
 
-      <aside
-        v-if="props.outlineOpen"
-        class="writing-outline-pane"
-        :style="{ width: `${props.outlineWidth}px` }"
-      >
+      <aside v-if="props.outlineOpen" class="writing-outline-pane" :style="{ width: `${props.outlineWidth}px` }">
         <div
           class="writing-outline-resize"
           :class="{ 'writing-outline-resize--active': resizing }"
@@ -159,6 +175,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* 样式区：限定 Writing Surface 的布局、主题色和响应式细节。 */
 .writing-surface {
   display: flex;
   flex-direction: column;
@@ -207,7 +224,7 @@ onBeforeUnmount(() => {
 }
 
 .writing-outline-resize::before {
-  content: "";
+  content: '';
   position: absolute;
   top: 0;
   left: 5px;

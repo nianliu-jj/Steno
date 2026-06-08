@@ -1,4 +1,12 @@
+<!--
+  @file 前端通用组件 - Main Workbench Shell
+
+  承载 Main Workbench Shell 的界面结构、响应式状态和用户交互，是 前端通用组件 模块的可视入口之一。
+  注释重点标明模板结构、脚本状态、事件派发和样式隔离边界。
+-->
+
 <script setup lang="ts">
+// 脚本区：组织 Main Workbench Shell 的响应式状态、计算属性、事件处理和外部模块协作。
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import { useResizablePane } from '@/composables/useResizablePane';
@@ -7,8 +15,10 @@ import { useWindow } from '@/composables/useWindow';
 import { useUiStore } from '@/stores/ui';
 import type { WindowMode } from '@/types/steno';
 
+// 局部常量 isMac：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const isMac = navigator.platform.startsWith('Mac');
 
+// 类型 NavItem：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
 interface NavItem {
   key: WindowMode;
   label: string;
@@ -16,6 +26,7 @@ interface NavItem {
   active?: boolean;
 }
 
+// 类型 FeatureEntry：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
 interface FeatureEntry {
   key: string;
   label: string;
@@ -25,43 +36,51 @@ interface FeatureEntry {
   run: () => void;
 }
 
+// 局部常量 props：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const props = defineProps<{
   navItems?: NavItem[];
 }>();
 
+// 局部常量 win：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const win = useWindow();
+// 局部常量 ui：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const ui = useUiStore();
+// 局部常量 settings：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const settings = useSettingsStore();
+// 局部常量 compactBreakpoint：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const compactBreakpoint = 720;
-const compactViewport = ref(
-  typeof window !== 'undefined' ? window.innerWidth < compactBreakpoint : false,
-);
+// 局部常量 compactViewport：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+const compactViewport = ref(typeof window !== 'undefined' ? window.innerWidth < compactBreakpoint : false);
+// 局部常量 railPane：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const railPane = useResizablePane({
   initialWidth: settings.state.mainSidebarWidth,
   minWidth: 58,
   maxWidth: 320,
-  collapseThreshold: 72,
+  collapseThreshold: 72
 });
+// 局部常量 effectiveRailState：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const effectiveRailState = computed(() =>
-  compactViewport.value || railPane.collapsed.value || settings.state.mainSidebarCollapsed
-    ? 'collapsed'
-    : 'expanded',
+  compactViewport.value || railPane.collapsed.value || settings.state.mainSidebarCollapsed ? 'collapsed' : 'expanded'
 );
+// 局部常量 railWidth：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const railWidth = computed(() => `${railPane.width.value}px`);
 // 折叠态把 inline width 让出来，由 `[data-rail="collapsed"]` 的 CSS 变量
 // `--rail-w-collapsed` 接管，配合 `transition: width 0.22s ease` 出现丝滑收缩。
 // 展开态保留 inline width，让侧边栏拖拽 resize 能实时反映宽度。
 const railStyle = computed(() =>
-  effectiveRailState.value === 'collapsed'
-    ? {}
-    : { width: railWidth.value, minWidth: railWidth.value },
+  effectiveRailState.value === 'collapsed' ? {} : { width: railWidth.value, minWidth: railWidth.value }
 );
 
+// 局部常量 featureQuery：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const featureQuery = ref('');
+// 局部常量 featureMenuOpen：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const featureMenuOpen = ref(false);
+// 局部常量 featureSearchInput：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const featureSearchInput = ref<HTMLInputElement | null>(null);
+// 局部常量 featureActiveIndex：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const featureActiveIndex = ref(0);
 
+// 局部常量 featureEntries：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const featureEntries = computed<FeatureEntry[]>(() => [
   {
     key: 'nav-main',
@@ -69,7 +88,7 @@ const featureEntries = computed<FeatureEntry[]>(() => [
     description: '回到主笔记工作台',
     keywords: 'main notes list 笔记 列表 主页',
     iconPath: iconPathFor('main'),
-    run: () => ui.navigateToMain(),
+    run: () => ui.navigateToMain()
   },
   {
     key: 'nav-canvas',
@@ -77,7 +96,7 @@ const featureEntries = computed<FeatureEntry[]>(() => [
     description: '在无限画布上整理笔记',
     keywords: 'canvas 画布 白板 board',
     iconPath: iconPathFor('canvas'),
-    run: () => ui.navigateTo('canvas'),
+    run: () => ui.navigateTo('canvas')
   },
   {
     key: 'nav-clipboard',
@@ -85,7 +104,7 @@ const featureEntries = computed<FeatureEntry[]>(() => [
     description: '查看剪贴板历史（规划中）',
     keywords: 'clipboard 粘贴板 剪贴板 历史',
     iconPath: iconPathFor('clipboard'),
-    run: () => ui.navigateTo('clipboard'),
+    run: () => ui.navigateTo('clipboard')
   },
   {
     key: 'nav-todo',
@@ -93,7 +112,7 @@ const featureEntries = computed<FeatureEntry[]>(() => [
     description: '管理待办事项',
     keywords: 'todo 待办 任务 tasks',
     iconPath: iconPathFor('todo'),
-    run: () => ui.navigateTo('todo'),
+    run: () => ui.navigateTo('todo')
   },
   {
     key: 'nav-stats',
@@ -101,7 +120,7 @@ const featureEntries = computed<FeatureEntry[]>(() => [
     description: '查看待办活跃度与趋势',
     keywords: 'stats statistics chart 统计 趋势 图表 活跃度',
     iconPath: iconPathFor('stats'),
-    run: () => ui.navigateTo('stats'),
+    run: () => ui.navigateTo('stats')
   },
   {
     key: 'action-new-note',
@@ -109,7 +128,7 @@ const featureEntries = computed<FeatureEntry[]>(() => [
     description: '打开笔记编辑器创建一篇新笔记',
     keywords: 'new note create 新建 新建笔记 创建',
     iconPath: 'M12 5v14M5 12h14',
-    run: () => ui.navigateTo('note-editor'),
+    run: () => ui.navigateTo('note-editor')
   },
   {
     key: 'action-new-quicknote',
@@ -119,7 +138,7 @@ const featureEntries = computed<FeatureEntry[]>(() => [
     iconPath: 'M12 20h9 M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z',
     run: () => {
       void win.openQuicknote();
-    },
+    }
   },
   {
     key: 'action-settings',
@@ -127,15 +146,19 @@ const featureEntries = computed<FeatureEntry[]>(() => [
     description: '打开应用设置面板',
     keywords: 'settings preferences config 设置 偏好 配置',
     iconPath: iconPathFor('settings'),
-    run: () => ui.navigateTo('settings'),
-  },
+    run: () => ui.navigateTo('settings')
+  }
 ]);
 
+// 局部常量 filteredFeatureEntries：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const filteredFeatureEntries = computed<FeatureEntry[]>(() => {
+  // 局部常量 raw：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const raw = featureQuery.value.trim().toLowerCase();
   if (!raw) return featureEntries.value;
+  // 局部常量 terms：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const terms = raw.split(/\s+/).filter(Boolean);
   return featureEntries.value.filter(entry => {
+    // 局部常量 haystack：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const haystack = `${entry.label} ${entry.description} ${entry.keywords}`.toLowerCase();
     return terms.every(t => haystack.includes(t));
   });
@@ -152,18 +175,22 @@ onBeforeUnmount(() => {
   document.removeEventListener('mousedown', onDocumentPointerDown, true);
 });
 
+// 函数 onMinimize：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onMinimize() {
   void win.minimizeCurrent();
 }
 
+// 函数 onToggleMaximize：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onToggleMaximize() {
   void win.toggleMaximizeCurrent();
 }
 
+// 函数 onClose：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onClose() {
   void win.closeCurrent();
 }
 
+// 函数 onNavigate：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onNavigate(key: WindowMode) {
   if (key === 'main') {
     ui.navigateToMain();
@@ -172,10 +199,12 @@ function onNavigate(key: WindowMode) {
   ui.navigateTo(key as Parameters<typeof ui.navigateTo>[0]);
 }
 
+// 函数 onOpenSettings：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onOpenSettings() {
   ui.navigateTo('settings');
 }
 
+// 函数 onToggleRail：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onToggleRail() {
   if (compactViewport.value) return;
 
@@ -188,20 +217,26 @@ function onToggleRail() {
   settings.state.mainSidebarCollapsed = true;
 }
 
+// 函数 syncCompactViewport：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function syncCompactViewport() {
   if (typeof window === 'undefined') return;
   compactViewport.value = window.innerWidth < compactBreakpoint;
 }
 
+// 函数 onRailResizePointerDown：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onRailResizePointerDown(event: PointerEvent) {
+  // 局部常量 originX：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const originX = event.clientX;
+  // 局部常量 originWidth：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const originWidth = railPane.width.value;
 
+  // 函数式常量 onPointerMove：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
   const onPointerMove = (moveEvent: PointerEvent) => {
     railPane.setWidth(originWidth + (moveEvent.clientX - originX));
     settings.state.mainSidebarCollapsed = railPane.collapsed.value;
   };
 
+  // 函数式常量 onPointerUp：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
   const onPointerUp = () => {
     window.removeEventListener('pointermove', onPointerMove);
     window.removeEventListener('pointerup', onPointerUp);
@@ -213,17 +248,21 @@ function onRailResizePointerDown(event: PointerEvent) {
   window.addEventListener('pointerup', onPointerUp, { once: true });
 }
 
+// 函数 openFeatureMenu：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function openFeatureMenu() {
   featureMenuOpen.value = true;
   featureActiveIndex.value = 0;
 }
 
+// 函数 closeFeatureMenu：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function closeFeatureMenu() {
   featureMenuOpen.value = false;
   featureActiveIndex.value = 0;
 }
 
+// 函数 clampActiveIndex：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function clampActiveIndex() {
+  // 局部常量 total：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const total = filteredFeatureEntries.value.length;
   if (total === 0) {
     featureActiveIndex.value = 0;
@@ -237,12 +276,15 @@ function clampActiveIndex() {
   }
 }
 
+// 函数 onFeatureQueryInput：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onFeatureQueryInput() {
   featureMenuOpen.value = true;
   featureActiveIndex.value = 0;
 }
 
+// 函数 onFeatureKeyDown：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onFeatureKeyDown(event: KeyboardEvent) {
+  // 局部常量 total：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const total = filteredFeatureEntries.value.length;
   if (event.key === 'ArrowDown') {
     event.preventDefault();
@@ -259,6 +301,7 @@ function onFeatureKeyDown(event: KeyboardEvent) {
   if (event.key === 'Enter') {
     event.preventDefault();
     clampActiveIndex();
+    // 局部常量 entry：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const entry = filteredFeatureEntries.value[featureActiveIndex.value];
     if (entry) {
       runFeatureEntry(entry);
@@ -272,6 +315,7 @@ function onFeatureKeyDown(event: KeyboardEvent) {
   }
 }
 
+// 函数 runFeatureEntry：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function runFeatureEntry(entry: FeatureEntry) {
   closeFeatureMenu();
   featureQuery.value = '';
@@ -279,8 +323,10 @@ function runFeatureEntry(entry: FeatureEntry) {
   entry.run();
 }
 
+// 函数 onDocumentPointerDown：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onDocumentPointerDown(event: MouseEvent) {
   if (!featureMenuOpen.value) return;
+  // 局部常量 target：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const target = event.target as HTMLElement | null;
   if (!target) return;
   if (!target.closest('[data-testid="feature-search-wrap"]')) {
@@ -288,6 +334,7 @@ function onDocumentPointerDown(event: MouseEvent) {
   }
 }
 
+// 函数 iconPathFor：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function iconPathFor(key: WindowMode) {
   switch (key) {
     case 'main':
@@ -315,24 +362,19 @@ function iconPathFor(key: WindowMode) {
 </script>
 
 <template>
-  <div
-    class="workbench-root"
-    :data-compact="compactViewport"
-    :data-rail="effectiveRailState"
-  >
+  <!-- 模板区：描述 Main Workbench Shell 的 DOM 层级、可交互区域和条件渲染边界。 -->
+  <div class="workbench-root" :data-compact="compactViewport" :data-rail="effectiveRailState">
     <header
       class="workbench-titlebar topbar"
       :class="{ 'workbench-titlebar--mac': isMac }"
       data-tauri-drag-region="true"
     >
       <!-- macOS 交通灯 -->
-      <div
-        v-if="isMac"
-        class="macos-traffic-lights"
-        data-tauri-drag-region="true"
-      >
+      <div v-if="isMac" class="macos-traffic-lights" data-tauri-drag-region="true">
         <button class="traffic-light tl-close" type="button" aria-label="关闭" @click.stop="onClose">
-          <svg viewBox="0 0 12 12"><path d="M3.5 3.5l5 5M8.5 3.5l-5 5" stroke="currentColor" stroke-width="1.2" fill="none" /></svg>
+          <svg viewBox="0 0 12 12">
+            <path d="M3.5 3.5l5 5M8.5 3.5l-5 5" stroke="currentColor" stroke-width="1.2" fill="none" />
+          </svg>
         </button>
         <button class="traffic-light tl-minimize" type="button" aria-label="最小化" @click.stop="onMinimize">
           <svg viewBox="0 0 12 12"><path d="M2.5 6h7" stroke="currentColor" stroke-width="1.2" fill="none" /></svg>
@@ -369,7 +411,7 @@ function iconPathFor(key: WindowMode) {
               @click.stop="openFeatureMenu"
               @input="onFeatureQueryInput"
               @keydown="onFeatureKeyDown"
-            >
+            />
           </label>
           <div
             v-if="featureMenuOpen"
@@ -407,9 +449,7 @@ function iconPathFor(key: WindowMode) {
                 </span>
               </li>
             </ul>
-            <p v-else class="feature-menu-empty" data-testid="feature-search-empty">
-              没有匹配的功能或设置
-            </p>
+            <p v-else class="feature-menu-empty" data-testid="feature-search-empty">没有匹配的功能或设置</p>
           </div>
         </div>
         <slot name="search" />
@@ -426,23 +466,12 @@ function iconPathFor(key: WindowMode) {
             <path d="M5 12h14" />
           </svg>
         </button>
-        <button
-          class="win-btn wc-btn"
-          type="button"
-          aria-label="最大化"
-          @click.stop="onToggleMaximize"
-        >
+        <button class="win-btn wc-btn" type="button" aria-label="最大化" @click.stop="onToggleMaximize">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="5" y="5" width="14" height="14" rx="1" />
           </svg>
         </button>
-        <button
-          class="win-btn wc-btn"
-          type="button"
-          data-act="close"
-          aria-label="关闭"
-          @click.stop="onClose"
-        >
+        <button class="win-btn wc-btn" type="button" data-act="close" aria-label="关闭" @click.stop="onClose">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M6 6l12 12M18 6 6 18" />
           </svg>
@@ -451,11 +480,7 @@ function iconPathFor(key: WindowMode) {
     </header>
 
     <div class="workbench-body">
-      <aside
-        v-if="props.navItems?.length"
-        class="workbench-sidebar rail"
-        :style="railStyle"
-      >
+      <aside v-if="props.navItems?.length" class="workbench-sidebar rail" :style="railStyle">
         <slot name="sidebar">
           <nav class="rail-menu" aria-label="主菜单">
             <button
@@ -536,6 +561,7 @@ function iconPathFor(key: WindowMode) {
 </template>
 
 <style scoped>
+/* 样式区：限定 Main Workbench Shell 的布局、主题色和响应式细节。 */
 .workbench-root {
   --bg: var(--app-bg);
   --surface: var(--app-surface);
@@ -554,10 +580,10 @@ function iconPathFor(key: WindowMode) {
   width: 100vw;
   background: var(--bg);
   color: var(--fg);
-  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
-.workbench-root[data-rail="collapsed"] {
+.workbench-root[data-rail='collapsed'] {
   --rail-w: var(--rail-w-collapsed);
 }
 
@@ -641,7 +667,7 @@ function iconPathFor(key: WindowMode) {
   border-radius: 6px;
   background: var(--accent);
   color: white;
-  font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, monospace;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -655,7 +681,7 @@ function iconPathFor(key: WindowMode) {
   white-space: nowrap;
 }
 
-.workbench-root[data-rail="collapsed"] .brand-name {
+.workbench-root[data-rail='collapsed'] .brand-name {
   display: none;
 }
 
@@ -846,7 +872,7 @@ function iconPathFor(key: WindowMode) {
   color: var(--fg);
 }
 
-.win-btn[data-act="close"]:hover {
+.win-btn[data-act='close']:hover {
   background: oklch(60% 0.2 25);
   color: white;
 }
@@ -926,7 +952,7 @@ function iconPathFor(key: WindowMode) {
 .rail-count {
   margin-left: auto;
   color: var(--faint);
-  font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, monospace;
   font-size: 11px;
 }
 
@@ -934,13 +960,13 @@ function iconPathFor(key: WindowMode) {
   color: var(--accent);
 }
 
-.workbench-root[data-rail="collapsed"] .workbench-nav-item {
+.workbench-root[data-rail='collapsed'] .workbench-nav-item {
   justify-content: center;
   padding: 0;
 }
 
-.workbench-root[data-rail="collapsed"] .rail-label,
-.workbench-root[data-rail="collapsed"] .rail-count {
+.workbench-root[data-rail='collapsed'] .rail-label,
+.workbench-root[data-rail='collapsed'] .rail-count {
   display: none;
 }
 
@@ -978,7 +1004,7 @@ function iconPathFor(key: WindowMode) {
   height: 16px;
 }
 
-.workbench-root[data-rail="collapsed"] .rail-footer {
+.workbench-root[data-rail='collapsed'] .rail-footer {
   flex-direction: column;
   gap: 4px;
 }
@@ -1042,6 +1068,5 @@ function iconPathFor(key: WindowMode) {
     flex-direction: column;
     gap: 4px;
   }
-
 }
 </style>

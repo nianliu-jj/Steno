@@ -1,4 +1,12 @@
+<!--
+  @file 前端通用组件 - Floating Editor
+
+  承载 Floating Editor 的界面结构、响应式状态和用户交互，是 前端通用组件 模块的可视入口之一。
+  注释重点标明模板结构、脚本状态、事件派发和样式隔离边界。
+-->
+
 <script setup lang="ts">
+// 脚本区：组织 Floating Editor 的响应式状态、计算属性、事件处理和外部模块协作。
 // 浮窗 / 便签双模式顶层视图。
 //
 // 两种模式由 `props.noteId` 决定：
@@ -27,47 +35,77 @@ import { useSettingsStore } from '@/stores/settings';
 import { useClipboardStore } from '@/stores/clipboard';
 import type { Note, SaveNoteRequest } from '@/types/steno';
 
-const props = withDefaults(defineProps<{
-  noteId?: string | null;
-}>(), {
-  noteId: null,
-});
+// 局部常量 props：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+const props = withDefaults(
+  defineProps<{
+    noteId?: string | null;
+  }>(),
+  {
+    noteId: null
+  }
+);
 
+// 局部常量 db：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const db = useDb();
+// 局部常量 notes：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const notes = useNotesStore();
+// 局部常量 settings：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const settings = useSettingsStore();
+// 局部常量 clipboard：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const clipboard = useClipboardStore();
+// 局部常量 win：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const win = useWindow();
+// 局部常量 appEvents：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const appEvents = useAppEvents();
+// 局部常量 message：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const message = useMessage();
 const { countWords } = useMarkdown();
 
+// 局部常量 isSticky：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const isSticky = computed(() => !!props.noteId);
 
 // quicknote 模式下"已锁定"开关——pin 按钮 toggle 后不再失焦关闭。
 const quicknotePinned = ref(false);
 
+// 局部常量 currentNoteId：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const currentNoteId = ref<string | null>(props.noteId ?? null);
+// 局部常量 title：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const title = ref('');
+// 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const content = ref('');
+// 局部常量 tagsInput：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const tagsInput = ref('');
+// 局部常量 isClipboardView：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const isClipboardView = ref(false);
+// 局部常量 clipboardEntryId：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const clipboardEntryId = ref<string | null>(null);
+// 局部常量 clipboardInitialContent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const clipboardInitialContent = ref('');
+// 局部常量 clipboardDirty：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const clipboardDirty = ref(false);
+// 局部常量 loaded：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const loaded = ref(!isSticky.value);
 
+// 局部常量 titleEditing：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const titleEditing = ref(false);
+// 局部常量 titleDraft：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const titleDraft = ref('');
+// 局部常量 titleInputRef：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const titleInputRef = ref<{ focus: () => void } | null>(null);
 
+// 局部常量 tagsEditing：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const tagsEditing = ref(false);
+// 局部常量 tagsDraft：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const tagsDraft = ref('');
+// 局部常量 tagsInputRef：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const tagsInputRef = ref<{ focus: () => void } | null>(null);
 
+// 局部常量 tagsArray：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const tagsArray = computed(() => parseTags(tagsInput.value));
 
+// 函数 parseTags：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function parseTags(raw: string): string[] {
+  // 局部常量 trimmed：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const trimmed = raw.trim();
   if (!trimmed) return [];
   return Array.from(
@@ -75,27 +113,26 @@ function parseTags(raw: string): string[] {
       trimmed
         .split(/[,，\s]+/)
         .map(t => t.replace(/^#/, '').toLowerCase().trim())
-        .filter(Boolean),
-    ),
+        .filter(Boolean)
+    )
   );
 }
 
+// 局部常量 wordCount：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const wordCount = computed(() => countWords(content.value));
 
-const isEmpty = computed(
-  () => !title.value.trim() && !content.value.trim() && tagsArray.value.length === 0,
-);
+// 局部常量 isEmpty：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+const isEmpty = computed(() => !title.value.trim() && !content.value.trim() && tagsArray.value.length === 0);
 
 // ----- 自动保存 -------------------------------------------------------
 
-const { status, savedAt, error, scheduleSave, flushSave } = useAutosave(
-  async (payload: SaveNoteRequest) => {
-    const saved = await notes.saveDraft(payload);
-    if (!saved) return;
-    if (!currentNoteId.value) currentNoteId.value = saved.id;
-    void appEvents.emitNoteSaved(saved);
-  },
-);
+const { status, savedAt, error, scheduleSave, flushSave } = useAutosave(async (payload: SaveNoteRequest) => {
+  // 局部常量 saved：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+  const saved = await notes.saveDraft(payload);
+  if (!saved) return;
+  if (!currentNoteId.value) currentNoteId.value = saved.id;
+  void appEvents.emitNoteSaved(saved);
+});
 
 watch([title, content, tagsInput], () => {
   if (!loaded.value) return;
@@ -108,7 +145,7 @@ watch([title, content, tagsInput], () => {
       id: currentNoteId.value ?? undefined,
       title: title.value || undefined,
       content: content.value,
-      tags: tagsArray.value,
+      tags: tagsArray.value
     });
     return;
   }
@@ -120,7 +157,7 @@ watch([title, content, tagsInput], () => {
     title: title.value || undefined,
     content: content.value,
     tags: tagsArray.value,
-    isDraft: true,
+    isDraft: true
   });
 });
 
@@ -128,6 +165,7 @@ watch([title, content, tagsInput], () => {
 
 let clipboardSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
+// 函数 scheduleClipboardSave：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function scheduleClipboardSave() {
   if (!clipboardEntryId.value) return;
   // 只有内容相对"打开时的原始内容"真正改变了才算脏 —— 程序填充初始内容
@@ -153,6 +191,7 @@ function scheduleClipboardSave() {
   }, 800);
 }
 
+// 函数 flushClipboardSave：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function flushClipboardSave() {
   if (clipboardSaveTimer) {
     clearTimeout(clipboardSaveTimer);
@@ -174,6 +213,7 @@ watch(content, () => {
   }
 });
 
+// 局部常量 statusText：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const statusText = computed(() => {
   switch (status.value) {
     case 'idle':
@@ -193,13 +233,17 @@ const statusText = computed(() => {
   }
 });
 
+// 局部常量 pinButtonTitle：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const pinButtonTitle = computed(() => {
   if (isSticky.value) return '取消置顶并关闭';
   return quicknotePinned.value ? '取消置顶' : '置顶为便签';
 });
 
+// 局部常量 displayTitle：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const displayTitle = computed(() => title.value.trim() || '无标题');
+// 局部常量 displayTags：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const displayTags = computed(() => {
+  // 局部常量 tags：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const tags = tagsArray.value;
   if (tags.length === 0) return '点击编辑标签';
   return tags.map(t => `#${t}`).join(' ');
@@ -214,12 +258,15 @@ async function onStartTitleEdit() {
   titleInputRef.value?.focus();
 }
 
+// 函数 onCancelTitleEdit：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onCancelTitleEdit() {
   titleDraft.value = '';
   titleEditing.value = false;
 }
 
+// 函数 onSaveTitle：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onSaveTitle() {
+  // 局部常量 next：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const next = titleDraft.value.trim();
   titleEditing.value = false;
   if (next === title.value) return;
@@ -235,12 +282,15 @@ async function onStartTagsEdit() {
   tagsInputRef.value?.focus();
 }
 
+// 函数 onCancelTagsEdit：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onCancelTagsEdit() {
   tagsDraft.value = '';
   tagsEditing.value = false;
 }
 
+// 函数 onSaveTags：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onSaveTags() {
+  // 局部常量 next：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const next = tagsDraft.value;
   tagsEditing.value = false;
   if (next === tagsInput.value) return;
@@ -251,6 +301,7 @@ function onSaveTags() {
 
 const dragUntil = ref(0);
 
+// 函数 onTitlebarPointerdown：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onTitlebarPointerdown(e: PointerEvent) {
   if (e.button !== 0) return;
   if ((e.target as HTMLElement | null)?.closest('button, input, [contenteditable]')) return;
@@ -263,6 +314,7 @@ async function onTitlebarPointerdown(e: PointerEvent) {
   }
 }
 
+// 函数 resetState：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function resetState() {
   currentNoteId.value = null;
   title.value = '';
@@ -276,6 +328,7 @@ function resetState() {
   tagsEditing.value = false;
 }
 
+// 函数 dismissSticky：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function dismissSticky() {
   if (!currentNoteId.value) {
     await win.closeCurrent();
@@ -284,6 +337,7 @@ async function dismissSticky() {
   await flushSave();
   if (status.value === 'error') return;
   try {
+    // 局部常量 updated：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const updated = await notes.unpinNote(currentNoteId.value);
     void appEvents.emitNoteSaved(updated);
   } catch (e) {
@@ -296,6 +350,7 @@ async function dismissSticky() {
   }
 }
 
+// 函数 dismissQuicknote：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function dismissQuicknote() {
   // 粘贴板上下文：保存修改后关闭，不创建草稿笔记。
   if (isClipboardView.value) {
@@ -315,6 +370,7 @@ async function dismissQuicknote() {
     return;
   }
   if (!isSticky.value && currentNoteId.value && isEmpty.value) {
+    // 局部常量 draftId：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const draftId = currentNoteId.value;
     try {
       await db.deleteNote(draftId);
@@ -332,6 +388,7 @@ async function dismissQuicknote() {
   resetState();
 }
 
+// 函数 saveAndDismiss：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function saveAndDismiss(): Promise<void> {
   if (isSticky.value) {
     await dismissSticky();
@@ -344,6 +401,7 @@ let blurTimer: ReturnType<typeof setTimeout> | undefined;
 let unlistenFocus: (() => void) | undefined;
 let unlistenOpen: UnlistenFn | undefined;
 
+// 函数 applyNoteToUI：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function applyNoteToUI(note: Note) {
   currentNoteId.value = note.id;
   title.value = note.title === '未命名' ? '' : note.title;
@@ -351,8 +409,10 @@ function applyNoteToUI(note: Note) {
   tagsInput.value = note.tags.map(t => `#${t}`).join(' ');
 }
 
+// 函数 hydrateLatestDraft：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function hydrateLatestDraft(): Promise<boolean> {
   try {
+    // 局部常量 draft：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const draft = await db.getLatestDraft();
     if (!draft) return false;
     applyNoteToUI(draft);
@@ -363,8 +423,10 @@ async function hydrateLatestDraft(): Promise<boolean> {
   }
 }
 
+// 函数 hydrateDraftById：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function hydrateDraftById(id: string): Promise<boolean> {
   try {
+    // 局部常量 draft：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const draft = await db.getNote(id);
     if (!draft || !draft.isDraft) return false;
     applyNoteToUI(draft);
@@ -378,6 +440,7 @@ async function hydrateDraftById(id: string): Promise<boolean> {
 onMounted(async () => {
   if (isSticky.value && props.noteId) {
     try {
+      // 局部常量 note：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const note = await db.getNote(props.noteId);
       if (note) {
         currentNoteId.value = note.id;
@@ -428,39 +491,36 @@ onMounted(async () => {
       initialContent?: string | null;
       clipboardContext?: boolean | null;
       clipboardEntryId?: string | null;
-    }>(
-      'quicknote:open',
-      async ({ payload }) => {
-        // 如果有直接传入的初始内容，优先使用它。
-        if (payload.initialContent) {
-          resetState();
-          // 先记录原始内容与上下文，再回填 content —— content 的 watch 异步触发，
-          // 届时这些基准值已就绪，初始回填便不会被误判为"用户编辑"。
-          clipboardInitialContent.value = payload.initialContent;
-          isClipboardView.value = !!payload.clipboardContext;
-          clipboardEntryId.value = payload.clipboardEntryId ?? null;
-          content.value = payload.initialContent;
-          return;
-        }
-        isClipboardView.value = false;
-        if (payload.fresh) {
-          // "新建速记"按钮入口：清空 UI 进入空白态；
-          // 后续 autosave 触发时由后端分配新 UUID，写入一份新的独立草稿。
-          resetState();
-          return;
-        }
-        if (payload.noteId) {
-          // 列表卡片入口：按指定 id hydrate 该份草稿。
-          resetState();
-          await hydrateDraftById(payload.noteId);
-          return;
-        }
-        // 快捷键入口：仅在浮窗为空态时续写最近一份草稿，避免覆盖用户在编辑的内容。
-        if (currentNoteId.value === null && isEmpty.value) {
-          await hydrateLatestDraft();
-        }
-      },
-    );
+    }>('quicknote:open', async ({ payload }) => {
+      // 如果有直接传入的初始内容，优先使用它。
+      if (payload.initialContent) {
+        resetState();
+        // 先记录原始内容与上下文，再回填 content —— content 的 watch 异步触发，
+        // 届时这些基准值已就绪，初始回填便不会被误判为"用户编辑"。
+        clipboardInitialContent.value = payload.initialContent;
+        isClipboardView.value = !!payload.clipboardContext;
+        clipboardEntryId.value = payload.clipboardEntryId ?? null;
+        content.value = payload.initialContent;
+        return;
+      }
+      isClipboardView.value = false;
+      if (payload.fresh) {
+        // "新建速记"按钮入口：清空 UI 进入空白态；
+        // 后续 autosave 触发时由后端分配新 UUID，写入一份新的独立草稿。
+        resetState();
+        return;
+      }
+      if (payload.noteId) {
+        // 列表卡片入口：按指定 id hydrate 该份草稿。
+        resetState();
+        await hydrateDraftById(payload.noteId);
+        return;
+      }
+      // 快捷键入口：仅在浮窗为空态时续写最近一份草稿，避免覆盖用户在编辑的内容。
+      if (currentNoteId.value === null && isEmpty.value) {
+        await hydrateLatestDraft();
+      }
+    });
   }
 });
 
@@ -474,9 +534,12 @@ onUnmounted(() => {
 // ----- 关闭 / 置顶 -----------------------------------------------------
 
 async function nextUntitledName(): Promise<string> {
+  // 局部常量 base：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const base = '未命名';
   try {
+    // 局部常量 existing：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const existing = await db.listNotes(1000);
+    // 局部常量 titles：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const titles = new Set(existing.map(n => n.title));
     if (!titles.has(base)) return base;
     let i = 1;
@@ -488,6 +551,7 @@ async function nextUntitledName(): Promise<string> {
   }
 }
 
+// 函数 onSaveClick：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onSaveClick() {
   if (!content.value.trim()) {
     message.warning('笔记内容为空，无法保存');
@@ -501,12 +565,14 @@ async function onSaveClick() {
   await flushSave();
   if (status.value === 'error') return;
   if (isSticky.value) return;
+  // 局部常量 draftId：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const draftId = currentNoteId.value;
   if (!draftId) {
     message.error('保存失败：当前没有可提交的草稿');
     return;
   }
   try {
+    // 局部常量 promoted：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const promoted = await db.promoteDraft(draftId);
     if (promoted) {
       currentNoteId.value = promoted.id;
@@ -523,6 +589,7 @@ async function onSaveClick() {
   }
 }
 
+// 函数 onCloseClick：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onCloseClick() {
   if (isSticky.value) {
     await dismissSticky();
@@ -531,6 +598,7 @@ async function onCloseClick() {
   await dismissQuicknote();
 }
 
+// 函数 onPinClick：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onPinClick() {
   if (isSticky.value) {
     await dismissSticky();
@@ -546,11 +614,9 @@ async function onPinClick() {
 </script>
 
 <template>
+  <!-- 模板区：描述 Floating Editor 的 DOM 层级、可交互区域和条件渲染边界。 -->
   <div class="floating-root">
-    <header
-      class="floating-titlebar"
-      @pointerdown="onTitlebarPointerdown"
-    >
+    <header class="floating-titlebar" @pointerdown="onTitlebarPointerdown">
       <span
         v-if="!titleEditing"
         class="floating-title-readonly"
@@ -586,23 +652,15 @@ async function onPinClick() {
       >
         <template #icon>
           <NIcon>
-            <svg
-              v-if="titleEditing"
-              viewBox="0 0 24 24"
-              width="12"
-              height="12"
-              fill="currentColor"
-            >
-              <path d="m9 16.17-3.88-3.88a.996.996 0 1 0-1.41 1.41l4.59 4.59c.39.39 1.02.39 1.41 0L21.7 6.7a.996.996 0 1 0-1.41-1.41z" />
+            <svg v-if="titleEditing" viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+              <path
+                d="m9 16.17-3.88-3.88a.996.996 0 1 0-1.41 1.41l4.59 4.59c.39.39 1.02.39 1.41 0L21.7 6.7a.996.996 0 1 0-1.41-1.41z"
+              />
             </svg>
-            <svg
-              v-else
-              viewBox="0 0 24 24"
-              width="12"
-              height="12"
-              fill="currentColor"
-            >
-              <path d="M3 17.46V21h3.54l10.4-10.4-3.54-3.54L3 17.46zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.54 3.54 2.04-2.04z" />
+            <svg v-else viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+              <path
+                d="M3 17.46V21h3.54l10.4-10.4-3.54-3.54L3 17.46zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.54 3.54 2.04-2.04z"
+              />
             </svg>
           </NIcon>
         </template>
@@ -620,7 +678,9 @@ async function onPinClick() {
           <template #icon>
             <NIcon>
               <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                <path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" />
+                <path
+                  d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"
+                />
               </svg>
             </NIcon>
           </template>
@@ -638,7 +698,9 @@ async function onPinClick() {
           <template #icon>
             <NIcon>
               <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                <path d="M14.4 6 14 4H7.7L7 5.2l3 5.3L7.3 13 4 16.3V17h6.7L12 22l1.3-5h6.7v-.7L16.7 13 14 10.5 17 5.2 16.3 4H14.4z" />
+                <path
+                  d="M14.4 6 14 4H7.7L7 5.2l3 5.3L7.3 13 4 16.3V17h6.7L12 22l1.3-5h6.7v-.7L16.7 13 14 10.5 17 5.2 16.3 4H14.4z"
+                />
               </svg>
             </NIcon>
           </template>
@@ -655,7 +717,9 @@ async function onPinClick() {
           <template #icon>
             <NIcon>
               <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                <path d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L12 14.83l-4.89 4.88-1.42-1.42L10.59 12 5.69 7.12 7.11 5.71 12 10.59z" />
+                <path
+                  d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L12 14.83l-4.89 4.88-1.42-1.42L10.59 12 5.69 7.12 7.11 5.71 12 10.59z"
+                />
               </svg>
             </NIcon>
           </template>
@@ -664,11 +728,7 @@ async function onPinClick() {
     </header>
 
     <div class="floating-body">
-      <MarkdownEditor
-        v-model="content"
-        autofocus
-        placeholder="此刻在想什么？支持 Markdown · #标签 自动识别"
-      />
+      <MarkdownEditor v-model="content" autofocus placeholder="此刻在想什么？支持 Markdown · #标签 自动识别" />
     </div>
 
     <footer class="floating-footer">
@@ -705,34 +765,22 @@ async function onPinClick() {
       >
         <template #icon>
           <NIcon>
-            <svg
-              v-if="tagsEditing"
-              viewBox="0 0 24 24"
-              width="12"
-              height="12"
-              fill="currentColor"
-            >
-              <path d="m9 16.17-3.88-3.88a.996.996 0 1 0-1.41 1.41l4.59 4.59c.39.39 1.02.39 1.41 0L21.7 6.7a.996.996 0 1 0-1.41-1.41z" />
+            <svg v-if="tagsEditing" viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+              <path
+                d="m9 16.17-3.88-3.88a.996.996 0 1 0-1.41 1.41l4.59 4.59c.39.39 1.02.39 1.41 0L21.7 6.7a.996.996 0 1 0-1.41-1.41z"
+              />
             </svg>
-            <svg
-              v-else
-              viewBox="0 0 24 24"
-              width="12"
-              height="12"
-              fill="currentColor"
-            >
-              <path d="M3 17.46V21h3.54l10.4-10.4-3.54-3.54L3 17.46zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.54 3.54 2.04-2.04z" />
+            <svg v-else viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+              <path
+                d="M3 17.46V21h3.54l10.4-10.4-3.54-3.54L3 17.46zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.54 3.54 2.04-2.04z"
+              />
             </svg>
           </NIcon>
         </template>
       </NButton>
       <div class="floating-footer-meta">
         <NText depth="3" class="floating-meta-item">{{ wordCount }} 字</NText>
-        <NText
-          depth="3"
-          class="floating-meta-item"
-          :class="{ 'floating-meta-error': status === 'error' }"
-        >
+        <NText depth="3" class="floating-meta-item" :class="{ 'floating-meta-error': status === 'error' }">
           {{ statusText }}
         </NText>
       </div>
@@ -741,6 +789,7 @@ async function onPinClick() {
 </template>
 
 <style scoped>
+/* 样式区：限定 Floating Editor 的布局、主题色和响应式细节。 */
 .floating-root {
   display: flex;
   flex-direction: column;
@@ -750,7 +799,7 @@ async function onPinClick() {
   color: #e8e8ea;
   border-radius: 8px;
   overflow: hidden;
-  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 

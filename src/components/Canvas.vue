@@ -1,4 +1,12 @@
+<!--
+  @file 前端通用组件 - Canvas
+
+  承载 Canvas 的界面结构、响应式状态和用户交互，是 前端通用组件 模块的可视入口之一。
+  注释重点标明模板结构、脚本状态、事件派发和样式隔离边界。
+-->
+
 <script setup lang="ts">
+// 脚本区：组织 Canvas 的响应式状态、计算属性、事件处理和外部模块协作。
 /**
  * @component Canvas
  * @description 无限画布核心 — 以空间化方式组织和浏览笔记卡片。
@@ -27,28 +35,39 @@ import { useNotesStore } from '@/stores/notes';
 import { useUiStore } from '@/stores/ui';
 import type { CanvasPosition, Note } from '@/types/steno';
 
+// 局部常量 notes：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const notes = useNotesStore();
+// 局部常量 ui：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const ui = useUiStore();
 
 // ----- 卡片尺寸 + 默认网格布局 ----------------------------------------
 
 const CARD_W = 200;
+// 局部常量 CARD_H：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const CARD_H = 140;
+// 局部常量 GRID_GAP_X：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const GRID_GAP_X = 220;
+// 局部常量 GRID_GAP_Y：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const GRID_GAP_Y = 160;
+// 局部常量 GRID_COLS：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const GRID_COLS = 5;
+// 局部常量 VIEWPORT_BUFFER：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const VIEWPORT_BUFFER = 600;
 
+// 函数 defaultPosition：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function defaultPosition(index: number): { x: number; y: number } {
+  // 局部常量 col：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const col = index % GRID_COLS;
+  // 局部常量 row：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const row = Math.floor(index / GRID_COLS);
   return { x: col * GRID_GAP_X, y: row * GRID_GAP_Y };
 }
 
+// 函数 noteWorldPosition：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function noteWorldPosition(
   note: Note,
   fallbackIndex: number,
-  override?: { x: number; y: number },
+  override?: { x: number; y: number }
 ): { x: number; y: number } {
   if (override) return override;
   if (note.canvasPosition) {
@@ -60,14 +79,21 @@ function noteWorldPosition(
 // ----- 视口状态 -------------------------------------------------------
 
 const root = useTemplateRef<HTMLDivElement>('root');
+// 局部常量 pan：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const pan = ref({ x: 40, y: 40 });
+// 局部常量 zoom：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const zoom = ref(1);
+// 局部常量 ZOOM_MIN：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const ZOOM_MIN = 0.25;
+// 局部常量 ZOOM_MAX：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const ZOOM_MAX = 3;
 
+// 局部常量 viewport：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const viewport = ref({ w: 1024, h: 720 });
 
+// 函数 refreshViewport：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function refreshViewport() {
+  // 局部常量 el：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const el = root.value;
   if (!el) return;
   viewport.value = { w: el.clientWidth, h: el.clientHeight };
@@ -88,9 +114,12 @@ onUnmounted(() => {
 // ----- 搜索 + 标签过滤 ------------------------------------------------
 
 const query = ref('');
+// 局部常量 selectedTags：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const selectedTags = ref<string[]>([]);
 
+// 局部常量 allTags：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const allTags = computed(() => {
+  // 局部常量 set：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const set = new Set<string>();
   for (const n of notes.notes) {
     for (const t of n.tags) set.add(t);
@@ -98,9 +127,12 @@ const allTags = computed(() => {
   return Array.from(set).sort();
 });
 
+// 函数 matchesFilters：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function matchesFilters(n: Note): boolean {
+  // 局部常量 q：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const q = query.value.trim().toLowerCase();
   if (q) {
+    // 局部常量 hay：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const hay = `${n.title}\n${n.content}\n${n.tags.join(' ')}`.toLowerCase();
     if (!hay.includes(q)) return false;
   }
@@ -110,7 +142,9 @@ function matchesFilters(n: Note): boolean {
   return true;
 }
 
+// 函数 toggleTag：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function toggleTag(tag: string) {
+  // 局部常量 i：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const i = selectedTags.value.indexOf(tag);
   if (i >= 0) {
     selectedTags.value.splice(i, 1);
@@ -123,8 +157,10 @@ function toggleTag(tag: string) {
 
 /** 拖动期间的临时覆盖位置（世界坐标）。pointerup 时清掉并写库。 */
 const dragOverrides = new Map<string, { x: number; y: number }>();
+// 局部常量 dragVersion：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const dragVersion = ref(0); // 触发 cards computed 重新计算
 
+// 类型 VisibleCard：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
 interface VisibleCard {
   note: Note;
   x: number;
@@ -150,21 +186,24 @@ const cards = computed<VisibleCard[]>(() => {
   void dragVersion.value; // 读取以建立响应式依赖（Map 改值后触发重算）
   // 将视口像素尺寸换算为世界坐标尺寸
   const visW = viewport.value.w / zoom.value;
+  // 局部常量 visH：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const visH = viewport.value.h / zoom.value;
   // 可见世界坐标范围（含 buffer）
   const worldLeft = -pan.value.x / zoom.value - VIEWPORT_BUFFER;
+  // 局部常量 worldTop：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const worldTop = -pan.value.y / zoom.value - VIEWPORT_BUFFER;
+  // 局部常量 worldRight：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const worldRight = worldLeft + visW + 2 * VIEWPORT_BUFFER;
+  // 局部常量 worldBottom：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const worldBottom = worldTop + visH + 2 * VIEWPORT_BUFFER;
 
   return notes.notes.map((note, i) => {
+    // 局部常量 pos：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const pos = noteWorldPosition(note, i, dragOverrides.get(note.id));
     // AABB 碰撞检测：卡片矩形是否与可见矩形相交
     const inViewport =
-      pos.x + CARD_W > worldLeft &&
-      pos.x < worldRight &&
-      pos.y + CARD_H > worldTop &&
-      pos.y < worldBottom;
+      pos.x + CARD_W > worldLeft && pos.x < worldRight && pos.y + CARD_H > worldTop && pos.y < worldBottom;
+    // 局部常量 passFilters：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const passFilters = matchesFilters(note);
     return { note, x: pos.x, y: pos.y, visible: inViewport && passFilters };
   });
@@ -175,6 +214,7 @@ const cards = computed<VisibleCard[]>(() => {
 const panning = ref(false);
 let panStart = { x: 0, y: 0, panX: 0, panY: 0 };
 
+// 函数 onSurfacePointerdown：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onSurfacePointerdown(e: PointerEvent) {
   if (e.button !== 0) return;
   // 落在卡片或内部交互元素上的事件，不触发 pan
@@ -186,14 +226,16 @@ function onSurfacePointerdown(e: PointerEvent) {
   (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 }
 
+// 函数 onSurfacePointermove：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onSurfacePointermove(e: PointerEvent) {
   if (!panning.value) return;
   pan.value = {
     x: panStart.panX + (e.clientX - panStart.x),
-    y: panStart.panY + (e.clientY - panStart.y),
+    y: panStart.panY + (e.clientY - panStart.y)
   };
 }
 
+// 函数 onSurfacePointerup：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onSurfacePointerup(e: PointerEvent) {
   if (!panning.value) return;
   panning.value = false;
@@ -221,21 +263,27 @@ function onSurfacePointerup(e: PointerEvent) {
  */
 function onWheel(e: WheelEvent) {
   e.preventDefault();
+  // 局部常量 el：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const el = root.value;
   if (!el) return;
+  // 局部常量 rect：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const rect = el.getBoundingClientRect();
+  // 局部常量 mx：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const mx = e.clientX - rect.left; // 鼠标在容器内的 X
-  const my = e.clientY - rect.top;  // 鼠标在容器内的 Y
+  // 局部常量 my：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+  const my = e.clientY - rect.top; // 鼠标在容器内的 Y
 
   // 每次滚轮缩放 10%；deltaY > 0 = 向下滚 = 缩小
   const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+  // 局部常量 nextZoom：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const nextZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom.value * factor));
   if (nextZoom === zoom.value) return;
+  // 局部常量 ratio：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const ratio = nextZoom / zoom.value;
   // 调整 pan 使鼠标位置的世界坐标不变
   pan.value = {
     x: mx - (mx - pan.value.x) * ratio,
-    y: my - (my - pan.value.y) * ratio,
+    y: my - (my - pan.value.y) * ratio
   };
   zoom.value = nextZoom;
 }
@@ -248,15 +296,18 @@ function onWheel(e: WheelEvent) {
  * @param target - 目标缩放值（会被 clamp 到 [ZOOM_MIN, ZOOM_MAX]）
  */
 function setZoom(target: number) {
+  // 局部常量 next：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, target));
   if (next === zoom.value) return;
   // 以视口中心为锚 — 工具栏按钮与鼠标位置无关
   const cx = viewport.value.w / 2;
+  // 局部常量 cy：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const cy = viewport.value.h / 2;
+  // 局部常量 ratio：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const ratio = next / zoom.value;
   pan.value = {
     x: cx - (cx - pan.value.x) * ratio,
-    y: cy - (cy - pan.value.y) * ratio,
+    y: cy - (cy - pan.value.y) * ratio
   };
   zoom.value = next;
 }
@@ -273,35 +324,43 @@ interface CardDragState {
 
 let cardDrag: CardDragState | null = null;
 
+// 函数 onCardPointerdown：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onCardPointerdown(e: PointerEvent, card: VisibleCard) {
   if (e.button !== 0) return;
   if ((e.target as HTMLElement | null)?.closest('button, input, textarea')) return;
   e.stopPropagation();
+  // 局部常量 el：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const el = e.currentTarget as HTMLElement;
   cardDrag = {
     id: card.note.id,
     pointerId: e.pointerId,
     startScreen: { x: e.clientX, y: e.clientY },
     startWorld: { x: card.x, y: card.y },
-    el,
+    el
   };
   el.setPointerCapture(e.pointerId);
 }
 
+// 函数 onCardPointermove：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onCardPointermove(e: PointerEvent) {
   if (!cardDrag) return;
+  // 函数式常量 dx：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
   const dx = (e.clientX - cardDrag.startScreen.x) / zoom.value;
+  // 函数式常量 dy：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
   const dy = (e.clientY - cardDrag.startScreen.y) / zoom.value;
   dragOverrides.set(cardDrag.id, {
     x: cardDrag.startWorld.x + dx,
-    y: cardDrag.startWorld.y + dy,
+    y: cardDrag.startWorld.y + dy
   });
   dragVersion.value++;
 }
 
+// 函数 onCardPointerup：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onCardPointerup(e: PointerEvent) {
   if (!cardDrag) return;
+  // 局部常量 id：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const id = cardDrag.id;
+  // 局部常量 final：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const final = dragOverrides.get(id);
   cardDrag.el.releasePointerCapture(e.pointerId);
   cardDrag = null;
@@ -310,7 +369,7 @@ async function onCardPointerup(e: PointerEvent) {
     const position: CanvasPosition = {
       x: Math.round(final.x),
       y: Math.round(final.y),
-      scale: zoom.value,
+      scale: zoom.value
     };
     await notes.updateCanvasPosition(id, position);
   } catch (err) {
@@ -350,16 +409,11 @@ defineExpose({ resetView, setZoom });
 </script>
 
 <template>
+  <!-- 模板区：描述 Canvas 的 DOM 层级、可交互区域和条件渲染边界。 -->
   <div class="canvas-root" tabindex="0">
     <!-- 顶栏：搜索 + 标签 + 缩放控件 -->
     <div class="canvas-toolbar">
-      <NInput
-        v-model:value="query"
-        size="small"
-        placeholder="搜索标题 / 内容 / 标签"
-        clearable
-        class="canvas-search"
-      />
+      <NInput v-model:value="query" size="small" placeholder="搜索标题 / 内容 / 标签" clearable class="canvas-search" />
       <div class="canvas-tags">
         <NTag
           v-for="tag in allTags"
@@ -397,27 +451,24 @@ defineExpose({ resetView, setZoom });
         class="canvas-grid"
         :style="{
           backgroundPosition: `${pan.x}px ${pan.y}px`,
-          backgroundSize: `${20 * zoom}px ${20 * zoom}px`,
+          backgroundSize: `${20 * zoom}px ${20 * zoom}px`
         }"
       />
 
       <!-- 真正的卡片容器：translate + scale -->
-      <div
-        class="canvas-world"
-        :style="{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }"
-      >
+      <div class="canvas-world" :style="{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }">
         <template v-for="card in cards" :key="card.note.id">
           <article
             v-if="card.visible"
             class="canvas-card"
             :class="{
-              'canvas-card--pinned': card.note.isPinned,
+              'canvas-card--pinned': card.note.isPinned
             }"
             :style="{
               left: `${card.x}px`,
               top: `${card.y}px`,
               width: `${CARD_W}px`,
-              height: `${CARD_H}px`,
+              height: `${CARD_H}px`
             }"
             @pointerdown="onCardPointerdown($event, card)"
             @pointermove="onCardPointermove"
@@ -436,17 +487,10 @@ defineExpose({ resetView, setZoom });
             <p class="canvas-card-body">{{ previewText(card.note.content) }}</p>
 
             <footer v-if="card.note.tags.length" class="canvas-card-tags">
-              <span
-                v-for="t in card.note.tags.slice(0, 4)"
-                :key="t"
-                class="canvas-card-tag"
-              >
-                #{{ t }}
+              <span v-for="t in card.note.tags.slice(0, 4)" :key="t" class="canvas-card-tag">#{{ t }}</span>
+              <span v-if="card.note.tags.length > 4" class="canvas-card-tag canvas-card-tag--more">
+                +{{ card.note.tags.length - 4 }}
               </span>
-              <span
-                v-if="card.note.tags.length > 4"
-                class="canvas-card-tag canvas-card-tag--more"
-              >+{{ card.note.tags.length - 4 }}</span>
             </footer>
           </article>
         </template>
@@ -456,6 +500,7 @@ defineExpose({ resetView, setZoom });
 </template>
 
 <style scoped>
+/* 样式区：限定 Canvas 的布局、主题色和响应式细节。 */
 .canvas-root {
   display: flex;
   flex-direction: column;
@@ -463,7 +508,7 @@ defineExpose({ resetView, setZoom });
   width: 100vw;
   background: #14141a;
   color: #e8e8ea;
-  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   outline: none;
 }
 
@@ -476,7 +521,10 @@ defineExpose({ resetView, setZoom });
   background: #1a1a22;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
-.canvas-search { width: 240px; flex: 0 0 auto; }
+.canvas-search {
+  width: 240px;
+  flex: 0 0 auto;
+}
 .canvas-tags {
   flex: 1;
   display: flex;
@@ -502,8 +550,13 @@ defineExpose({ resetView, setZoom });
   border-radius: 3px;
   cursor: pointer;
 }
-.canvas-zoom button:hover { background: rgba(255, 255, 255, 0.06); }
-.canvas-zoom-value { width: 38px; text-align: center; }
+.canvas-zoom button:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.canvas-zoom-value {
+  width: 38px;
+  text-align: center;
+}
 
 /* 画布表面 */
 .canvas-surface {
@@ -512,7 +565,9 @@ defineExpose({ resetView, setZoom });
   overflow: hidden;
   cursor: grab;
 }
-.canvas-surface--panning { cursor: grabbing; }
+.canvas-surface--panning {
+  cursor: grabbing;
+}
 
 .canvas-grid {
   position: absolute;
@@ -549,13 +604,17 @@ defineExpose({ resetView, setZoom });
   overflow: hidden;
   cursor: grab;
   user-select: none;
-  transition: box-shadow 0.12s, border-color 0.12s;
+  transition:
+    box-shadow 0.12s,
+    border-color 0.12s;
 }
 .canvas-card:hover {
   border-color: rgba(255, 255, 255, 0.18);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
-.canvas-card--pinned { border-color: rgba(255, 200, 90, 0.35); }
+.canvas-card--pinned {
+  border-color: rgba(255, 200, 90, 0.35);
+}
 .canvas-card-header {
   display: flex;
   align-items: center;
@@ -571,7 +630,10 @@ defineExpose({ resetView, setZoom });
   text-overflow: ellipsis;
   flex: 1;
 }
-.canvas-card-pin { color: #ffd166; font-size: 12px; }
+.canvas-card-pin {
+  color: #ffd166;
+  font-size: 12px;
+}
 .canvas-card-draft-tag {
   flex-shrink: 0;
   padding: 1px 6px;
@@ -608,5 +670,8 @@ defineExpose({ resetView, setZoom });
   padding: 1px 5px;
   border-radius: 8px;
 }
-.canvas-card-tag--more { color: #9a9aa3; background: rgba(255, 255, 255, 0.06); }
+.canvas-card-tag--more {
+  color: #9a9aa3;
+  background: rgba(255, 255, 255, 0.06);
+}
 </style>

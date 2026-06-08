@@ -1,4 +1,12 @@
+<!--
+  @file 前端通用组件 - Markdown Read Surface
+
+  承载 Markdown Read Surface 的界面结构、响应式状态和用户交互，是 前端通用组件 模块的可视入口之一。
+  注释重点标明模板结构、脚本状态、事件派发和样式隔离边界。
+-->
+
 <script setup lang="ts">
+// 脚本区：组织 Markdown Read Surface 的响应式状态、计算属性、事件处理和外部模块协作。
 /**
  * @component MarkdownReadSurface
  * @description 只读 Markdown 渲染面板 — 用于 NoteEditorView 的"只读模式"。
@@ -23,6 +31,7 @@ import { createEditorBridge, type EditorBridge } from './markdown-editor/prosemi
 import { useDb } from '@/composables/useDb';
 import { setStenoAssetDataDir } from '@/utils/stenoAssets';
 
+// 局部常量 props：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const props = defineProps<{
   /** 文档标题（显示在顶部 `<h1>`）。 */
   title: string;
@@ -30,8 +39,11 @@ const props = defineProps<{
   content: string;
 }>();
 
+// 局部常量 db：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const db = useDb();
+// 局部常量 containerRef：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const containerRef = useTemplateRef<HTMLDivElement>('container');
+// 局部常量 bridge：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const bridge = ref<EditorBridge | null>(null);
 
 /** 显示用标题 — 空标题显示"无标题"。 */
@@ -40,6 +52,7 @@ const displayTitle = computed(() => props.title.trim() || '无标题');
 onMounted(async () => {
   if (typeof db.getDataPaths === 'function') {
     try {
+      // 局部常量 paths：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const paths = await db.getDataPaths();
       setStenoAssetDataDir(paths.dataDir);
     } catch (error) {
@@ -52,7 +65,7 @@ onMounted(async () => {
     mount: containerRef.value,
     initialValue: props.content,
     editable: false,
-    headingAnchors: true,
+    headingAnchors: true
   });
 });
 
@@ -66,7 +79,7 @@ watch(
   () => props.content,
   next => {
     bridge.value?.setContent(next);
-  },
+  }
 );
 
 /** 滚动到指定标题锚点（NoteEditorView 大纲点击委托用）。 */
@@ -78,6 +91,7 @@ defineExpose({ scrollToHeading });
 </script>
 
 <template>
+  <!-- 模板区：描述 Markdown Read Surface 的 DOM 层级、可交互区域和条件渲染边界。 -->
   <article class="markdown-read-surface" data-testid="markdown-read-surface">
     <header class="markdown-read-surface__header">
       <h1 class="markdown-read-surface__title">{{ displayTitle }}</h1>
@@ -87,6 +101,7 @@ defineExpose({ scrollToHeading });
 </template>
 
 <style scoped>
+/* 样式区：限定 Markdown Read Surface 的布局、主题色和响应式细节。 */
 .markdown-read-surface {
   display: flex;
   flex-direction: column;
