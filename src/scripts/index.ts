@@ -17,12 +17,16 @@ import { cleanup, genChangelog, gitCommit, gitCommitVerify, release, updatePkg }
 import { loadCliOptions } from './config';
 import type { Lang } from './locales';
 
+// 类型 Command：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
 type Command = 'cleanup' | 'update-pkg' | 'git-commit' | 'git-commit-verify' | 'changelog' | 'release';
 
+// 类型 CommandAction：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
 type CommandAction<A extends object> = (args?: A) => Promise<void> | void;
 
+// 类型 CommandWithAction：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
 type CommandWithAction<A extends object = object> = Record<Command, { desc: string; action: CommandAction<A> }>;
 
+// 类型 CommandArg：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
 interface CommandArg {
   execute?: string;
   push?: boolean;
@@ -31,9 +35,12 @@ interface CommandArg {
   lang?: Lang;
 }
 
+// 函数 setupCli：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 export async function setupCli() {
+  // 局部常量 cliOptions：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const cliOptions = await loadCliOptions();
 
+  // 局部常量 cli：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const cli = cac(blue('steno'));
 
   cli

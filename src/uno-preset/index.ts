@@ -14,6 +14,7 @@
 import type { Preset } from '@unocss/core';
 import type { Theme } from '@unocss/preset-mini';
 
+// 函数 presetSoybeanAdmin：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 export function presetSoybeanAdmin(): Preset<Theme> {
   const preset: Preset<Theme> = {
     name: 'preset-steno',

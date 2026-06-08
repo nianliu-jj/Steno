@@ -1,7 +1,16 @@
+/**
+ * @file 项目自动化脚本 - locales
+ *
+ * 组织 locales 的核心逻辑、类型和协作边界，供 项目自动化脚本 模块复用。
+ * 注释重点标明数据入口、状态边界、事件通道和协作风险点，便于逐行阅读时快速判断代码意图。
+ */
+
 import { bgRed, green, red, yellow } from 'kolorist';
 
+// 类型 Lang：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
 export type Lang = 'zh-cn' | 'en-us';
 
+// 导出常量 locales：为其他模块提供稳定配置、选项或 helper 入口。
 export const locales = {
   'zh-cn': {
     gitCommitMessages: {

@@ -1,11 +1,13 @@
+/**
+ * @file 项目自动化脚本 - changelog
+ *
+ * 组织 changelog 的核心逻辑、类型和协作边界，供 项目自动化脚本 模块复用。
+ * 注释重点标明数据入口、状态边界、事件通道和协作风险点，便于逐行阅读时快速判断代码意图。
+ */
+
 import { Presets, SingleBar } from 'cli-progress';
 import { createOptions } from './options';
-import {
-  getCurrentGitBranch,
-  getFromToTags,
-  getGitCommits,
-  getGitCommitsAndResolvedAuthors
-} from './git';
+import { getCurrentGitBranch, getFromToTags, getGitCommits, getGitCommitsAndResolvedAuthors } from './git';
 import { generateMarkdown, isVersionInMarkdown, writeMarkdown } from './markdown';
 import type { ChangelogOption, GitCommit } from './types';
 
@@ -21,16 +23,17 @@ export async function getChangelogMarkdown(
   options?: Partial<ChangelogOption>,
   showTitle: boolean = true
 ): Promise<{ markdown: string; commits: GitCommit[]; options: ChangelogOption }> {
+  // 局部常量 opts：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const opts = await createOptions(options);
+  // 局部常量 current：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const current = await getCurrentGitBranch();
+  // 局部常量 to：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const to = opts.tags.includes(opts.to) ? opts.to : current;
+  // 局部常量 gitCommits：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const gitCommits = await getGitCommits(opts.from, to);
+  // 局部常量 resolvedLogins：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const resolvedLogins = new Map<string, string>();
-  const { commits, contributors } = await getGitCommitsAndResolvedAuthors(
-    gitCommits,
-    opts.github,
-    resolvedLogins
-  );
+  const { commits, contributors } = await getGitCommitsAndResolvedAuthors(gitCommits, opts.github, resolvedLogins);
   return {
     markdown: await generateMarkdown({
       commits,
@@ -53,6 +56,7 @@ export async function getTotalChangelogMarkdown(
   options?: Partial<ChangelogOption>,
   showProgress: boolean = true
 ): Promise<string> {
+  // 局部常量 opts：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const opts = await createOptions(options);
   let bar: SingleBar | null = null;
   if (showProgress) {
@@ -61,6 +65,7 @@ export async function getTotalChangelogMarkdown(
       Presets.shades_classic
     );
   }
+  // 局部常量 tags：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const tags = getFromToTags(opts.tags);
   if (tags.length === 0) {
     const { markdown: markdown$1 } = await getChangelogMarkdown(opts);
@@ -68,6 +73,7 @@ export async function getTotalChangelogMarkdown(
   }
   bar?.start(tags.length, 0);
   let markdown = '';
+  // 局部常量 resolvedLogins：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const resolvedLogins = new Map<string, string>();
   for await (const [index, tag] of tags.entries()) {
     const { from, to } = tag;
@@ -98,7 +104,9 @@ export async function getTotalChangelogMarkdown(
  * @param options The changelog options
  */
 export async function generateChangelog(options?: Partial<ChangelogOption>): Promise<void> {
+  // 局部常量 opts：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const opts = await createOptions(options);
+  // 局部常量 existContent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const existContent = await isVersionInMarkdown(opts.to, opts.output);
   if (!opts.regenerate && existContent) return;
   const { markdown } = await getChangelogMarkdown(opts);
@@ -115,6 +123,7 @@ export async function generateTotalChangelog(
   options?: Partial<ChangelogOption>,
   showProgress: boolean = true
 ): Promise<void> {
+  // 局部常量 opts：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const opts = await createOptions(options);
   await writeMarkdown(await getTotalChangelogMarkdown(opts, showProgress), opts.output, true);
 }

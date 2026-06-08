@@ -1,3 +1,10 @@
+/**
+ * @file 项目配置 - vite.config
+ *
+ * 组织 vite.config 的核心逻辑、类型和协作边界，供 项目配置 模块复用。
+ * 注释重点标明数据入口、状态边界、事件通道和协作风险点，便于逐行阅读时快速判断代码意图。
+ */
+
 import process from 'node:process';
 import { fileURLToPath, URL } from 'node:url';
 import { loadEnv } from 'vite';
@@ -6,7 +13,9 @@ import { setupVitePlugins } from './build/plugins';
 import { getBuildTime } from './build/config';
 
 export default defineConfig(configEnv => {
+  // 局部常量 env：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const env = loadEnv(configEnv.mode, process.cwd());
+  // 局部常量 buildTime：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const buildTime = getBuildTime();
 
   return {

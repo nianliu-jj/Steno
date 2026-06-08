@@ -1,10 +1,20 @@
+/**
+ * @file Lint 规则配置 - vue rules
+ *
+ * 组织 vue rules 的核心逻辑、类型和协作边界，供 Lint 规则配置 模块复用。
+ * 注释重点标明数据入口、状态边界、事件通道和协作风险点，便于逐行阅读时快速判断代码意图。
+ */
+
 import type { Linter } from 'eslint';
 
+// 类型 VuePlugin：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
 interface VuePlugin {
   configs: Record<string, { rules?: Linter.RulesRecord }>;
 }
 
+// 函数 buildVueRules：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 export function buildVueRules(pluginVue: VuePlugin): Linter.RulesRecord {
+  // 局部常量 vueRecommendedRules：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const vueRecommendedRules = ['essential', 'strongly-recommended', 'recommended'].reduce<Linter.RulesRecord>(
     (preRules, key) => ({ ...preRules, ...pluginVue.configs[key]?.rules }),
     {}

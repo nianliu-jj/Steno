@@ -25,6 +25,7 @@ import './plugins/echarts';
 import App from './App.vue';
 import { warmupShiki } from './utils/markdown/shiki';
 
+// 局部常量 app：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const app = createApp(App);
 // 注册 Pinia 状态管理 — 所有 store 通过 `defineStore` 定义后即可在组件中注入
 app.use(createPinia());
@@ -36,7 +37,7 @@ type IdleCallbackHandle = (cb: () => void) => unknown;
 const scheduleIdle: IdleCallbackHandle =
   typeof (globalThis as { requestIdleCallback?: IdleCallbackHandle }).requestIdleCallback === 'function'
     ? (globalThis as { requestIdleCallback: IdleCallbackHandle }).requestIdleCallback
-    : (cb) => setTimeout(cb, 200);
+    : cb => setTimeout(cb, 200);
 scheduleIdle(() => {
   void warmupShiki();
 });
