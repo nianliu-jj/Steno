@@ -31,7 +31,7 @@ import type {
   TodoStatsRange,
   TodoTrendPoint,
   UpdateTodoRequest,
-  Workspace,
+  Workspace
 } from '@/types/steno';
 
 /**
@@ -62,6 +62,7 @@ export function useDb() {
     return invoke<Note | null>('save_note', { input });
   }
 
+  // 函数 savePastedImage：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function savePastedImage(dataUrl: string) {
     return invoke<{
       markdownUrl: string;
@@ -235,69 +236,68 @@ export function useDb() {
 
   // ----- clipboard -----------------------------------------------------
 
-  function listClipboardEntries(args?: {
-    limit?: number;
-    contentType?: string | null;
-    query?: string | null;
-  }) {
+  function listClipboardEntries(args?: { limit?: number; contentType?: string | null; query?: string | null }) {
     return invoke<ClipboardEntry[]>('list_clipboard_entries', {
       limit: args?.limit ?? 200,
       contentType: args?.contentType ?? null,
-      query: args?.query ?? null,
+      query: args?.query ?? null
     });
   }
 
+  // 函数 deleteClipboardEntry：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function deleteClipboardEntry(id: string) {
     return invoke<void>('delete_clipboard_entry', { id });
   }
 
+  // 函数 clearClipboardEntries：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function clearClipboardEntries() {
     return invoke<void>('clear_clipboard_entries');
   }
 
+  // 函数 copyClipboardEntry：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function copyClipboardEntry(id: string) {
     return invoke<void>('copy_clipboard_entry', { id });
   }
 
+  // 函数 pasteClipboardEntry：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function pasteClipboardEntry(id: string) {
     return invoke<void>('paste_clipboard_entry', { id });
   }
 
-  function updateClipboardEntry(args: {
-    id: string;
-    content: string;
-    htmlContent?: string | null;
-  }) {
+  // 函数 updateClipboardEntry：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
+  function updateClipboardEntry(args: { id: string; content: string; htmlContent?: string | null }) {
     return invoke<ClipboardEntry>('update_clipboard_entry', {
       id: args.id,
       content: args.content,
-      htmlContent: args.htmlContent ?? null,
+      htmlContent: args.htmlContent ?? null
     });
   }
 
+  // 函数 addImageClipboardEntry：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function addImageClipboardEntry(dataUrl: string) {
     return invoke<ClipboardEntry>('add_image_clipboard_entry', { dataUrl });
   }
 
+  // 函数 copyEditedImageToClipboard：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function copyEditedImageToClipboard(dataUrl: string) {
     return invoke<void>('copy_edited_image_to_clipboard', { dataUrl });
   }
 
+  // 函数 pinClipboardEntry：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function pinClipboardEntry(id: string) {
     return invoke<ClipboardEntry>('pin_clipboard_entry', { id });
   }
 
+  // 函数 unpinClipboardEntry：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function unpinClipboardEntry(id: string) {
     return invoke<ClipboardEntry>('unpin_clipboard_entry', { id });
   }
 
-  function countClipboardEntries(args?: {
-    contentType?: string | null;
-    query?: string | null;
-  }) {
+  // 函数 countClipboardEntries：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
+  function countClipboardEntries(args?: { contentType?: string | null; query?: string | null }) {
     return invoke<number>('count_clipboard_entries', {
       contentType: args?.contentType ?? null,
-      query: args?.query ?? null,
+      query: args?.query ?? null
     });
   }
 
@@ -315,7 +315,7 @@ export function useDb() {
    */
   function getTodayTodos(includeCompleted = false) {
     return invoke<Todo[]>('get_today_todos', {
-      input: { includeCompleted },
+      input: { includeCompleted }
     });
   }
 
@@ -365,10 +365,12 @@ export function useDb() {
     return invoke<void>('show_todo_panel', { position: position ?? null });
   }
 
+  // 函数 hideTodoPanel：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function hideTodoPanel() {
     return invoke<void>('hide_todo_panel');
   }
 
+  // 函数 toggleTodoPanel：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function toggleTodoPanel() {
     return invoke<void>('toggle_todo_panel');
   }
@@ -395,10 +397,12 @@ export function useDb() {
     return invoke<void>('set_setting', { key, value });
   }
 
+  // 函数 setLaunchAtStartup：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function setLaunchAtStartup(enabled: boolean) {
     return invoke<void>('set_launch_at_startup', { enabled });
   }
 
+  // 函数 isLaunchAtStartupEnabled：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function isLaunchAtStartupEnabled() {
     return invoke<boolean>('is_launch_at_startup_enabled');
   }
@@ -461,9 +465,7 @@ export function useDb() {
    *          `backupDir`（备份目录）的对象
    */
   function getDataPaths() {
-    return invoke<{ dataDir: string; dbPath: string; backupDir: string }>(
-      'get_data_paths',
-    );
+    return invoke<{ dataDir: string; dbPath: string; backupDir: string }>('get_data_paths');
   }
 
   return {
@@ -518,6 +520,6 @@ export function useDb() {
     exportNoteMarkdown,
     exportNoteHtml,
     exportNotePdf,
-    getDataPaths,
+    getDataPaths
   };
 }

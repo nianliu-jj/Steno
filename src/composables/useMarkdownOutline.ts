@@ -65,14 +65,15 @@ export function useMarkdownOutline() {
     return content
       .split('\n')
       .map((rawLine, index) => {
+        // 局部常量 match：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const match = HEADING_RE.exec(rawLine);
         if (!match) return null;
 
         return {
           id: `heading-${index + 1}`,
-          text: match[2].trim(),      // group 2 = 标题文本（去掉 `#` 和前后空格）
-          level: match[1].length,     // group 1 = `#` 的数量 → 标题级别
-          line: index + 1,            // 1-indexed 行号
+          text: match[2].trim(), // group 2 = 标题文本（去掉 `#` 和前后空格）
+          level: match[1].length, // group 1 = `#` 的数量 → 标题级别
+          line: index + 1 // 1-indexed 行号
         } satisfies FlatHeading;
       })
       .filter((heading): heading is FlatHeading => heading !== null);
@@ -145,7 +146,8 @@ export function useMarkdownOutline() {
     let headingIndex = 0;
 
     // `<h1>`–`<h6>` 在 marked 输出中按文档顺序出现，与 headings 数组一一对应
-    return html.replace(/<h([1-6])>/g, (match) => {
+    return html.replace(/<h([1-6])>/g, match => {
+      // 局部常量 heading：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const heading = headings[headingIndex];
       headingIndex += 1;
       if (!heading) return match;
@@ -156,6 +158,6 @@ export function useMarkdownOutline() {
   return {
     listHeadings,
     buildOutline,
-    decorateHeadingAnchors,
+    decorateHeadingAnchors
   };
 }

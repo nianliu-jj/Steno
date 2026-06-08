@@ -106,41 +106,42 @@ export interface StenoSettings {
   clipboardRetentionDays: number;
 }
 
+// 导出常量 DEFAULT_REMINDER_QUICK_OPTIONS：为其他模块提供稳定配置、选项或 helper 入口。
 export const DEFAULT_REMINDER_QUICK_OPTIONS: ReminderOption[] = [
   {
     id: 'after-30-minutes',
     label: '30 分钟后',
     type: 'relative',
     value: 30,
-    unit: 'minute',
+    unit: 'minute'
   },
   {
     id: 'after-1-hour',
     label: '1 小时后',
     type: 'relative',
     value: 1,
-    unit: 'hour',
+    unit: 'hour'
   },
   {
     id: 'after-2-hours',
     label: '2 小时后',
     type: 'relative',
     value: 2,
-    unit: 'hour',
+    unit: 'hour'
   },
   {
     id: 'after-1-day',
     label: '1 天后',
     type: 'relative',
     value: 1,
-    unit: 'day',
+    unit: 'day'
   },
   {
     id: 'next-week',
     label: '下周',
     type: 'relative',
     value: 7,
-    unit: 'day',
+    unit: 'day'
   },
   {
     id: 'today-16',
@@ -149,8 +150,8 @@ export const DEFAULT_REMINDER_QUICK_OPTIONS: ReminderOption[] = [
     value: 0,
     unit: 'minute',
     absoluteTime: '16:00',
-    dayOffset: 0,
-  },
+    dayOffset: 0
+  }
 ];
 
 /**
@@ -188,13 +189,15 @@ const DEFAULTS: StenoSettings = {
   locale: 'zh-CN',
   windowBorderRadius: 12,
   unsavedNoteRetentionDays: 30,
-  clipboardRetentionDays: 7,
+  clipboardRetentionDays: 7
 };
 
+// 函数 cloneReminderOptions：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function cloneReminderOptions(options: ReminderOption[]): ReminderOption[] {
   return options.map(option => ({ ...option }));
 }
 
+// 函数 defaultValue：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function defaultValue<K extends keyof StenoSettings>(key: K): StenoSettings[K] {
   if (key === 'reminderQuickOptions') {
     return cloneReminderOptions(DEFAULT_REMINDER_QUICK_OPTIONS) as StenoSettings[K];
@@ -202,8 +205,10 @@ function defaultValue<K extends keyof StenoSettings>(key: K): StenoSettings[K] {
   return DEFAULTS[key];
 }
 
+// 函数 isValidReminderOption：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function isValidReminderOption(option: unknown): option is ReminderOption {
   if (option === null || typeof option !== 'object') return false;
+  // 局部常量 item：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const item = option as ReminderOption;
   if (typeof item.id !== 'string' || item.id.trim() === '') return false;
   if (typeof item.label !== 'string' || item.label.trim() === '') return false;
@@ -222,10 +227,12 @@ function isValidReminderOption(option: unknown): option is ReminderOption {
   );
 }
 
+// 函数 isValidReminderOptions：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function isValidReminderOptions(value: unknown): value is ReminderOption[] {
   return Array.isArray(value) && value.every(isValidReminderOption);
 }
 
+// 函数 encode：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function encode<K extends keyof StenoSettings>(key: K, value: StenoSettings[K]): string {
   if (key === 'reminderQuickOptions') {
     if (!isValidReminderOptions(value)) {
@@ -248,20 +255,16 @@ function encode<K extends keyof StenoSettings>(key: K, value: StenoSettings[K]):
  * @param raw - 后端返回的原始字符串（可能为 null）
  * @returns 还原后的正确类型值
  */
-function decode<K extends keyof StenoSettings>(
-  key: K,
-  raw: string | null,
-): StenoSettings[K] {
+function decode<K extends keyof StenoSettings>(key: K, raw: string | null): StenoSettings[K] {
   if (raw === null || raw === undefined) {
     return defaultValue(key);
   }
   switch (key) {
     case 'reminderQuickOptions': {
       try {
+        // 局部常量 parsed：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const parsed = JSON.parse(raw);
-        return (isValidReminderOptions(parsed)
-          ? parsed
-          : defaultValue(key)) as StenoSettings[K];
+        return (isValidReminderOptions(parsed) ? parsed : defaultValue(key)) as StenoSettings[K];
       } catch {
         return defaultValue(key);
       }
@@ -275,11 +278,13 @@ function decode<K extends keyof StenoSettings>(
     case 'zenOutlineWidth':
     case 'unsavedNoteRetentionDays':
     case 'clipboardRetentionDays': {
+      // 局部常量 n：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const n = Number.parseInt(raw, 10);
       // 解析失败或 ≤0 时使用默认值
       return (Number.isFinite(n) && n > 0 ? n : defaultValue(key)) as StenoSettings[K];
     }
     case 'windowBorderRadius': {
+      // 局部常量 n：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const n = Number.parseInt(raw, 10);
       return (Number.isFinite(n) && n >= 0 && n <= 24 ? n : defaultValue(key)) as StenoSettings[K];
     }
@@ -292,14 +297,10 @@ function decode<K extends keyof StenoSettings>(
       return DEFAULTS[key];
     }
     case 'themeMode': {
-      return (['light', 'dark', 'system'].includes(raw)
-        ? raw
-        : DEFAULTS.themeMode) as StenoSettings[K];
+      return (['light', 'dark', 'system'].includes(raw) ? raw : DEFAULTS.themeMode) as StenoSettings[K];
     }
     case 'editorMode': {
-      return (['split', 'edit', 'preview'].includes(raw)
-        ? raw
-        : DEFAULTS.editorMode) as StenoSettings[K];
+      return (['split', 'edit', 'preview'].includes(raw) ? raw : DEFAULTS.editorMode) as StenoSettings[K];
     }
     case 'noteEditorOutlineOpen':
     case 'zenOutlineOpen': {
@@ -313,9 +314,9 @@ function decode<K extends keyof StenoSettings>(
       return DEFAULTS[key];
     }
     case 'todoQuickPanelPosition': {
-      return (['bottom-right', 'cursor', 'last'].includes(raw)
-        ? raw
-        : DEFAULTS.todoQuickPanelPosition) as StenoSettings[K];
+      return (
+        ['bottom-right', 'cursor', 'last'].includes(raw) ? raw : DEFAULTS.todoQuickPanelPosition
+      ) as StenoSettings[K];
     }
     case 'locale': {
       return (isValidLocale(raw) ? raw : DEFAULTS.locale) as StenoSettings[K];
@@ -325,12 +326,14 @@ function decode<K extends keyof StenoSettings>(
   }
 }
 
+// Store useSettingsStore：暴露模块状态、派生数据和写入动作，是跨组件共享状态的入口。
 export const useSettingsStore = defineStore('settings', () => {
+  // 局部常量 db：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const db = useDb();
   /** 所有设置的响应式状态（`reactive` 支持深层修改追踪）。 */
   const state = reactive<StenoSettings>({
     ...DEFAULTS,
-    reminderQuickOptions: cloneReminderOptions(DEFAULT_REMINDER_QUICK_OPTIONS),
+    reminderQuickOptions: cloneReminderOptions(DEFAULT_REMINDER_QUICK_OPTIONS)
   });
   /** 是否已完成首次加载。 */
   const loaded = ref(false);
@@ -346,11 +349,10 @@ export const useSettingsStore = defineStore('settings', () => {
   async function load() {
     error.value = null;
     try {
+      // 局部常量 keys：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const keys = Object.keys(DEFAULTS) as (keyof StenoSettings)[];
       // 并行查询所有 key — 减少 round-trip 次数
-      const entries = await Promise.all(
-        keys.map(async k => [k, await db.getSetting(k)] as const),
-      );
+      const entries = await Promise.all(keys.map(async k => [k, await db.getSetting(k)] as const));
       for (const [k, v] of entries) {
         (state[k] as StenoSettings[typeof k]) = decode(k, v);
       }
@@ -374,11 +376,10 @@ export const useSettingsStore = defineStore('settings', () => {
    * @param value - 新值
    * @throws 后端写入失败时抛出错误
    */
-  async function update<K extends keyof StenoSettings>(
-    key: K,
-    value: StenoSettings[K],
-  ): Promise<void> {
+  async function update<K extends keyof StenoSettings>(key: K, value: StenoSettings[K]): Promise<void> {
+    // 局部常量 encoded：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const encoded = encode(key, value);
+    // 局部常量 prev：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const prev = state[key];
     (state[key] as StenoSettings[K]) = value; // 乐观：先改本地
     try {

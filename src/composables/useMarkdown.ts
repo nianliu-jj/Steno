@@ -99,10 +99,12 @@ export function useMarkdown(noteDir?: string) {
     if (!md) {
       return [];
     }
+    // 局部常量 seen：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const seen = new Set<string>();
     const out: string[] = [];
     // matchAll 配合 g flag 返回迭代器，一次扫描全部匹配
     for (const match of md.matchAll(TAG_REGEX)) {
+      // 局部常量 tag：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const tag = match[1].toLowerCase();
       if (!seen.has(tag)) {
         seen.add(tag);

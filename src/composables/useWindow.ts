@@ -28,13 +28,19 @@ export function useWindow() {
    * @param opts.initialContent - 直接传入的初始内容，填充到编辑器中
    * @param opts.clipboardContext - `true` 时关闭浮窗不创建草稿笔记
    */
-  function openQuicknote(opts?: { fresh?: boolean; noteId?: string | null; initialContent?: string | null; clipboardContext?: boolean | null; clipboardEntryId?: string | null }) {
+  function openQuicknote(opts?: {
+    fresh?: boolean;
+    noteId?: string | null;
+    initialContent?: string | null;
+    clipboardContext?: boolean | null;
+    clipboardEntryId?: string | null;
+  }) {
     return invoke<void>('open_quicknote_window', {
       fresh: opts?.fresh ?? false,
       noteId: opts?.noteId ?? null,
       initialContent: opts?.initialContent ?? null,
       clipboardContext: opts?.clipboardContext ?? null,
-      clipboardEntryId: opts?.clipboardEntryId ?? null,
+      clipboardEntryId: opts?.clipboardEntryId ?? null
     });
   }
 
@@ -85,10 +91,12 @@ export function useWindow() {
     return invoke<void>('open_print_window', { id });
   }
 
+  // 函数 openPathInFileManager：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function openPathInFileManager(path: string) {
     return invoke<void>('open_path_in_file_manager', { path });
   }
 
+  // 函数 openUrl：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function openUrl(url: string) {
     return invoke<void>('open_url', { url });
   }
@@ -145,9 +153,7 @@ export function useWindow() {
    * @param handler - `(focused: boolean) => void`，true=获得焦点，false=失去焦点
    * @returns unlisten 函数，调用方在 `onUnmounted` 里调用以清理
    */
-  async function onCurrentWindowFocusChange(
-    handler: (focused: boolean) => void,
-  ): Promise<() => void> {
+  async function onCurrentWindowFocusChange(handler: (focused: boolean) => void): Promise<() => void> {
     return await getCurrentWindow().onFocusChanged(({ payload }) => handler(payload));
   }
 
@@ -213,6 +219,6 @@ export function useWindow() {
     startDragCurrent,
     setCurrentSize,
     setCurrentPosition,
-    currentLabel,
+    currentLabel
   };
 }

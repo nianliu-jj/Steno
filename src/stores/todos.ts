@@ -1,3 +1,10 @@
+/**
+ * @file Pinia 状态管理 - todos
+ *
+ * 组织 todos 的核心逻辑、类型和协作边界，供 Pinia 状态管理 模块复用。
+ * 注释重点标明数据入口、状态边界、事件通道和协作风险点，便于逐行阅读时快速判断代码意图。
+ */
+
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
@@ -13,7 +20,7 @@ import type {
   TodoStatsRange,
   TodoTrendPoint,
   TodoStatus,
-  UpdateTodoRequest,
+  UpdateTodoRequest
 } from '@/types/steno';
 
 /**
@@ -31,14 +38,21 @@ import type {
  * 全部用 getter 派生，写入操作无需手动维护计数。
  */
 export const useTodosStore = defineStore('todos', () => {
+  // 局部常量 db：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const db = useDb();
+  // 局部常量 events：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const events = useAppEvents();
 
+  // 局部常量 entries：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const entries = ref<Todo[]>([]);
+  // 局部常量 loading：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const loading = ref(false);
+  // 局部常量 error：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const error = ref<string | null>(null);
+  // 局部常量 selectedCategory：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const selectedCategory = ref<TodoCategory>('today');
 
+  // 局部常量 listenersStarted：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const listenersStarted = ref(false);
   const unlisteners: Array<() => void> = [];
 
@@ -47,13 +61,13 @@ export const useTodosStore = defineStore('todos', () => {
   /** 判断给定 ISO 时间戳是否落在"今天本地日"。 */
   function isToday(iso: string | null): boolean {
     if (!iso) return false;
+    // 局部常量 date：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return false;
+    // 局部常量 now：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const now = new Date();
     return (
-      date.getFullYear() === now.getFullYear() &&
-      date.getMonth() === now.getMonth() &&
-      date.getDate() === now.getDate()
+      date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate()
     );
   }
 
@@ -66,30 +80,29 @@ export const useTodosStore = defineStore('todos', () => {
       if (item.status === 'done') return false;
       if (item.dueDate) return isToday(item.dueDate);
       return isToday(item.createdAt);
-    }),
+    })
   );
 
+  // 局部常量 plannedEntries：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const plannedEntries = computed<Todo[]>(() =>
-    entries.value.filter(item => item.status !== 'done' && Boolean(item.dueDate)),
+    entries.value.filter(item => item.status !== 'done' && Boolean(item.dueDate))
   );
 
-  const doingEntries = computed<Todo[]>(() =>
-    entries.value.filter(item => item.status === 'doing'),
-  );
+  // 局部常量 doingEntries：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+  const doingEntries = computed<Todo[]>(() => entries.value.filter(item => item.status === 'doing'));
 
-  const pausedEntries = computed<Todo[]>(() =>
-    entries.value.filter(item => item.status === 'paused'),
-  );
+  // 局部常量 pausedEntries：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+  const pausedEntries = computed<Todo[]>(() => entries.value.filter(item => item.status === 'paused'));
 
-  const doneEntries = computed<Todo[]>(() =>
-    entries.value.filter(item => item.status === 'done'),
-  );
+  // 局部常量 doneEntries：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+  const doneEntries = computed<Todo[]>(() => entries.value.filter(item => item.status === 'done'));
 
   /** 收件箱 = listId='default' 的未完成项（用户未指定清单的"默认箱"）。 */
   const inboxEntries = computed<Todo[]>(() =>
-    entries.value.filter(item => item.status !== 'done' && item.listId === 'default'),
+    entries.value.filter(item => item.status !== 'done' && item.listId === 'default')
   );
 
+  // 局部常量 categoryCounts：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const categoryCounts = computed(() => ({
     today: todayEntries.value.length,
     planned: plannedEntries.value.length,
@@ -97,9 +110,10 @@ export const useTodosStore = defineStore('todos', () => {
     paused: pausedEntries.value.length,
     done: doneEntries.value.length,
     all: entries.value.length,
-    inbox: inboxEntries.value.length,
+    inbox: inboxEntries.value.length
   }));
 
+  // 函数 byCategory：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function byCategory(category: TodoCategory): Todo[] {
     switch (category) {
       case 'today':
@@ -120,21 +134,25 @@ export const useTodosStore = defineStore('todos', () => {
     }
   }
 
+  // 局部常量 visibleEntries：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const visibleEntries = computed<Todo[]>(() => byCategory(selectedCategory.value));
 
   // ---------- helpers ----------
 
   function upsertLocal(todo: Todo) {
+    // 局部常量 idx：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const idx = entries.value.findIndex(item => item.id === todo.id);
     if (idx === -1) {
       entries.value = [todo, ...entries.value];
     } else {
+      // 局部常量 next：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const next = [...entries.value];
       next[idx] = todo;
       entries.value = next;
     }
   }
 
+  // 函数 removeLocal：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function removeLocal(id: string) {
     entries.value = entries.value.filter(item => item.id !== id);
   }
@@ -154,8 +172,10 @@ export const useTodosStore = defineStore('todos', () => {
     }
   }
 
+  // 函数 loadToday：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   async function loadToday(includeCompleted = false): Promise<Todo[]> {
     try {
+      // 局部常量 list：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const list = await db.getTodayTodos(includeCompleted);
       // 也合并到全量缓存，便于跨分类切换不重复拉取。
       for (const item of list) {
@@ -168,41 +188,52 @@ export const useTodosStore = defineStore('todos', () => {
     }
   }
 
+  // 函数 createTodo：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   async function createTodo(input: CreateTodoRequest): Promise<Todo> {
+    // 局部常量 todo：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const todo = await db.createTodo(input);
     upsertLocal(todo);
     return todo;
   }
 
+  // 函数 updateTodo：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   async function updateTodo(input: UpdateTodoRequest): Promise<Todo> {
+    // 局部常量 todo：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const todo = await db.updateTodo(input);
     upsertLocal(todo);
     return todo;
   }
 
+  // 函数 setStatus：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   async function setStatus(id: string, status: TodoStatus): Promise<Todo> {
     return await updateTodo({ id, status });
   }
 
+  // 函数 completeTodo：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   async function completeTodo(id: string): Promise<Todo> {
+    // 局部常量 todo：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const todo = await db.completeTodo(id);
     upsertLocal(todo);
     return todo;
   }
 
+  // 函数 deleteTodo：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   async function deleteTodo(id: string): Promise<void> {
     await db.deleteTodo(id);
     removeLocal(id);
   }
 
+  // 函数 getActivity：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function getActivity(input: TodoStatsRange): Promise<TodoActivityPoint[]> {
     return db.getTodoActivity(input);
   }
 
+  // 函数 getDailyTrend：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function getDailyTrend(input: TodoDailyTrendRequest): Promise<TodoTrendPoint[]> {
     return db.getTodoDailyTrend(input);
   }
 
+  // 函数 resetStats：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function resetStats(): Promise<number> {
     return db.resetTodoStats();
   }
@@ -229,6 +260,7 @@ export const useTodosStore = defineStore('todos', () => {
     }
   }
 
+  // 函数 setSelectedCategory：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function setSelectedCategory(category: TodoCategory) {
     selectedCategory.value = category;
   }
@@ -239,6 +271,7 @@ export const useTodosStore = defineStore('todos', () => {
     if (listenersStarted.value) return;
     listenersStarted.value = true;
     try {
+      // 局部常量 unlisten：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const unlisten = await events.listenTodoChanged(payload => {
         applyRemoteChange(payload);
       });
@@ -249,6 +282,7 @@ export const useTodosStore = defineStore('todos', () => {
     }
   }
 
+  // 函数 stopEventListeners：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function stopEventListeners() {
     while (unlisteners.length) {
       unlisteners.pop()?.();
@@ -283,6 +317,6 @@ export const useTodosStore = defineStore('todos', () => {
     applyRemoteChange,
     setSelectedCategory,
     startEventListeners,
-    stopEventListeners,
+    stopEventListeners
   };
 });

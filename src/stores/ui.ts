@@ -78,7 +78,7 @@ const VALID_MODES: ReadonlySet<WindowMode> = new Set<WindowMode>([
   'screenshot',
   'ocr',
   'translate',
-  'print',
+  'print'
 ]);
 
 /** 所有支持导航的页面型模式，用于校验事件 payload。 */
@@ -93,7 +93,7 @@ const MAIN_ROUTE_MODES: ReadonlySet<MainRouteMode> = new Set<MainRouteMode>([
   'stats',
   'screenshot',
   'ocr',
-  'translate',
+  'translate'
 ]);
 
 /**
@@ -128,15 +128,17 @@ function resolveWindowLabel(): string | null {
  * ```
  */
 function parseFromHash(hash: string, search: string): ParsedRoute {
+  // 局部常量 raw：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const raw = hash.startsWith('#') ? hash.slice(1) : hash;
   if (!raw) {
     return { mode: 'main', noteId: null };
   }
   const [mode, query = ''] = raw.split('?');
+  // 局部常量 params：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const params = new URLSearchParams(query || search.replace(/^\?/, ''));
   return {
     mode: VALID_MODES.has(mode as WindowMode) ? (mode as WindowMode) : 'main',
-    noteId: params.get('id'),
+    noteId: params.get('id')
   };
 }
 
@@ -173,6 +175,7 @@ function parseFromLabel(label: string, search: string): ParsedRoute {
   if (label === 'canvas') return { mode: 'canvas', noteId: null };
   if (label === 'settings') return { mode: 'settings', noteId: null };
   if (label === 'zen') {
+    // 局部常量 params：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const params = new URLSearchParams(search.replace(/^\?/, ''));
     return { mode: 'zen', noteId: params.get('id') };
   }
@@ -186,7 +189,9 @@ function resolveInitialRoute(): ParsedRoute {
   if (typeof window === 'undefined') {
     return { mode: 'main', noteId: null }; // SSR 安全
   }
+  // 局部常量 search：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const search = window.location.search;
+  // 局部常量 label：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const label = resolveWindowLabel();
   if (label) {
     return parseFromLabel(label, search);
@@ -194,8 +199,11 @@ function resolveInitialRoute(): ParsedRoute {
   return parseFromHash(window.location.hash, search);
 }
 
+// Store useUiStore：暴露模块状态、派生数据和写入动作，是跨组件共享状态的入口。
 export const useUiStore = defineStore('ui', () => {
+  // 局部常量 initial：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const initial = resolveInitialRoute();
+  // 局部常量 windowLabel：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const windowLabel = resolveWindowLabel();
 
   /**
@@ -232,7 +240,7 @@ export const useUiStore = defineStore('ui', () => {
   function navigateTo(
     nextMode: MainRouteMode,
     nextNoteId: string | null = null,
-    returnRoute: { mode: MainRouteMode; noteId: string | null } | null = null,
+    returnRoute: { mode: MainRouteMode; noteId: string | null } | null = null
   ) {
     if (nextMode === 'settings') {
       if (windowLabel === 'settings') {
@@ -268,12 +276,14 @@ export const useUiStore = defineStore('ui', () => {
     navigateTo('zen', nextNoteId, { mode: 'canvas', noteId: null });
   }
 
+  // 函数 navigateToZenFromEditor：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function navigateToZenFromEditor(nextNoteId: string | null) {
     navigateTo('zen', nextNoteId, { mode: 'note-editor', noteId: nextNoteId });
   }
 
   /** 退出 Zen 模式，回到进入前的页面。 */
   function exitZen() {
+    // 局部常量 target：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const target = zenReturnRoute.value;
     // navigateTo 内部只在 zen / note-editor 模式下接受 noteId，
     // 对 canvas / main 等目标会自动丢弃，不必在此分类处理。
@@ -291,6 +301,7 @@ export const useUiStore = defineStore('ui', () => {
     if (!windowLabel || windowLabel === 'main') {
       // 浏览器 hash 变化 → 更新 mode（仅在非 Tauri 或 main 窗口生效）
       window.addEventListener('hashchange', () => {
+        // 局部常量 next：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const next = parseFromHash(window.location.hash, window.location.search);
         if (next.mode === 'settings') {
           settingsOpen.value = true;
@@ -320,6 +331,6 @@ export const useUiStore = defineStore('ui', () => {
     navigateToZenFromCanvas,
     navigateToZenFromEditor,
     exitZen,
-    closeSettings,
+    closeSettings
   };
 });

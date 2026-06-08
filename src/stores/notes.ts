@@ -16,14 +16,11 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 
 import { useDb } from '@/composables/useDb';
-import type {
-  CanvasPosition,
-  Note,
-  PinnedWindowConfig,
-  SaveNoteRequest,
-} from '@/types/steno';
+import type { CanvasPosition, Note, PinnedWindowConfig, SaveNoteRequest } from '@/types/steno';
 
+// Store useNotesStore：暴露模块状态、派生数据和写入动作，是跨组件共享状态的入口。
 export const useNotesStore = defineStore('notes', () => {
+  // 局部常量 db：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const db = useDb();
 
   /** 最近笔记列表（`listNotes` 拉取，按 `isDraft DESC, updatedAt DESC`）。 */
@@ -69,6 +66,7 @@ export const useNotesStore = defineStore('notes', () => {
    *          此时调用方通常不需要 UI 反馈
    */
   async function saveDraft(input: SaveNoteRequest): Promise<Note | null> {
+    // 局部常量 saved：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const saved = await db.saveNote(input);
     if (saved) {
       upsertLocal(saved);
@@ -83,6 +81,7 @@ export const useNotesStore = defineStore('notes', () => {
    * @returns 更新后的笔记
    */
   async function pinNote(id: string): Promise<Note> {
+    // 局部常量 updated：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const updated = await db.setNotePinned(id, true);
     upsertLocal(updated);
     upsertPinned(updated);
@@ -96,6 +95,7 @@ export const useNotesStore = defineStore('notes', () => {
    * @returns 更新后的笔记
    */
   async function unpinNote(id: string): Promise<Note> {
+    // 局部常量 updated：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const updated = await db.setNotePinned(id, false);
     upsertLocal(updated);
     pinned.value = pinned.value.filter(n => n.id !== id);
@@ -109,10 +109,8 @@ export const useNotesStore = defineStore('notes', () => {
    * @param config - 新窗口配置
    * @returns 更新后的笔记
    */
-  async function updatePinnedConfig(
-    id: string,
-    config: PinnedWindowConfig,
-  ): Promise<Note> {
+  async function updatePinnedConfig(id: string, config: PinnedWindowConfig): Promise<Note> {
+    // 局部常量 updated：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const updated = await db.updatePinnedWindowConfig(id, config);
     upsertLocal(updated);
     upsertPinned(updated);
@@ -126,10 +124,8 @@ export const useNotesStore = defineStore('notes', () => {
    * @param position - 新世界坐标位置
    * @returns 更新后的笔记
    */
-  async function updateCanvasPosition(
-    id: string,
-    position: CanvasPosition,
-  ): Promise<Note> {
+  async function updateCanvasPosition(id: string, position: CanvasPosition): Promise<Note> {
+    // 局部常量 updated：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const updated = await db.updateCanvasPosition(id, position);
     upsertLocal(updated);
     upsertPinned(updated);
@@ -178,9 +174,11 @@ export const useNotesStore = defineStore('notes', () => {
 
   /** 笔记列表排序：未保存草稿优先，其余按更新时间倒序。 */
   function compareNotesForList(a: Note, b: Note): number {
+    // 局部常量 draftDelta：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const draftDelta = Number(b.isDraft) - Number(a.isDraft);
     if (draftDelta !== 0) return draftDelta;
 
+    // 局部常量 updatedDelta：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const updatedDelta = Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
     if (updatedDelta !== 0) return updatedDelta;
 
@@ -194,6 +192,7 @@ export const useNotesStore = defineStore('notes', () => {
    * `isDraft DESC, updatedAt DESC` 的列表契约。
    */
   function upsertLocal(note: Note) {
+    // 局部常量 i：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const i = notes.value.findIndex(n => n.id === note.id);
     if (i >= 0) {
       notes.value[i] = note;
@@ -205,6 +204,7 @@ export const useNotesStore = defineStore('notes', () => {
 
   /** 本地 upsert 到置顶列表（`push` 因为置顶列表不强调顺序）。 */
   function upsertPinned(note: Note) {
+    // 局部常量 i：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const i = pinned.value.findIndex(n => n.id === note.id);
     if (i >= 0) {
       pinned.value[i] = note;
@@ -227,6 +227,6 @@ export const useNotesStore = defineStore('notes', () => {
     updateCanvasPosition,
     removeNote,
     syncExternalNote,
-    purgeLocal,
+    purgeLocal
   };
 });

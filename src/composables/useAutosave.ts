@@ -59,10 +59,8 @@ export interface UseAutosaveOptions {
  * await flushSave();
  * ```
  */
-export function useAutosave<TInput>(
-  saver: (input: TInput) => Promise<unknown>,
-  options: UseAutosaveOptions = {},
-) {
+export function useAutosave<TInput>(saver: (input: TInput) => Promise<unknown>, options: UseAutosaveOptions = {}) {
+  // 局部常量 delayMs：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const delayMs = options.delayMs ?? 1000;
   /** 当前保存状态。UI 可据此显示"编辑中…" / "已保存" / "保存失败"。 */
   const status = ref<AutosaveStatus>('idle');
@@ -117,6 +115,7 @@ export function useAutosave<TInput>(
     timer = setTimeout(() => {
       timer = undefined;
       if (pending !== undefined) {
+        // 局部常量 next：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const next = pending;
         pending = undefined;
         void fire(next); // void: fire 的 Promise 不需要 await，错误已在内部 catch
@@ -138,6 +137,7 @@ export function useAutosave<TInput>(
       timer = undefined;
     }
     if (pending !== undefined) {
+      // 局部常量 next：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const next = pending;
       pending = undefined;
       await fire(next);
