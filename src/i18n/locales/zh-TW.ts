@@ -1,3 +1,10 @@
+/**
+ * @file 国际化语言包 - zh TW
+ *
+ * 组织 zh TW 的核心逻辑、类型和协作边界，供 国际化语言包 模块复用。
+ * 注释重点标明数据入口、状态边界、事件通道和协作风险点，便于逐行阅读时快速判断代码意图。
+ */
+
 export default {
   common: {
     confirm: '確認',
@@ -15,14 +22,14 @@ export default {
     autoSaveHint: '所有變更自動儲存到本機',
     resetNotSupported: '目前版本暫不支援一鍵重設',
     pressShortcut: '按下快捷鍵',
-    shortcutHint: '請同時按下 Ctrl / Alt / Shift / Meta 與一個按鍵',
+    shortcutHint: '請同時按下 Ctrl / Alt / Shift / Meta 與一個按鍵'
   },
   nav: {
     notes: '筆記列表',
     canvas: '畫布',
     clipboard: '剪貼簿',
     todo: '待辦',
-    stats: '統計',
+    stats: '統計'
   },
   settings: {
     title: '設定',
@@ -36,7 +43,7 @@ export default {
       reminders: '提醒設定',
       privacy: '隱私安全',
       storage: '儲存',
-      about: '關於',
+      about: '關於'
     },
     eyebrows: {
       general: '啟動與速記',
@@ -46,7 +53,7 @@ export default {
       reminders: '快捷選項',
       privacy: '本機優先',
       storage: '路徑與備份',
-      about: '版本資訊',
+      about: '版本資訊'
     },
     general: {
       title: '一般',
@@ -60,7 +67,7 @@ export default {
       blurCloseDelay: '失焦關閉延遲',
       blurCloseDelayDesc: '速記浮窗失去焦點後等待關閉的毫秒數。',
       language: '介面語言',
-      languageDesc: '切換應用介面的顯示語言，變更後立即生效。',
+      languageDesc: '切換應用介面的顯示語言，變更後立即生效。'
     },
     appearance: {
       title: '外觀',
@@ -81,7 +88,7 @@ export default {
       editorPreview: '只預覽',
       stickyNote: '便籤預設底色',
       stickyNoteDesc: '新便籤紙張顏色將在後續版本接入畫布卡片。',
-      planned: '規劃中',
+      planned: '規劃中'
     },
     shortcuts: {
       title: '快捷鍵',
@@ -96,7 +103,7 @@ export default {
       search: '搜尋',
       searchDesc: '目前為應用內預留欄位，暫不註冊到作業系統。',
       shortcutUpdated: '已更新「{name}」',
-      shortcutSaveFailed: '快捷鍵儲存失敗',
+      shortcutSaveFailed: '快捷鍵儲存失敗'
     },
     todo: {
       title: '待辦浮窗',
@@ -112,7 +119,7 @@ export default {
       positionCursor: '跟隨游標',
       positionLast: '記住上次位置',
       enabledSuccess: '已啟用待辦浮窗',
-      disabledSuccess: '已停用待辦浮窗',
+      disabledSuccess: '已停用待辦浮窗'
     },
     reminders: {
       title: '提醒設定',
@@ -128,7 +135,7 @@ export default {
       unitDay: '天',
       defaultLabel: '15 分鐘後',
       emptyHint: '暫無快捷提醒選項。',
-      saveFailed: '提醒選項儲存失敗',
+      saveFailed: '提醒選項儲存失敗'
     },
     privacy: {
       title: '隱私安全',
@@ -140,7 +147,7 @@ export default {
       sensitiveFilterDesc: '信用卡號、Token、私鑰等模式過濾需要後端規則支援。',
       appExclusion: '應用排除名單',
       appExclusionDesc: '密碼管理器和指定應用排除名單將在權限層接入。',
-      readOnly: '唯讀',
+      readOnly: '唯讀'
     },
     storage: {
       title: '儲存位置',
@@ -151,7 +158,7 @@ export default {
       dbFile: '資料庫檔案',
       backupDir: '備份目錄',
       backupThreshold: '累計修改次數觸發備份',
-      backupThresholdDesc: '達到閾值後打包本機 Markdown 與索引。',
+      backupThresholdDesc: '達到閾值後打包本機 Markdown 與索引。'
     },
     about: {
       title: '關於 Steno',
@@ -167,8 +174,8 @@ export default {
       dataPolicySub: '預設不上傳筆記內容',
       license: '授權',
       licenseValue: 'MIT',
-      licenseSub: '開源專案',
-    },
+      licenseSub: '開源專案'
+    }
   },
   languages: {
     'zh-CN': '简体中文',
@@ -177,13 +184,13 @@ export default {
     ja: '日本語',
     ko: '한국어',
     fr: 'Français',
-    de: 'Deutsch',
+    de: 'Deutsch'
   },
   sidebar: {
     settings: '設定',
     language: '語言',
     collapse: '折疊側邊欄',
-    expand: '展開側邊欄',
+    expand: '展開側邊欄'
   },
   featureSearch: {
     placeholder: '搜尋功能、設定…',
@@ -197,19 +204,19 @@ export default {
     newNoteDesc: '開啟筆記編輯器建立一篇新筆記',
     quicknote: '速記浮窗',
     quicknoteDesc: '喚出速記浮窗快速記錄',
-    settingsDesc: '開啟應用設定面板',
+    settingsDesc: '開啟應用設定面板'
   },
   mainView: {
     searchPlaceholder: '搜尋筆記…',
     noNotes: '暫無筆記',
-    newNote: '新增筆記',
+    newNote: '新增筆記'
   },
   window: {
     minimize: '最小化',
-    maximize: '最大化',
+    maximize: '最大化'
   },
   markdown: {
     copy: '複製',
-    copied: '已複製',
-  },
+    copied: '已複製'
+  }
 };

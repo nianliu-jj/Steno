@@ -13,14 +13,19 @@
 
 import { convertFileSrc, isTauri } from '@tauri-apps/api/core';
 
+// 局部常量 ABSOLUTE_URL_RE：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const ABSOLUTE_URL_RE = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i;
+// 局部常量 STENO_PROTOCOLS_RE：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const STENO_PROTOCOLS_RE = /^(?:steno-asset|asset|tauri):/i;
+// 局部常量 TILDE_STENO_RE：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const TILDE_STENO_RE = /^[~～]\//;
 
+// 函数 trimTrailingSlash：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function trimTrailingSlash(path: string): string {
   return path.replace(/[\\/]+$/, '');
 }
 
+// 函数 ensureForwardSlashes：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function ensureForwardSlashes(path: string): string {
   return path.replace(/\\/g, '/');
 }
@@ -32,6 +37,7 @@ function ensureForwardSlashes(path: string): string {
  * @param noteDir 当前笔记所在目录绝对路径；空表示无目录上下文（如 text 类型）
  */
 export function resolveImageSrc(src: string, noteDir?: string): string {
+  // 局部常量 trimmed：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const trimmed = src.trim();
   if (!trimmed) return src;
 
@@ -47,14 +53,18 @@ export function resolveImageSrc(src: string, noteDir?: string): string {
   // 没有 noteDir，留给调用方原样使用（spec: text 类型回退场景）
   if (!noteDir) return src;
 
+  // 局部常量 base：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const base = trimForwardSlashed(noteDir);
+  // 局部常量 relative：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const relative = trimmed.replace(/^\.\//, '');
   if (!relative) return src;
 
+  // 局部常量 absolute：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const absolute = `${base}/${relative}`;
   return isTauri() ? convertFileSrc(absolute) : absolute;
 }
 
+// 函数 trimForwardSlashed：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function trimForwardSlashed(noteDir: string): string {
   return trimTrailingSlash(ensureForwardSlashes(noteDir));
 }

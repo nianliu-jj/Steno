@@ -18,6 +18,7 @@ import { parseMarkdown } from '@/components/markdown-editor/prosemirror/parser';
 import { stenoSchema } from '@/components/markdown-editor/prosemirror/schema';
 import { sanitizeHtml } from '@/utils/markdown/sanitize';
 
+// 局部常量 MAX_CODE_PREVIEW_CHARS：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const MAX_CODE_PREVIEW_CHARS = 96;
 
 /** 非文本块级节点 → 中括号占位描述。 */
@@ -25,36 +26,42 @@ const BLOCK_PLACEHOLDERS: Record<string, string> = {
   table: '表格',
   image: '图片',
   math_block: '公式',
-  mermaid_block: '图表',
+  mermaid_block: '图表'
 };
 
+// 函数 compactText：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function compactText(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
+// 函数 truncateText：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function truncateText(text: string, maxLength: number): string {
+  // 局部常量 compact：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const compact = compactText(text);
   if (compact.length <= maxLength) return compact;
   return `${compact.slice(0, maxLength - 1)}…`;
 }
 
+// 函数 stripHtmlNoise：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function stripHtmlNoise(text: string): string {
   return compactText(
     text
       .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
       .replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-      .replace(/<[^>]+>/g, ' '),
+      .replace(/<[^>]+>/g, ' ')
   );
 }
 
 /** 把纯文本转义为可安全注入的 HTML 文本。 */
 function escapeHtml(text: string): string {
+  // 局部常量 holder：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const holder = document.createElement('div');
   holder.textContent = text;
   return holder.innerHTML;
 }
 
 let cachedSerializer: DOMSerializer | null = null;
+// 函数 getSerializer：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function getSerializer(): DOMSerializer {
   if (!cachedSerializer) cachedSerializer = DOMSerializer.fromSchema(stenoSchema);
   return cachedSerializer;
@@ -65,7 +72,9 @@ function getSerializer(): DOMSerializer {
  * `.steno-syntax` 语法标记，避免 `**`、`` ` ``、`#` 等原始符号出现在摘要里。
  */
 function serializeInline(node: ProseMirrorNode): string {
+  // 局部常量 fragment：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const fragment = getSerializer().serializeFragment(node.content);
+  // 局部常量 holder：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const holder = document.createElement('div');
   holder.appendChild(fragment);
   for (const marker of Array.from(holder.querySelectorAll('.steno-syntax'))) {
@@ -87,9 +96,11 @@ function placeholder(label: string): string {
  * - 代码块 → 单行截断预览；HTML 块 → 剥离标签后的可读文本
  */
 function collectPreviewLines(fragment: Fragment, lines: string[]): void {
-  fragment.forEach((node) => {
+  fragment.forEach(node => {
+    // 局部常量 name：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const name = node.type.name;
 
+    // 局部常量 placeholderLabel：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const placeholderLabel = BLOCK_PLACEHOLDERS[name];
     if (placeholderLabel) {
       lines.push(placeholder(placeholderLabel));
@@ -98,21 +109,25 @@ function collectPreviewLines(fragment: Fragment, lines: string[]): void {
 
     switch (name) {
       case 'heading': {
+        // 局部常量 html：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const html = serializeInline(node);
         if (html) lines.push(`<h${node.attrs.level}>${html}</h${node.attrs.level}>`);
         break;
       }
       case 'paragraph': {
+        // 局部常量 html：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const html = serializeInline(node);
         if (html) lines.push(html);
         break;
       }
       case 'code_block': {
+        // 局部常量 code：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const code = truncateText(node.textContent, MAX_CODE_PREVIEW_CHARS);
         if (code) lines.push(`<code class="note-preview-code">${escapeHtml(code)}</code>`);
         break;
       }
       case 'html_block': {
+        // 局部常量 text：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const text = stripHtmlNoise(node.textContent);
         if (text) lines.push(escapeHtml(text));
         break;
@@ -132,6 +147,7 @@ function collectPreviewLines(fragment: Fragment, lines: string[]): void {
       default: {
         // 兜底：未知文本块按行内渲染，其余容器继续递归
         if (node.isTextblock) {
+          // 局部常量 html：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
           const html = serializeInline(node);
           if (html) lines.push(html);
         } else if (node.childCount > 0) {
@@ -142,6 +158,7 @@ function collectPreviewLines(fragment: Fragment, lines: string[]): void {
   });
 }
 
+// 函数 renderNotePreviewHtml：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 export function renderNotePreviewHtml(content: string): string {
   if (!content.trim()) return '';
 

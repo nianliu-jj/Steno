@@ -18,6 +18,7 @@ import { resolveImageSrc } from './images';
 import { sanitizeHtml } from './sanitize';
 import { highlightCode } from './shiki';
 
+// 类型 RenderOptions：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
 export interface RenderOptions {
   /** 当前笔记所在目录的绝对路径（document 类型可用，text 类型为空）。 */
   noteDir?: string;
@@ -29,12 +30,11 @@ export interface RenderOptions {
 function encodeMermaidSource(source: string): string {
   // btoa 仅支持 latin-1，先经 encodeURIComponent → 转字节流 → btoa
   try {
+    // 局部常量 utf8：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const utf8 = new TextEncoder().encode(source);
     let binary = '';
     for (const byte of utf8) binary += String.fromCharCode(byte);
-    return typeof btoa === 'function'
-      ? btoa(binary)
-      : Buffer.from(binary, 'binary').toString('base64');
+    return typeof btoa === 'function' ? btoa(binary) : Buffer.from(binary, 'binary').toString('base64');
   } catch {
     return '';
   }
@@ -50,12 +50,14 @@ function escapeHtml(text: string): string {
     .replace(/'/g, '&#39;');
 }
 
+// 函数 createMarkdownIt：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function createMarkdownIt(): MarkdownIt {
+  // 局部常量 md：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const md = new MarkdownIt({
     html: false,
     linkify: true,
     breaks: false,
-    typographer: false,
+    typographer: false
   });
 
   md.use(taskLists, { enabled: false, label: true });
@@ -69,16 +71,22 @@ function createMarkdownIt(): MarkdownIt {
    * - 其它语言 → 委托 Shiki（未就绪时返回 escaped 文本）
    */
   md.renderer.rules.fence = (tokens, idx) => {
+    // 局部常量 token：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const token = tokens[idx];
+    // 函数式常量 info：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
     const info = (token.info || '').trim();
+    // 局部常量 lang：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const lang = info.split(/\s+/)[0] || '';
+    // 局部常量 source：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const source = token.content ?? '';
 
     if (lang === 'mermaid') {
+      // 局部常量 encoded：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const encoded = encodeMermaidSource(source);
       return `<pre class="mermaid-placeholder" data-source="${encoded}"></pre>\n`;
     }
 
+    // 局部常量 highlighted：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const highlighted = highlightCode(source, lang);
     if (highlighted) {
       return highlighted;
@@ -91,6 +99,7 @@ function createMarkdownIt(): MarkdownIt {
 
   /** 行内代码：加 class 方便样式定位。 */
   md.renderer.rules.code_inline = (tokens, idx) => {
+    // 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const content = escapeHtml(tokens[idx].content);
     return `<code class="md-inline-code">${content}</code>`;
   };
@@ -98,10 +107,14 @@ function createMarkdownIt(): MarkdownIt {
   /** 图片：通过 env.noteDir 把相对路径拼接为 Tauri asset URL。 */
   const defaultImage = md.renderer.rules.image;
   md.renderer.rules.image = (tokens, idx, options, env, self) => {
+    // 局部常量 token：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const token = tokens[idx];
+    // 局部常量 srcAttr：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const srcAttr = token.attrGet('src');
     if (srcAttr) {
+      // 函数式常量 noteDir：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
       const noteDir = (env as { noteDir?: string } | undefined)?.noteDir;
+      // 局部常量 resolved：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const resolved = resolveImageSrc(srcAttr, noteDir);
       if (resolved !== srcAttr) token.attrSet('src', resolved);
     }
@@ -114,12 +127,15 @@ function createMarkdownIt(): MarkdownIt {
   return md;
 }
 
+// 局部常量 md：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const md = createMarkdownIt();
 
+// 函数 renderMarkdown：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 export function renderMarkdown(content: string, opts: RenderOptions = {}): string {
   if (!content) {
     return '';
   }
+  // 局部常量 raw：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const raw = md.render(content, { noteDir: opts.noteDir });
   return sanitizeHtml(raw);
 }

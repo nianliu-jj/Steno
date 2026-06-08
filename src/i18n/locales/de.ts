@@ -1,3 +1,10 @@
+/**
+ * @file 国际化语言包 - de
+ *
+ * 组织 de 的核心逻辑、类型和协作边界，供 国际化语言包 模块复用。
+ * 注释重点标明数据入口、状态边界、事件通道和协作风险点，便于逐行阅读时快速判断代码意图。
+ */
+
 export default {
   common: {
     confirm: 'Bestätigen',
@@ -15,14 +22,14 @@ export default {
     autoSaveHint: 'Alle Änderungen werden lokal gespeichert',
     resetNotSupported: 'Ein-Klick-Zurücksetzen wird in der aktuellen Version nicht unterstützt',
     pressShortcut: 'Tastenkombination drücken',
-    shortcutHint: 'Drücken Sie Ctrl / Alt / Shift / Meta gleichzeitig mit einer anderen Taste',
+    shortcutHint: 'Drücken Sie Ctrl / Alt / Shift / Meta gleichzeitig mit einer anderen Taste'
   },
   nav: {
     notes: 'Notizen',
     canvas: 'Leinwand',
     clipboard: 'Zwischenablage',
     todo: 'Aufgaben',
-    stats: 'Statistik',
+    stats: 'Statistik'
   },
   settings: {
     title: 'Einstellungen',
@@ -36,7 +43,7 @@ export default {
       reminders: 'Erinnerungen',
       privacy: 'Datenschutz',
       storage: 'Speicher',
-      about: 'Über',
+      about: 'Über'
     },
     eyebrows: {
       general: 'Start & Schnellnotiz',
@@ -46,7 +53,7 @@ export default {
       reminders: 'Schnelloptionen',
       privacy: 'Lokal zuerst',
       storage: 'Pfade & Backup',
-      about: 'Versionsinfo',
+      about: 'Versionsinfo'
     },
     general: {
       title: 'Allgemein',
@@ -60,7 +67,7 @@ export default {
       blurCloseDelay: 'Fokusverlust-Verzögerung',
       blurCloseDelayDesc: 'Millisekunden Wartezeit vor dem Schließen nach Fokusverlust der Schnellnotiz.',
       language: 'Oberflächensprache',
-      languageDesc: 'Wechseln Sie die Anzeigesprache der App-Oberfläche. Änderungen werden sofort wirksam.',
+      languageDesc: 'Wechseln Sie die Anzeigesprache der App-Oberfläche. Änderungen werden sofort wirksam.'
     },
     appearance: {
       title: 'Erscheinung',
@@ -73,7 +80,8 @@ export default {
       dark: 'Dunkel',
       system: 'System folgen',
       accentColor: 'Akzentfarbe',
-      accentColorDesc: 'Die Akzentfarbauswahl ist im Prototyp reserviert, wird in der aktuellen Version nicht gespeichert.',
+      accentColorDesc:
+        'Die Akzentfarbauswahl ist im Prototyp reserviert, wird in der aktuellen Version nicht gespeichert.',
       editorMode: 'Editor-Modus',
       editorModeDesc: 'Steuert den Standardanzeigemodus des Markdown-Editors.',
       editorSplit: 'Bearbeiten + Vorschau',
@@ -81,7 +89,7 @@ export default {
       editorPreview: 'Nur Vorschau',
       stickyNote: 'Haftnotiz-Hintergrundfarbe',
       stickyNoteDesc: 'Die Papierfarbe neuer Haftnotizen wird in zukünftigen Versionen mit Leinwandkarten integriert.',
-      planned: 'Geplant',
+      planned: 'Geplant'
     },
     shortcuts: {
       title: 'Tastenkürzel',
@@ -96,14 +104,15 @@ export default {
       search: 'Suche',
       searchDesc: 'Reserviertes App-Feld, noch nicht beim Betriebssystem registriert.',
       shortcutUpdated: '"{name}" aktualisiert',
-      shortcutSaveFailed: 'Tastenkürzel speichern fehlgeschlagen',
+      shortcutSaveFailed: 'Tastenkürzel speichern fehlgeschlagen'
     },
     todo: {
       title: 'Aufgabenpanel',
       desc: 'Globaler Tastenkürzel zum schnellen Anzeigen der heutigen Aufgaben; wählen Sie die Popup-Positionstrategie.',
       groupPanel: 'Panel',
       enabled: 'Aufgabenpanel aktivieren',
-      enabledDesc: 'Wenn deaktiviert, wird der systemweite Tastenkürzel deregistriert und das Panel kann nicht angezeigt werden.',
+      enabledDesc:
+        'Wenn deaktiviert, wird der systemweite Tastenkürzel deregistriert und das Panel kann nicht angezeigt werden.',
       shortcut: 'Tastenkürzel',
       shortcutDesc: 'Drücken Sie direkt Tastenkombinationen; systemweite Tastenkürzel werden neu registriert.',
       position: 'Popup-Position',
@@ -112,7 +121,7 @@ export default {
       positionCursor: 'Cursor folgen',
       positionLast: 'Letzte Position merken',
       enabledSuccess: 'Aufgabenpanel aktiviert',
-      disabledSuccess: 'Aufgabenpanel deaktiviert',
+      disabledSuccess: 'Aufgabenpanel deaktiviert'
     },
     reminders: {
       title: 'Erinnerungen',
@@ -128,19 +137,22 @@ export default {
       unitDay: 'Tage',
       defaultLabel: 'In 15 Minuten',
       emptyHint: 'Keine Schnell-Erinnerungsoptionen.',
-      saveFailed: 'Erinnerungsoptionen speichern fehlgeschlagen',
+      saveFailed: 'Erinnerungsoptionen speichern fehlgeschlagen'
     },
     privacy: {
       title: 'Datenschutz & Sicherheit',
       desc: 'Steno verfolgt derzeit einen Local-First-Ansatz. Datenschutzverbesserungen zeigen Grenzen, ohne in nicht existierende Einstellungsschlüssel zu schreiben.',
       groupLocal: 'Lokaler Schutz',
       dbEncryption: 'Datenbankverschlüsselung',
-      dbEncryptionDesc: 'SQLCipher-Verschlüsselungseintrag ist geplant; die aktuelle Version ändert die Datenbankstruktur nicht.',
+      dbEncryptionDesc:
+        'SQLCipher-Verschlüsselungseintrag ist geplant; die aktuelle Version ändert die Datenbankstruktur nicht.',
       sensitiveFilter: 'Sensible Inhaltsfilterung',
-      sensitiveFilterDesc: 'Musterbasierte Filterung von Kreditkartennummern, Token und privaten Schlüsseln erfordert Backend-Regelunterstützung.',
+      sensitiveFilterDesc:
+        'Musterbasierte Filterung von Kreditkartennummern, Token und privaten Schlüsseln erfordert Backend-Regelunterstützung.',
       appExclusion: 'App-Ausschlussliste',
-      appExclusionDesc: 'Passwort-Manager und bestimmte App-Ausschlusslisten werden auf der Berechtigungsebene integriert.',
-      readOnly: 'Nur lesend',
+      appExclusionDesc:
+        'Passwort-Manager und bestimmte App-Ausschlusslisten werden auf der Berechtigungsebene integriert.',
+      readOnly: 'Nur lesend'
     },
     storage: {
       title: 'Speicher',
@@ -151,7 +163,7 @@ export default {
       dbFile: 'Datenbankdatei',
       backupDir: 'Backup-Verzeichnis',
       backupThreshold: 'Backup-Auslöseschwelle',
-      backupThresholdDesc: 'Lokales Markdown und Index nach Erreichen der Schwelle verpacken.',
+      backupThresholdDesc: 'Lokales Markdown und Index nach Erreichen der Schwelle verpacken.'
     },
     about: {
       title: 'Über Steno',
@@ -167,8 +179,8 @@ export default {
       dataPolicySub: 'Notizen werden standardmäßig nicht hochgeladen',
       license: 'Lizenz',
       licenseValue: 'MIT',
-      licenseSub: 'Open-Source-Projekt',
-    },
+      licenseSub: 'Open-Source-Projekt'
+    }
   },
   languages: {
     'zh-CN': '简体中文',
@@ -177,13 +189,13 @@ export default {
     ja: '日本語',
     ko: '한국어',
     fr: 'Français',
-    de: 'Deutsch',
+    de: 'Deutsch'
   },
   sidebar: {
     settings: 'Einstellungen',
     language: 'Sprache',
     collapse: 'Seitenleiste einklappen',
-    expand: 'Seitenleiste ausklappen',
+    expand: 'Seitenleiste ausklappen'
   },
   featureSearch: {
     placeholder: 'Funktionen, Einstellungen suchen…',
@@ -197,19 +209,19 @@ export default {
     newNoteDesc: 'Notizeditor öffnen, um eine neue Notiz zu erstellen',
     quicknote: 'Schnellnotiz',
     quicknoteDesc: 'Schnellnotiz-Fenster öffnen für schnelle Aufzeichnung',
-    settingsDesc: 'Anwendungseinstellungen öffnen',
+    settingsDesc: 'Anwendungseinstellungen öffnen'
   },
   mainView: {
     searchPlaceholder: 'Notizen suchen…',
     noNotes: 'Noch keine Notizen',
-    newNote: 'Neue Notiz',
+    newNote: 'Neue Notiz'
   },
   window: {
     minimize: 'Minimieren',
-    maximize: 'Maximieren',
+    maximize: 'Maximieren'
   },
   markdown: {
     copy: 'Kopieren',
-    copied: 'Kopiert',
-  },
+    copied: 'Kopiert'
+  }
 };

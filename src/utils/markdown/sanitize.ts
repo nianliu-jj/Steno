@@ -30,10 +30,11 @@ const PURIFY_CONFIG: PurifyConfig = {
     'onblur',
     'onsubmit',
     'onchange',
-    'oninput',
-  ],
+    'oninput'
+  ]
 };
 
+// 函数 sanitizeHtml：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 export function sanitizeHtml(html: string): string {
   if (!html) return '';
   return DOMPurify.sanitize(html, PURIFY_CONFIG) as unknown as string;

@@ -1,3 +1,10 @@
+/**
+ * @file 国际化语言包 - en
+ *
+ * 组织 en 的核心逻辑、类型和协作边界，供 国际化语言包 模块复用。
+ * 注释重点标明数据入口、状态边界、事件通道和协作风险点，便于逐行阅读时快速判断代码意图。
+ */
+
 export default {
   common: {
     confirm: 'Confirm',
@@ -15,14 +22,14 @@ export default {
     autoSaveHint: 'All changes are saved locally',
     resetNotSupported: 'One-click reset is not supported in the current version',
     pressShortcut: 'Press shortcut',
-    shortcutHint: 'Press Ctrl / Alt / Shift / Meta with another key',
+    shortcutHint: 'Press Ctrl / Alt / Shift / Meta with another key'
   },
   nav: {
     notes: 'Notes',
     canvas: 'Canvas',
     clipboard: 'Clipboard',
     todo: 'Todo',
-    stats: 'Stats',
+    stats: 'Stats'
   },
   settings: {
     title: 'Settings',
@@ -36,7 +43,7 @@ export default {
       reminders: 'Reminders',
       privacy: 'Privacy',
       storage: 'Storage',
-      about: 'About',
+      about: 'About'
     },
     eyebrows: {
       general: 'Startup & Quicknote',
@@ -46,7 +53,7 @@ export default {
       reminders: 'Quick Options',
       privacy: 'Local First',
       storage: 'Paths & Backup',
-      about: 'Version Info',
+      about: 'Version Info'
     },
     general: {
       title: 'General',
@@ -60,7 +67,7 @@ export default {
       blurCloseDelay: 'Blur Close Delay',
       blurCloseDelayDesc: 'Milliseconds to wait before closing after the quicknote loses focus.',
       language: 'Interface Language',
-      languageDesc: 'Switch the display language of the app interface. Changes take effect immediately.',
+      languageDesc: 'Switch the display language of the app interface. Changes take effect immediately.'
     },
     appearance: {
       title: 'Appearance',
@@ -81,7 +88,7 @@ export default {
       editorPreview: 'Preview Only',
       stickyNote: 'Sticky Note Color',
       stickyNoteDesc: 'Default note paper color will be integrated with canvas cards in future versions.',
-      planned: 'Planned',
+      planned: 'Planned'
     },
     shortcuts: {
       title: 'Shortcuts',
@@ -96,11 +103,11 @@ export default {
       search: 'Search',
       searchDesc: 'Reserved for in-app use, not yet registered with the OS.',
       shortcutUpdated: 'Updated "{name}"',
-      shortcutSaveFailed: 'Failed to save shortcut',
+      shortcutSaveFailed: 'Failed to save shortcut'
     },
     todo: {
       title: 'Todo Panel',
-      desc: 'Global shortcut to quickly show today\'s todos; choose the popup position strategy.',
+      desc: "Global shortcut to quickly show today's todos; choose the popup position strategy.",
       groupPanel: 'Panel',
       enabled: 'Enable Todo Panel',
       enabledDesc: 'When disabled, the system-level shortcut will be unregistered and the panel cannot be shown.',
@@ -112,7 +119,7 @@ export default {
       positionCursor: 'Follow Cursor',
       positionLast: 'Remember Last Position',
       enabledSuccess: 'Todo panel enabled',
-      disabledSuccess: 'Todo panel disabled',
+      disabledSuccess: 'Todo panel disabled'
     },
     reminders: {
       title: 'Reminders',
@@ -128,19 +135,22 @@ export default {
       unitDay: 'Days',
       defaultLabel: 'In 15 minutes',
       emptyHint: 'No quick reminder options.',
-      saveFailed: 'Failed to save reminder options',
+      saveFailed: 'Failed to save reminder options'
     },
     privacy: {
       title: 'Privacy & Security',
       desc: 'Steno currently maintains a local-first approach. Privacy enhancements show boundaries without writing to non-existent settings.',
       groupLocal: 'Local Protection',
       dbEncryption: 'Database Encryption',
-      dbEncryptionDesc: 'SQLCipher encryption entry is planned; the current version does not modify database structure.',
+      dbEncryptionDesc:
+        'SQLCipher encryption entry is planned; the current version does not modify database structure.',
       sensitiveFilter: 'Sensitive Content Filter',
-      sensitiveFilterDesc: 'Pattern filtering for credit card numbers, tokens, and private keys requires backend rule support.',
+      sensitiveFilterDesc:
+        'Pattern filtering for credit card numbers, tokens, and private keys requires backend rule support.',
       appExclusion: 'App Exclusion List',
-      appExclusionDesc: 'Password managers and designated app exclusion lists will be integrated at the permission layer.',
-      readOnly: 'Read Only',
+      appExclusionDesc:
+        'Password managers and designated app exclusion lists will be integrated at the permission layer.',
+      readOnly: 'Read Only'
     },
     storage: {
       title: 'Storage',
@@ -151,7 +161,7 @@ export default {
       dbFile: 'Database File',
       backupDir: 'Backup Directory',
       backupThreshold: 'Backup Trigger Threshold',
-      backupThresholdDesc: 'Package local Markdown and index after reaching the threshold.',
+      backupThresholdDesc: 'Package local Markdown and index after reaching the threshold.'
     },
     about: {
       title: 'About Steno',
@@ -167,8 +177,8 @@ export default {
       dataPolicySub: 'Notes are not uploaded by default',
       license: 'License',
       licenseValue: 'MIT',
-      licenseSub: 'Open source project',
-    },
+      licenseSub: 'Open source project'
+    }
   },
   languages: {
     'zh-CN': '简体中文',
@@ -177,13 +187,13 @@ export default {
     ja: '日本語',
     ko: '한국어',
     fr: 'Français',
-    de: 'Deutsch',
+    de: 'Deutsch'
   },
   sidebar: {
     settings: 'Settings',
     language: 'Language',
     collapse: 'Collapse sidebar',
-    expand: 'Expand sidebar',
+    expand: 'Expand sidebar'
   },
   featureSearch: {
     placeholder: 'Search features, settings…',
@@ -197,19 +207,19 @@ export default {
     newNoteDesc: 'Open note editor to create a new note',
     quicknote: 'Quicknote',
     quicknoteDesc: 'Open quicknote window for fast recording',
-    settingsDesc: 'Open application settings',
+    settingsDesc: 'Open application settings'
   },
   mainView: {
     searchPlaceholder: 'Search notes…',
     noNotes: 'No notes yet',
-    newNote: 'New Note',
+    newNote: 'New Note'
   },
   window: {
     minimize: 'Minimize',
-    maximize: 'Maximize',
+    maximize: 'Maximize'
   },
   markdown: {
     copy: 'Copy',
-    copied: 'Copied',
-  },
+    copied: 'Copied'
+  }
 };

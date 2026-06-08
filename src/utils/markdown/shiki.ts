@@ -13,6 +13,7 @@
 
 import { createHighlighter, type Highlighter } from 'shiki';
 
+// 局部常量 LANGS：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const LANGS = [
   'markdown',
   'javascript',
@@ -41,9 +42,10 @@ const LANGS = [
   'php',
   'ruby',
   'xml',
-  'diff',
+  'diff'
 ] as const;
 
+// 局部常量 THEMES：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const THEMES = ['github-light', 'github-dark'] as const;
 
 let highlighter: Highlighter | null = null;
@@ -59,12 +61,12 @@ export function warmupShiki(): Promise<void> {
   }
   warmupPromise = createHighlighter({
     themes: [...THEMES],
-    langs: [...LANGS],
+    langs: [...LANGS]
   })
-    .then((h) => {
+    .then(h => {
       highlighter = h;
     })
-    .catch((err) => {
+    .catch(err => {
       console.error('[shiki] warmup failed:', err);
       // 失败后允许下次重试
       warmupPromise = null;
@@ -82,17 +84,17 @@ export function isShikiReady(): boolean {
 /** 把原始代码用 base64 编码塞进 data-code（避免 HTML 注入与转义问题）。 */
 function encodeCode(code: string): string {
   try {
+    // 局部常量 utf8：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const utf8 = new TextEncoder().encode(code);
     let binary = '';
     for (const byte of utf8) binary += String.fromCharCode(byte);
-    return typeof btoa === 'function'
-      ? btoa(binary)
-      : Buffer.from(binary, 'binary').toString('base64');
+    return typeof btoa === 'function' ? btoa(binary) : Buffer.from(binary, 'binary').toString('base64');
   } catch {
     return '';
   }
 }
 
+// 函数 escapeAttr：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function escapeAttr(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
@@ -115,6 +117,7 @@ export function highlightCode(code: string, lang: string): string {
     return '';
   }
 
+  // 局部常量 loaded：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const loaded = highlighter.getLoadedLanguages();
   if (!loaded.includes(lang)) {
     return '';
@@ -125,20 +128,24 @@ export function highlightCode(code: string, lang: string): string {
     inner = highlighter.codeToHtml(code, {
       lang,
       themes: { light: 'github-light', dark: 'github-dark' },
-      defaultColor: false,
+      defaultColor: false
     });
   } catch (err) {
     console.error('[shiki] highlight failed:', err);
     return '';
   }
 
+  // 局部常量 encoded：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const encoded = encodeCode(code);
+  // 局部常量 safeLang：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const safeLang = escapeAttr(lang);
-  return `<div class="shiki-block" data-lang="${safeLang}">`
-    + `<div class="shiki-head">`
-    + `<span class="shiki-lang">${safeLang}</span>`
-    + `<button class="shiki-copy" type="button" data-code="${encoded}" aria-label="copy code">复制</button>`
-    + `</div>`
-    + inner
-    + `</div>\n`;
+  return (
+    `<div class="shiki-block" data-lang="${safeLang}">` +
+    `<div class="shiki-head">` +
+    `<span class="shiki-lang">${safeLang}</span>` +
+    `<button class="shiki-copy" type="button" data-code="${encoded}" aria-label="copy code">复制</button>` +
+    `</div>` +
+    inner +
+    `</div>\n`
+  );
 }

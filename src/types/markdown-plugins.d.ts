@@ -13,6 +13,7 @@ declare module 'markdown-it-mark' {
 
 declare module 'markdown-it-task-lists' {
   import type { PluginWithOptions } from 'markdown-it';
+  // 类型 TaskListsOptions：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
   interface TaskListsOptions {
     enabled?: boolean;
     label?: boolean;
@@ -24,6 +25,7 @@ declare module 'markdown-it-task-lists' {
 
 declare module '@vscode/markdown-it-katex' {
   import type { PluginWithOptions } from 'markdown-it';
+  // 类型 KatexOptions：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
   interface KatexOptions {
     throwOnError?: boolean;
     errorColor?: string;

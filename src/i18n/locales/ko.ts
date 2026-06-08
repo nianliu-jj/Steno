@@ -1,3 +1,10 @@
+/**
+ * @file 国际化语言包 - ko
+ *
+ * 组织 ko 的核心逻辑、类型和协作边界，供 国际化语言包 模块复用。
+ * 注释重点标明数据入口、状态边界、事件通道和协作风险点，便于逐行阅读时快速判断代码意图。
+ */
+
 export default {
   common: {
     confirm: '확인',
@@ -15,14 +22,14 @@ export default {
     autoSaveHint: '모든 변경 사항이 자동으로 로컬에 저장됩니다',
     resetNotSupported: '현재 버전에서는 일괄 초기화를 지원하지 않습니다',
     pressShortcut: '단축키를 누르세요',
-    shortcutHint: 'Ctrl / Alt / Shift / Meta 키와 다른 키를 동시에 누르세요',
+    shortcutHint: 'Ctrl / Alt / Shift / Meta 키와 다른 키를 동시에 누르세요'
   },
   nav: {
     notes: '노트',
     canvas: '캔버스',
     clipboard: '클립보드',
     todo: '할 일',
-    stats: '통계',
+    stats: '통계'
   },
   settings: {
     title: '설정',
@@ -36,7 +43,7 @@ export default {
       reminders: '알림',
       privacy: '개인정보',
       storage: '저장소',
-      about: '정보',
+      about: '정보'
     },
     eyebrows: {
       general: '시작 및 빠른 메모',
@@ -46,7 +53,7 @@ export default {
       reminders: '빠른 옵션',
       privacy: '로컬 우선',
       storage: '경로 및 백업',
-      about: '버전 정보',
+      about: '버전 정보'
     },
     general: {
       title: '일반',
@@ -60,7 +67,7 @@ export default {
       blurCloseDelay: '포커스 상실 닫기 지연',
       blurCloseDelayDesc: '빠른 메모가 포커스를 잃은 후 닫기까지 대기하는 밀리초.',
       language: '인터페이스 언어',
-      languageDesc: '앱 인터페이스의 표시 언어를 전환합니다. 변경 사항이 즉시 적용됩니다.',
+      languageDesc: '앱 인터페이스의 표시 언어를 전환합니다. 변경 사항이 즉시 적용됩니다.'
     },
     appearance: {
       title: '외관',
@@ -81,7 +88,7 @@ export default {
       editorPreview: '미리보기만',
       stickyNote: '메모지 기본 배경색',
       stickyNoteDesc: '새 메모지의 용지 색상은 향후 버전에서 캔버스 카드와 통합됩니다.',
-      planned: '계획 중',
+      planned: '계획 중'
     },
     shortcuts: {
       title: '단축키',
@@ -96,7 +103,7 @@ export default {
       search: '검색',
       searchDesc: '앱 내 예약 필드. 현재는 OS에 등록되지 않았습니다.',
       shortcutUpdated: '"{name}" 업데이트됨',
-      shortcutSaveFailed: '단축키 저장 실패',
+      shortcutSaveFailed: '단축키 저장 실패'
     },
     todo: {
       title: '할 일 패널',
@@ -112,7 +119,7 @@ export default {
       positionCursor: '커서 따라가기',
       positionLast: '마지막 위치 기억',
       enabledSuccess: '할 일 패널이 활성화되었습니다',
-      disabledSuccess: '할 일 패널이 비활성화되었습니다',
+      disabledSuccess: '할 일 패널이 비활성화되었습니다'
     },
     reminders: {
       title: '알림 설정',
@@ -128,19 +135,20 @@ export default {
       unitDay: '일',
       defaultLabel: '15분 후',
       emptyHint: '빠른 알림 옵션이 없습니다.',
-      saveFailed: '알림 옵션 저장 실패',
+      saveFailed: '알림 옵션 저장 실패'
     },
     privacy: {
       title: '개인정보 및 보안',
       desc: 'Steno는 현재 로컬 우선 접근 방식을 유지합니다. 개인정보 보호 기능은 존재하지 않는 설정 키에 쓰지 않고 경계를 표시합니다.',
       groupLocal: '로컬 보호',
       dbEncryption: '데이터베이스 암호화',
-      dbEncryptionDesc: 'SQLCipher 암호화 항목이 계획되어 있습니다. 현재 버전에서는 데이터베이스 구조를 변경하지 않습니다.',
+      dbEncryptionDesc:
+        'SQLCipher 암호화 항목이 계획되어 있습니다. 현재 버전에서는 데이터베이스 구조를 변경하지 않습니다.',
       sensitiveFilter: '민감한 콘텐츠 필터',
       sensitiveFilterDesc: '신용카드 번호, 토큰, 개인 키 등의 패턴 필터링에는 백엔드 규칙 지원이 필요합니다.',
       appExclusion: '앱 제외 목록',
       appExclusionDesc: '비밀번호 관리자 및 지정된 앱 제외 목록은 권한 레이어에서 통합됩니다.',
-      readOnly: '읽기 전용',
+      readOnly: '읽기 전용'
     },
     storage: {
       title: '저장소',
@@ -151,7 +159,7 @@ export default {
       dbFile: '데이터베이스 파일',
       backupDir: '백업 디렉토리',
       backupThreshold: '백업 트리거 임계값',
-      backupThresholdDesc: '임계값에 도달하면 로컬 Markdown과 인덱스를 패키징합니다.',
+      backupThresholdDesc: '임계값에 도달하면 로컬 Markdown과 인덱스를 패키징합니다.'
     },
     about: {
       title: 'Steno 정보',
@@ -167,8 +175,8 @@ export default {
       dataPolicySub: '기본적으로 노트 내용이 업로드되지 않습니다',
       license: '라이선스',
       licenseValue: 'MIT',
-      licenseSub: '오픈 소스 프로젝트',
-    },
+      licenseSub: '오픈 소스 프로젝트'
+    }
   },
   languages: {
     'zh-CN': '简体中文',
@@ -177,13 +185,13 @@ export default {
     ja: '日本語',
     ko: '한국어',
     fr: 'Français',
-    de: 'Deutsch',
+    de: 'Deutsch'
   },
   sidebar: {
     settings: '설정',
     language: '언어',
     collapse: '사이드바 접기',
-    expand: '사이드바 펼치기',
+    expand: '사이드바 펼치기'
   },
   featureSearch: {
     placeholder: '기능, 설정 검색…',
@@ -197,19 +205,19 @@ export default {
     newNoteDesc: '노트 편집기를 열어 새 노트 만들기',
     quicknote: '빠른 메모',
     quicknoteDesc: '빠른 메모 창을 열어 빠르게 기록',
-    settingsDesc: '애플리케이션 설정 열기',
+    settingsDesc: '애플리케이션 설정 열기'
   },
   mainView: {
     searchPlaceholder: '노트 검색…',
     noNotes: '노트가 없습니다',
-    newNote: '새 노트',
+    newNote: '새 노트'
   },
   window: {
     minimize: '최소화',
-    maximize: '최대화',
+    maximize: '최대화'
   },
   markdown: {
     copy: '복사',
-    copied: '복사됨',
-  },
+    copied: '복사됨'
+  }
 };

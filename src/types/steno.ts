@@ -158,8 +158,10 @@ export interface SearchNotesRequest {
   limit: number;
 }
 
+// 类型 ClipboardContentType：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
 export type ClipboardContentType = 'text' | 'url' | 'code' | 'image' | 'file' | 'rich_text';
 
+// 类型 ClipboardEntry：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
 export interface ClipboardEntry {
   id: string;
   contentType: ClipboardContentType;
@@ -425,11 +427,4 @@ export interface TodoTrendPoint {
 }
 
 /** 主窗口待办视图的左侧分类标识。 */
-export type TodoCategory =
-  | 'today'
-  | 'planned'
-  | 'doing'
-  | 'paused'
-  | 'done'
-  | 'all'
-  | 'inbox';
+export type TodoCategory = 'today' | 'planned' | 'doing' | 'paused' | 'done' | 'all' | 'inbox';

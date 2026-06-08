@@ -1,3 +1,10 @@
+/**
+ * @file 国际化语言包 - ja
+ *
+ * 组织 ja 的核心逻辑、类型和协作边界，供 国际化语言包 模块复用。
+ * 注释重点标明数据入口、状态边界、事件通道和协作风险点，便于逐行阅读时快速判断代码意图。
+ */
+
 export default {
   common: {
     confirm: '確認',
@@ -15,14 +22,14 @@ export default {
     autoSaveHint: 'すべての変更は自動的にローカルに保存されます',
     resetNotSupported: '現在のバージョンではワンクリックリセットはサポートされていません',
     pressShortcut: 'ショートカットを押してください',
-    shortcutHint: 'Ctrl / Alt / Shift / Meta キーを他のキーと同時に押してください',
+    shortcutHint: 'Ctrl / Alt / Shift / Meta キーを他のキーと同時に押してください'
   },
   nav: {
     notes: 'ノート',
     canvas: 'キャンバス',
     clipboard: 'クリップボード',
     todo: 'タスク',
-    stats: '統計',
+    stats: '統計'
   },
   settings: {
     title: '設定',
@@ -36,7 +43,7 @@ export default {
       reminders: 'リマインダー',
       privacy: 'プライバシー',
       storage: 'ストレージ',
-      about: 'について',
+      about: 'について'
     },
     eyebrows: {
       general: '起動とクイックノート',
@@ -46,7 +53,7 @@ export default {
       reminders: 'クイックオプション',
       privacy: 'ローカルファースト',
       storage: 'パスとバックアップ',
-      about: 'バージョン情報',
+      about: 'バージョン情報'
     },
     general: {
       title: '一般',
@@ -60,7 +67,7 @@ export default {
       blurCloseDelay: 'フォーカス喪失時の遅延',
       blurCloseDelayDesc: 'クイックノートがフォーカスを失った後に閉じるまでのミリ秒数。',
       language: 'インターフェース言語',
-      languageDesc: 'アプリの表示言語を切り替えます。変更はすぐに反映されます。',
+      languageDesc: 'アプリの表示言語を切り替えます。変更はすぐに反映されます。'
     },
     appearance: {
       title: '外観',
@@ -81,7 +88,7 @@ export default {
       editorPreview: 'プレビューのみ',
       stickyNote: '付箋のデフォルト背景色',
       stickyNoteDesc: '新しい付箋の用紙色は今後のバージョンでキャンバスカードに統合されます。',
-      planned: '計画中',
+      planned: '計画中'
     },
     shortcuts: {
       title: 'ショートカット',
@@ -96,7 +103,7 @@ export default {
       search: '検索',
       searchDesc: 'アプリ内予約フィールド。現在はOSに登録されていません。',
       shortcutUpdated: '「{name}」を更新しました',
-      shortcutSaveFailed: 'ショートカットの保存に失敗しました',
+      shortcutSaveFailed: 'ショートカットの保存に失敗しました'
     },
     todo: {
       title: 'タスクパネル',
@@ -112,7 +119,7 @@ export default {
       positionCursor: 'カーソルに追従',
       positionLast: '前回の位置を記憶',
       enabledSuccess: 'タスクパネルを有効にしました',
-      disabledSuccess: 'タスクパネルを無効にしました',
+      disabledSuccess: 'タスクパネルを無効にしました'
     },
     reminders: {
       title: 'リマインダー設定',
@@ -128,7 +135,7 @@ export default {
       unitDay: '日',
       defaultLabel: '15分後',
       emptyHint: 'クイックリマインダーオプションがありません。',
-      saveFailed: 'リマインダーオプションの保存に失敗しました',
+      saveFailed: 'リマインダーオプションの保存に失敗しました'
     },
     privacy: {
       title: 'プライバシーとセキュリティ',
@@ -137,10 +144,11 @@ export default {
       dbEncryption: 'データベース暗号化',
       dbEncryptionDesc: 'SQLCipher暗号化エントリは計画中。現在のバージョンではデータベース構造を変更しません。',
       sensitiveFilter: '機密コンテンツフィルター',
-      sensitiveFilterDesc: 'クレジットカード番号、トークン、秘密鍵などのパターンフィルタリングにはバックエンドルールサポートが必要です。',
+      sensitiveFilterDesc:
+        'クレジットカード番号、トークン、秘密鍵などのパターンフィルタリングにはバックエンドルールサポートが必要です。',
       appExclusion: 'アプリ除外リスト',
       appExclusionDesc: 'パスワードマネージャーと指定アプリの除外リストは権限レイヤーで統合されます。',
-      readOnly: '読み取り専用',
+      readOnly: '読み取り専用'
     },
     storage: {
       title: 'ストレージ',
@@ -151,7 +159,7 @@ export default {
       dbFile: 'データベースファイル',
       backupDir: 'バックアップディレクトリ',
       backupThreshold: 'バックアップトリガーの閾値',
-      backupThresholdDesc: '閾値に達するとローカルMarkdownとインデックスをパッケージ化します。',
+      backupThresholdDesc: '閾値に達するとローカルMarkdownとインデックスをパッケージ化します。'
     },
     about: {
       title: 'Stenoについて',
@@ -167,8 +175,8 @@ export default {
       dataPolicySub: 'デフォルトでノート内容はアップロードされません',
       license: 'ライセンス',
       licenseValue: 'MIT',
-      licenseSub: 'オープンソースプロジェクト',
-    },
+      licenseSub: 'オープンソースプロジェクト'
+    }
   },
   languages: {
     'zh-CN': '简体中文',
@@ -177,13 +185,13 @@ export default {
     ja: '日本語',
     ko: '한국어',
     fr: 'Français',
-    de: 'Deutsch',
+    de: 'Deutsch'
   },
   sidebar: {
     settings: '設定',
     language: '言語',
     collapse: 'サイドバーを折りたたむ',
-    expand: 'サイドバーを展開',
+    expand: 'サイドバーを展開'
   },
   featureSearch: {
     placeholder: '機能、設定を検索…',
@@ -197,19 +205,19 @@ export default {
     newNoteDesc: 'ノートエディタを開いて新しいノートを作成',
     quicknote: 'クイックノート',
     quicknoteDesc: 'クイックノートウィンドウを開いて素早く記録',
-    settingsDesc: 'アプリケーション設定を開く',
+    settingsDesc: 'アプリケーション設定を開く'
   },
   mainView: {
     searchPlaceholder: 'ノートを検索…',
     noNotes: 'ノートがありません',
-    newNote: '新しいノート',
+    newNote: '新しいノート'
   },
   window: {
     minimize: '最小化',
-    maximize: '最大化',
+    maximize: '最大化'
   },
   markdown: {
     copy: 'コピー',
-    copied: 'コピー済み',
-  },
+    copied: 'コピー済み'
+  }
 };

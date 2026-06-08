@@ -1,3 +1,10 @@
+/*
+ * @file 全局样式 - global
+ *
+ * 定义 global 的布局、主题变量和渲染细节，约束组件在不同窗口状态下的视觉表现。
+ * 注释重点标明选择器职责、布局约束和主题变量的影响范围。
+ */
+
 *,
 *::before,
 *::after {
@@ -6,6 +13,7 @@
 
 html,
 body,
+/* #app：声明 global 的视觉范围、布局条件或跨主题表现。 */
 #app {
   width: 100%;
   height: 100%;
@@ -13,6 +21,7 @@ body,
   padding: 0;
 }
 
+/* #app：声明 global 的视觉范围、布局条件或跨主题表现。 */
 #app {
   border-radius: var(--app-window-radius, 12px);
   background: var(--app-bg, #1f1f24);
@@ -30,28 +39,23 @@ body,
  * 时打到 <html> 上。圆角与背景完全交给浮窗自身处理。
  */
 html.window-todo-panel,
+/* html.window-todo-panel body：声明 global 的视觉范围、布局条件或跨主题表现。 */
 html.window-todo-panel body {
   background: transparent;
 }
 
+/* html.window-todo-panel #app：声明 global 的视觉范围、布局条件或跨主题表现。 */
 html.window-todo-panel #app {
   background: transparent;
   border-radius: 0;
   clip-path: none;
 }
 
+/* body：声明 global 的视觉范围、布局条件或跨主题表现。 */
 body {
   font-family:
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    'PingFang SC',
-    'Hiragino Sans GB',
-    'Microsoft YaHei',
-    Roboto,
-    Helvetica,
-    Arial,
-    sans-serif;
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Roboto,
+    Helvetica, Arial, sans-serif;
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;

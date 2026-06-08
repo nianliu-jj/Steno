@@ -1,3 +1,10 @@
+/**
+ * @file 国际化语言包 - zh CN
+ *
+ * 组织 zh CN 的核心逻辑、类型和协作边界，供 国际化语言包 模块复用。
+ * 注释重点标明数据入口、状态边界、事件通道和协作风险点，便于逐行阅读时快速判断代码意图。
+ */
+
 export default {
   common: {
     confirm: '确认',
@@ -15,14 +22,14 @@ export default {
     autoSaveHint: '所有更改自动保存到本地',
     resetNotSupported: '当前版本暂不支持一键重置',
     pressShortcut: '按下快捷键',
-    shortcutHint: '请同时按下 Ctrl / Alt / Shift / Meta 与一个按键',
+    shortcutHint: '请同时按下 Ctrl / Alt / Shift / Meta 与一个按键'
   },
   nav: {
     notes: '笔记列表',
     canvas: '画布',
     clipboard: '粘贴板',
     todo: '待办',
-    stats: '统计',
+    stats: '统计'
   },
   settings: {
     title: '设置',
@@ -36,7 +43,7 @@ export default {
       reminders: '提醒设置',
       privacy: '隐私安全',
       storage: '存储',
-      about: '关于',
+      about: '关于'
     },
     eyebrows: {
       general: '启动与速记',
@@ -46,7 +53,7 @@ export default {
       reminders: '快捷选项',
       privacy: '本地优先',
       storage: '路径与备份',
-      about: '版本信息',
+      about: '版本信息'
     },
     general: {
       title: '常规',
@@ -60,7 +67,7 @@ export default {
       blurCloseDelay: '失焦关闭延迟',
       blurCloseDelayDesc: '速记浮窗失去焦点后等待关闭的毫秒数。',
       language: '界面语言',
-      languageDesc: '切换应用界面的显示语言，更改后立即生效。',
+      languageDesc: '切换应用界面的显示语言，更改后立即生效。'
     },
     appearance: {
       title: '外观',
@@ -81,7 +88,7 @@ export default {
       editorPreview: '只预览',
       stickyNote: '便签默认底色',
       stickyNoteDesc: '新便签纸张颜色将在后续版本接入画布卡片。',
-      planned: '规划中',
+      planned: '规划中'
     },
     shortcuts: {
       title: '快捷键',
@@ -96,7 +103,7 @@ export default {
       search: '搜索',
       searchDesc: '当前为应用内预留字段，暂不注册到操作系统。',
       shortcutUpdated: '已更新「{name}」',
-      shortcutSaveFailed: '快捷键保存失败',
+      shortcutSaveFailed: '快捷键保存失败'
     },
     todo: {
       title: '待办浮窗',
@@ -112,7 +119,7 @@ export default {
       positionCursor: '跟随光标',
       positionLast: '记住上次位置',
       enabledSuccess: '已启用待办浮窗',
-      disabledSuccess: '已停用待办浮窗',
+      disabledSuccess: '已停用待办浮窗'
     },
     reminders: {
       title: '提醒设置',
@@ -128,7 +135,7 @@ export default {
       unitDay: '天',
       defaultLabel: '15 分钟后',
       emptyHint: '暂无快捷提醒选项。',
-      saveFailed: '提醒选项保存失败',
+      saveFailed: '提醒选项保存失败'
     },
     privacy: {
       title: '隐私安全',
@@ -140,7 +147,7 @@ export default {
       sensitiveFilterDesc: '信用卡号、Token、私钥等模式过滤需要后端规则支持。',
       appExclusion: '应用排除名单',
       appExclusionDesc: '密码管理器和指定应用排除名单将在权限层接入。',
-      readOnly: '只读',
+      readOnly: '只读'
     },
     storage: {
       title: '存储位置',
@@ -151,7 +158,7 @@ export default {
       dbFile: '数据库文件',
       backupDir: '备份目录',
       backupThreshold: '累计修改次数触发备份',
-      backupThresholdDesc: '达到阈值后打包本地 Markdown 与索引。',
+      backupThresholdDesc: '达到阈值后打包本地 Markdown 与索引。'
     },
     about: {
       title: '关于 Steno',
@@ -167,8 +174,8 @@ export default {
       dataPolicySub: '默认不上传笔记内容',
       license: '许可证',
       licenseValue: 'MIT',
-      licenseSub: '开源项目',
-    },
+      licenseSub: '开源项目'
+    }
   },
   languages: {
     'zh-CN': '简体中文',
@@ -177,13 +184,13 @@ export default {
     ja: '日本語',
     ko: '한국어',
     fr: 'Français',
-    de: 'Deutsch',
+    de: 'Deutsch'
   },
   sidebar: {
     settings: '设置',
     language: '语言',
     collapse: '折叠侧边栏',
-    expand: '展开侧边栏',
+    expand: '展开侧边栏'
   },
   featureSearch: {
     placeholder: '搜索功能、设置…',
@@ -197,19 +204,19 @@ export default {
     newNoteDesc: '打开笔记编辑器创建一篇新笔记',
     quicknote: '速记浮窗',
     quicknoteDesc: '呼出速记浮窗快速记录',
-    settingsDesc: '打开应用设置面板',
+    settingsDesc: '打开应用设置面板'
   },
   mainView: {
     searchPlaceholder: '搜索笔记…',
     noNotes: '暂无笔记',
-    newNote: '新建笔记',
+    newNote: '新建笔记'
   },
   window: {
     minimize: '最小化',
-    maximize: '最大化',
+    maximize: '最大化'
   },
   markdown: {
     copy: '复制',
-    copied: '已复制',
-  },
+    copied: '已复制'
+  }
 };
