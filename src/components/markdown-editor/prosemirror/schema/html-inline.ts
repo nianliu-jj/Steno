@@ -40,7 +40,7 @@ export const SAFE_INLINE_TAGS = new Set<string>([
   'sub',
   'sup',
   'a',
-  'font',
+  'font'
 ]);
 
 /**
@@ -63,16 +63,16 @@ export const SAFE_INLINE_TAGS = new Set<string>([
 export function parseHtmlAttrs(attrStr: string): Record<string, string> {
   if (!attrStr) return {};
   const result: Record<string, string> = {};
+  // 局部常量 re：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const re = /([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*(?:=\s*(?:"([^"]*)"|'([^']*)'|(\S+)))?/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(attrStr)) !== null) {
+    // 局部常量 name：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const name = m[1].toLowerCase();
+    // 局部常量 value：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const value = m[2] ?? m[3] ?? m[4] ?? '';
     if (name.startsWith('on')) continue;
-    if (
-      (name === 'href' || name === 'src' || name === 'action')
-      && /^\s*(javascript|vbscript|data)\s*:/i.test(value)
-    ) {
+    if ((name === 'href' || name === 'src' || name === 'action') && /^\s*(javascript|vbscript|data)\s*:/i.test(value)) {
       continue;
     }
     result[name] = value;

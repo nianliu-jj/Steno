@@ -43,6 +43,7 @@ export interface PastePluginConfig {
 /** 将 File 读为 data URL（与 extensions.readFileAsDataUrl 一致的实现）。 */
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
+    // 局部常量 reader：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const reader = new FileReader();
     reader.addEventListener('load', () => {
       if (typeof reader.result === 'string') resolve(reader.result);
@@ -64,16 +65,19 @@ export function createPastePlugin(config: PastePluginConfig = {}): Plugin {
 
     props: {
       handlePaste(view, event) {
+        // 局部常量 clipboardData：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const clipboardData = event.clipboardData;
         if (!clipboardData) return false;
 
         // 是否处于源码模式
         const decoState = decorationPluginKey.getState(view.state);
+        // 局部常量 isSourceView：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const isSourceView = decoState?.sourceView ?? false;
 
         // 图片
         const files = clipboardData.files;
         if (files && files.length > 0) {
+          // 局部常量 imageFiles：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
           const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
           if (imageFiles.length > 0) {
             void handleImagePaste(view, imageFiles, config);
@@ -81,6 +85,7 @@ export function createPastePlugin(config: PastePluginConfig = {}): Plugin {
           }
         }
 
+        // 局部常量 text：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const text = clipboardData.getData('text/plain');
         if (!text) return false;
 
@@ -106,19 +111,21 @@ export function createPastePlugin(config: PastePluginConfig = {}): Plugin {
 
         // 解析 Markdown
         const { doc } = parseMarkdown(text);
+        // 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const content = doc.content;
         if (content.size === 0) return false;
 
         // 延迟到下一帧插入，确保 ProseMirror 完成粘贴事件处理后再更新视图，
         // 让装饰系统能正确重算所有语法标记的显隐状态。
         requestAnimationFrame(() => {
+          // 局部常量 pasteSlice：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
           const pasteSlice = new Slice(content, 1, 1);
           view.dispatch(view.state.tr.replaceSelection(pasteSlice));
         });
 
         return true;
-      },
-    },
+      }
+    }
   });
 }
 
@@ -128,11 +135,14 @@ export function createPastePlugin(config: PastePluginConfig = {}): Plugin {
  */
 export function insertImageWithCaretAfter(state: EditorState, imageNode: Node): Transaction {
   let tr = state.tr.replaceSelectionWith(imageNode);
+  // 局部常量 sel：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const sel = tr.selection;
+  // 局部常量 landedInTextblock：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const landedInTextblock = sel instanceof TextSelection && sel.$from.parent.isTextblock;
   if (!landedInTextblock) {
     // 图片处于文档末块等位置、其后无文本块：补一个空段落并把光标放进去。
     const pos = sel.$to.pos;
+    // 局部常量 paragraph：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const paragraph = state.schema.nodes.paragraph.create();
     tr = tr.insert(pos, paragraph);
     tr = tr.setSelection(TextSelection.near(tr.doc.resolve(pos + 1), 1));
@@ -143,17 +153,16 @@ export function insertImageWithCaretAfter(state: EditorState, imageNode: Node): 
 /**
  * 处理图片粘贴：把每个图片读成 data URL，经 onPasteImage 存储为短 URL 后插入 image 节点。
  */
-async function handleImagePaste(
-  view: EditorView,
-  files: File[],
-  config: PastePluginConfig,
-): Promise<void> {
+async function handleImagePaste(view: EditorView, files: File[], config: PastePluginConfig): Promise<void> {
+  // 局部常量 schema：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const schema = view.state.schema;
+  // 局部常量 imageType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const imageType = schema.nodes.image;
   if (!imageType) return;
 
   for (const file of files) {
     try {
+      // 局部常量 dataUrl：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const dataUrl = await readFileAsDataUrl(file);
       let src = dataUrl;
       if (config.onPasteImage) {
@@ -165,6 +174,7 @@ async function handleImagePaste(
         }
       }
 
+      // 局部常量 imageNode：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const imageNode = imageType.createAndFill({ src, alt: file.name, title: '' });
       if (imageNode) {
         view.dispatch(insertImageWithCaretAfter(view.state, imageNode));
@@ -179,6 +189,7 @@ async function handleImagePaste(
  * 检查文本是否包含 Markdown 语法
  */
 function containsMarkdownSyntax(text: string): boolean {
+  // 局部常量 patterns：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const patterns = [
     /^#{1,6}\s/m, // 标题
     /\*\*[^*]+\*\*/, // 粗体
@@ -198,7 +209,7 @@ function containsMarkdownSyntax(text: string): boolean {
     /<su[bp]>.+?<\/su[bp]>/, // sub/sup
     /<[a-zA-Z][a-zA-Z0-9]*(?:\s[^>]*)?>.*?<\/[a-zA-Z][a-zA-Z0-9]*>/, // 行内 HTML
     /^- \[[ xX]\]/m, // 任务列表
-    /^\|.+\|$/m, // 表格
+    /^\|.+\|$/m // 表格
   ];
 
   return patterns.some(pattern => pattern.test(text));

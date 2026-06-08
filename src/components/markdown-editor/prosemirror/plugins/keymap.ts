@@ -29,7 +29,7 @@ import {
   toggleStrikethrough,
   toggleHighlight,
   setHeading,
-  setParagraph,
+  setParagraph
 } from './commands';
 
 /** 快捷键配置 */
@@ -39,9 +39,10 @@ export interface KeymapConfig {
 }
 
 const defaultConfig: Required<KeymapConfig> = {
-  list: true,
+  list: true
 };
 
+// 类型 Dispatch：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
 type Dispatch = ((tr: Transaction) => void) | undefined;
 
 /**
@@ -55,21 +56,30 @@ function createBlockEnterKeymap(schema: Schema): Record<string, Command> {
       const { $from, empty } = state.selection;
       if (!empty) return false;
 
+      // 局部常量 parent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const parent = $from.parent;
       if (parent.type.name !== 'paragraph') return false;
 
+      // 局部常量 text：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const text = parent.textContent;
+      // 局部常量 depth：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const depth = $from.depth;
+      // 局部常量 paragraphStart：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const paragraphStart = $from.before(depth);
+      // 局部常量 paragraphEnd：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const paragraphEnd = $from.after(depth);
 
       // 分隔线
       if (schema.nodes.horizontal_rule && /^([-*_])\1{2,}$/.test(text)) {
+        // 局部常量 decorationState：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const decorationState = decorationPluginKey.getState(state);
         if (decorationState?.sourceView) return false;
 
+        // 局部常量 hr：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const hr = schema.nodes.horizontal_rule.create();
+        // 局部常量 paragraph：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const paragraph = schema.nodes.paragraph.create();
+        // 局部常量 tr：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const tr = state.tr.replaceWith(paragraphStart, paragraphEnd, [hr, paragraph]);
         tr.setSelection(TextSelection.create(tr.doc, paragraphStart + hr.nodeSize + 1));
         dispatch?.(tr);
@@ -78,14 +88,19 @@ function createBlockEnterKeymap(schema: Schema): Record<string, Command> {
 
       // 代码块
       if (schema.nodes.code_block) {
+        // 局部常量 decorationState：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const decorationState = decorationPluginKey.getState(state);
         if (decorationState?.sourceView) return false;
 
+        // 局部常量 codeBlockMatch：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const codeBlockMatch = /^```(\w*)$/.exec(text);
         if (!codeBlockMatch) return false;
 
+        // 局部常量 language：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const language = codeBlockMatch[1] || '';
+        // 局部常量 codeBlock：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const codeBlock = schema.nodes.code_block.create({ language });
+        // 局部常量 tr：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const tr = state.tr.replaceWith(paragraphStart, paragraphEnd, codeBlock);
         tr.setSelection(TextSelection.create(tr.doc, paragraphStart + 1));
         dispatch?.(tr);
@@ -93,7 +108,7 @@ function createBlockEnterKeymap(schema: Schema): Record<string, Command> {
       }
 
       return false;
-    },
+    }
   };
 }
 
@@ -103,7 +118,9 @@ function createBlockEnterKeymap(schema: Schema): Record<string, Command> {
 function createListKeymap(schema: Schema): Record<string, Command> {
   const keys: Record<string, Command> = {};
 
+  // 局部常量 listItemSplit：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const listItemSplit = schema.nodes.list_item ? splitListItem(schema.nodes.list_item) : null;
+  // 局部常量 taskItemSplit：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const taskItemSplit = schema.nodes.task_item ? splitListItem(schema.nodes.task_item) : null;
 
   if (listItemSplit || taskItemSplit) {
@@ -123,16 +140,21 @@ function createListKeymap(schema: Schema): Record<string, Command> {
     if (!empty) return false;
 
     if ($from.parent.type.name === 'math_block' && $from.parentOffset === 0) {
+      // 局部常量 mathNode：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const mathNode = $from.parent;
       if (dispatch) {
+        // 局部常量 mathDepth：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const mathDepth = $from.depth;
+        // 局部常量 mathPos：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const mathPos = $from.before(mathDepth);
+        // 局部常量 mathEnd：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const mathEnd = $from.after(mathDepth);
         let tr: Transaction;
 
         if (mathNode.textContent.length === 0) {
           tr = state.tr.delete(mathPos, mathEnd);
           if (tr.doc.content.size === 0) {
+            // 局部常量 paragraph：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
             const paragraph = state.schema.nodes.paragraph.create();
             tr.insert(0, paragraph);
             tr.setSelection(TextSelection.create(tr.doc, 1));
@@ -141,9 +163,10 @@ function createListKeymap(schema: Schema): Record<string, Command> {
             tr.setSelection(TextSelection.create(tr.doc, Math.max(1, $pos.pos)));
           }
         } else {
+          // 局部常量 paragraph：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
           const paragraph = state.schema.nodes.paragraph.create(
             null,
-            mathNode.textContent ? state.schema.text(mathNode.textContent) : null,
+            mathNode.textContent ? state.schema.text(mathNode.textContent) : null
           );
           tr = state.tr.replaceWith(mathPos, mathEnd, paragraph);
           tr.setSelection(TextSelection.create(tr.doc, mathPos + 1));
@@ -165,6 +188,7 @@ function createListKeymap(schema: Schema): Record<string, Command> {
 
   // Tab / Shift-Tab
   const sinkList = schema.nodes.list_item ? sinkListItem(schema.nodes.list_item) : null;
+  // 局部常量 liftList：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const liftList = schema.nodes.list_item ? liftListItem(schema.nodes.list_item) : null;
 
   keys.Tab = (state: EditorState, dispatch?: Dispatch) => {
@@ -177,8 +201,10 @@ function createListKeymap(schema: Schema): Record<string, Command> {
   keys['Shift-Tab'] = (state: EditorState, dispatch?: Dispatch) => {
     if (liftList && liftList(state, dispatch)) return true;
     const { $from } = state.selection;
+    // 局部常量 lineText：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const lineText = $from.parent.textContent;
     if (lineText.startsWith('  ') && dispatch) {
+      // 局部常量 startOfNode：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const startOfNode = $from.pos - $from.parentOffset;
       dispatch(state.tr.delete(startOfNode, startOfNode + 2));
     }
@@ -212,7 +238,7 @@ function createMarkKeymap(): Record<string, Command> {
     'Mod-4': setHeading(4),
     'Mod-5': setHeading(5),
     'Mod-6': setHeading(6),
-    'Mod-0': setParagraph,
+    'Mod-0': setParagraph
   };
 }
 
@@ -220,10 +246,8 @@ function createMarkKeymap(): Record<string, Command> {
  * 创建快捷键插件集合（块级 Enter / Escape / 格式化 / 列表）。
  * Undo/Redo 由 `./history` 提供，装配时合并。
  */
-export function createKeymapPlugins(
-  schema: Schema = stenoSchema,
-  config: KeymapConfig = {},
-): Plugin[] {
+export function createKeymapPlugins(schema: Schema = stenoSchema, config: KeymapConfig = {}): Plugin[] {
+  // 局部常量 mergedConfig：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const mergedConfig = { ...defaultConfig, ...config };
   const plugins: Plugin[] = [];
 

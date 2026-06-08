@@ -46,8 +46,10 @@ export {
   toggleInstantRender,
   getInstantRenderState,
   getActiveRegionsFromState,
+  // 类型 InstantRenderState：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
   type InstantRenderState,
-  type InstantRenderConfig,
+  // 类型 InstantRenderConfig：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
+  type InstantRenderConfig
 } from './instant-render';
 
 export { createInputRulesPlugin } from './input-rules';
@@ -59,7 +61,8 @@ export {
   createBlockEnterKeymap,
   createListKeymap,
   createMarkKeymap,
-  type KeymapConfig,
+  // 类型 KeymapConfig：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
+  type KeymapConfig
 } from './keymap';
 export { createHistoryPlugins, historyKeymap, history, undo, redo } from './history';
 export { createDropCursorPlugin } from './drop-cursor';
@@ -78,9 +81,12 @@ export {
   toggleSourceView,
   setSourceView,
   SYNTAX_CLASSES,
+  // 类型 DecorationPluginState：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
   type DecorationPluginState,
+  // 类型 SyntaxMarkerRegion：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
   type SyntaxMarkerRegion,
-  type MathInlineRegion,
+  // 类型 MathInlineRegion：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
+  type MathInlineRegion
 } from '../decorations';
 
 // 透传 prosemirror-tables 的表格 NodeView 类（Phase 7 注册为 nodeViews.table 时使用）
@@ -113,7 +119,9 @@ export interface EditorPluginsOptions {
  * const state = EditorState.create({ schema: stenoSchema, doc, plugins });
  */
 export function createEditorPlugins(options: EditorPluginsOptions = {}): Plugin[] {
+  // 局部常量 schema：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const schema = options.schema ?? stenoSchema;
+  // 局部常量 placeholder：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const placeholder = options.placeholder ?? '';
 
   const plugins: Plugin[] = [];

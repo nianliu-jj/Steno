@@ -7,6 +7,8 @@
 export { createEditor, type CreateEditorOptions } from './create-editor';
 export {
   createEditorBridge,
+  // 类型 EditorBridge：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
   type EditorBridge,
-  type EditorBridgeOptions,
+  // 类型 EditorBridgeOptions：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
+  type EditorBridgeOptions
 } from './editor-bridge';

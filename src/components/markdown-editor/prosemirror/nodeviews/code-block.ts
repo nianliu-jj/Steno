@@ -26,15 +26,12 @@ import {
   EditorView,
   keymap as cmKeymap,
   lineNumbers,
-  type ViewUpdate,
+  // 类型 ViewUpdate：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
+  type ViewUpdate
 } from '@codemirror/view';
 import { EditorState as CMEditorState, Compartment } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
-import {
-  syntaxHighlighting,
-  defaultHighlightStyle,
-  LanguageDescription,
-} from '@codemirror/language';
+import { syntaxHighlighting, defaultHighlightStyle, LanguageDescription } from '@codemirror/language';
 import { languages as cmLanguages } from '@codemirror/language-data';
 
 /**
@@ -44,34 +41,35 @@ import { languages as cmLanguages } from '@codemirror/language-data';
  * 用 CSS 变量取色的基础主题，具体配色（含暗色）交给外层样式覆盖。
  */
 function createThemeExtension() {
+  // 局部常量 baseTheme：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const baseTheme = EditorView.theme({
     '&': {
       backgroundColor: 'transparent',
-      color: 'var(--text-color)',
+      color: 'var(--text-color)'
     },
     '.cm-content': {
-      caretColor: 'var(--text-color)',
+      caretColor: 'var(--text-color)'
     },
     '.cm-cursor, .cm-dropCursor': {
-      borderLeftColor: 'var(--text-color)',
+      borderLeftColor: 'var(--text-color)'
     },
     '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
-      backgroundColor: 'var(--selected-background-color)',
+      backgroundColor: 'var(--selected-background-color)'
     },
     '.cm-activeLine': {
-      backgroundColor: 'transparent',
+      backgroundColor: 'transparent'
     },
     '.cm-gutters': {
       backgroundColor: 'transparent',
       color: 'var(--text-color-3)',
-      border: 'none',
+      border: 'none'
     },
     '.cm-activeLineGutter': {
-      backgroundColor: 'transparent',
+      backgroundColor: 'transparent'
     },
     '.cm-lineNumbers .cm-gutterElement': {
-      color: 'var(--text-color-3)',
-    },
+      color: 'var(--text-color-3)'
+    }
   });
   return [baseTheme, syntaxHighlighting(defaultHighlightStyle)];
 }
@@ -81,6 +79,7 @@ function createThemeExtension() {
  * 返回值同时用于：动态加载语言扩展、以及显示用的标签文本。
  */
 function matchLanguageDescription(language: string): LanguageDescription | null {
+  // 函数式常量 name：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
   const name = (language ?? '').trim();
   if (!name) return null;
   return LanguageDescription.matchLanguageName(cmLanguages, name, true);
@@ -88,6 +87,7 @@ function matchLanguageDescription(language: string): LanguageDescription | null 
 
 /** 语言标签显示文本：能匹配到描述符就用其规范名，否则回退到原始字符串或「纯文本」。 */
 function languageLabel(language: string): string {
+  // 局部常量 desc：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const desc = matchLanguageDescription(language);
   if (desc) return desc.name;
   return (language ?? '').trim() || 'plain text';
@@ -163,11 +163,13 @@ export class CodeBlockView implements NodeView {
               // 在列表中按 Ctrl-Enter 退出代码块（保留 PureMark 行为）
               key: 'Ctrl-Enter',
               run: () => {
+                // 局部常量 pos：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
                 const pos = this.getPos();
                 if (pos !== undefined) {
                   const $pos = this.view.state.doc.resolve(pos);
                   let inList = false;
                   for (let d = $pos.depth; d > 0; d--) {
+                    // 局部常量 ancestor：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
                     const ancestor = $pos.node(d);
                     if (ancestor.type.name === 'list_item' || ancestor.type.name === 'task_item') {
                       inList = true;
@@ -181,52 +183,54 @@ export class CodeBlockView implements NodeView {
                 }
                 this.exitCodeBlock(1);
                 return true;
-              },
+              }
             },
             {
               // 在最后一行按 ↓ 跳出到代码块下方
               key: 'ArrowDown',
-              run: (cmView) => {
+              run: cmView => {
                 const { state } = cmView;
                 const { main } = state.selection;
+                // 局部常量 line：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
                 const line = state.doc.lineAt(main.head);
                 if (line.number === state.doc.lines) {
                   this.exitCodeBlock(1);
                   return true;
                 }
                 return false;
-              },
+              }
             },
             {
               // 在第一行按 ↑ 跳出到代码块上方
               key: 'ArrowUp',
-              run: (cmView) => {
+              run: cmView => {
                 const { state } = cmView;
                 const { main } = state.selection;
+                // 局部常量 line：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
                 const line = state.doc.lineAt(main.head);
                 if (line.number === 1) {
                   this.exitCodeBlock(-1);
                   return true;
                 }
                 return false;
-              },
+              }
             },
             {
               // 在开头按 ← 跳出到代码块上方
               key: 'ArrowLeft',
-              run: (cmView) => {
+              run: cmView => {
                 const { main } = cmView.state.selection;
                 if (main.head === 0 && main.empty) {
                   this.exitCodeBlock(-1);
                   return true;
                 }
                 return false;
-              },
+              }
             },
             {
               // 在开头/末尾按 → 分别跳出代码块上/下方
               key: 'ArrowRight',
-              run: (cmView) => {
+              run: cmView => {
                 const { state } = cmView;
                 const { main } = state.selection;
                 if (main.head === 0 && main.empty) {
@@ -238,48 +242,54 @@ export class CodeBlockView implements NodeView {
                   return true;
                 }
                 return false;
-              },
+              }
             },
             {
               // 空代码块按 Backspace 删除整个代码块
               key: 'Backspace',
-              run: (cmView) => {
+              run: cmView => {
                 if (cmView.state.doc.length === 0) {
                   this.deleteCodeBlock();
                   return true;
                 }
                 return false;
-              },
+              }
             },
             ...defaultKeymap,
-            ...historyKeymap,
+            ...historyKeymap
           ]),
           createThemeExtension(),
           this.languageCompartment.of([]),
           lineNumbers(),
-          EditorView.updateListener.of((update) => this.onCMUpdate(update)),
+          EditorView.updateListener.of(update => this.onCMUpdate(update)),
           EditorView.domEventHandlers({
-            focus: () => this.forwardSelection(),
-          }),
-        ],
+            focus: () => this.forwardSelection()
+          })
+        ]
       }),
-      parent: this.editorContainer,
+      parent: this.editorContainer
     });
   }
 
   private renderReadonlyCode(): void {
     this.editorContainer.replaceChildren();
 
+    // 局部常量 pre：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const pre = document.createElement('pre');
     pre.className = 'steno-code-block-readonly';
+    // 局部常量 code：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const code = document.createElement('code');
 
+    // 局部常量 lines：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const lines = this.node.textContent.split('\n');
+    // 局部常量 visibleLines：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const visibleLines = lines.length > 0 ? lines : [''];
     for (const line of visibleLines) {
+      // 局部常量 row：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const row = document.createElement('span');
       row.className = 'steno-code-block-line';
 
+      // 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const content = document.createElement('span');
       content.className = 'steno-code-block-line-content';
       content.textContent = line || ' ';
@@ -294,12 +304,13 @@ export class CodeBlockView implements NodeView {
 
   /** 复制按钮：把代码块的完整 Markdown 写入剪贴板，点击后短暂提示「已复制」。 */
   private createCopyButton(): HTMLButtonElement {
+    // 局部常量 copyBtn：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const copyBtn = document.createElement('button');
     copyBtn.className = 'steno-code-block-copy-btn';
     copyBtn.type = 'button';
     copyBtn.title = '复制代码块';
     copyBtn.textContent = '复制';
-    copyBtn.addEventListener('click', (e) => {
+    copyBtn.addEventListener('click', e => {
       e.stopPropagation();
       void this.copyCodeBlock();
       copyBtn.classList.add('copied');
@@ -315,6 +326,7 @@ export class CodeBlockView implements NodeView {
   /** 代码块完整 Markdown（含围栏，移植自 PureMark getCodeBlockMarkdown）。 */
   private getCodeBlockMarkdown(): string {
     const language: string = this.node.attrs.language ?? '';
+    // 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const content = this.cm?.state.doc.toString() ?? this.node.textContent;
     return `\`\`\`${language}\n${content}\n\`\`\``;
   }
@@ -335,8 +347,10 @@ export class CodeBlockView implements NodeView {
    * 则丢弃本次结果。
    */
   private async loadLanguage(language: string): Promise<void> {
+    // 函数式常量 token：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
     const token = (language ?? '').trim();
     this.loadedLanguageToken = token;
+    // 局部常量 desc：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const desc = matchLanguageDescription(token);
     if (!desc) {
       // 无匹配语言：清空语言扩展
@@ -344,6 +358,7 @@ export class CodeBlockView implements NodeView {
       return;
     }
     try {
+      // 局部常量 support：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const support = await desc.load();
       if (this.loadedLanguageToken !== token) return; // 已被后续切换覆盖
       this.cm?.dispatch({ effects: this.languageCompartment.reconfigure(support) });
@@ -366,12 +381,17 @@ export class CodeBlockView implements NodeView {
       return;
     }
 
+    // 局部常量 pos：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const pos = this.getPos();
     if (pos === undefined) return;
 
+    // 局部常量 newText：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const newText = update.state.doc.toString();
+    // 局部常量 tr：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const tr = this.view.state.tr;
+    // 局部常量 start：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const start = pos + 1;
+    // 局部常量 end：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const end = pos + 1 + this.node.content.size;
     tr.replaceWith(start, end, newText ? this.view.state.schema.text(newText) : []);
     this.view.dispatch(tr);
@@ -383,12 +403,16 @@ export class CodeBlockView implements NodeView {
    */
   private forwardSelection(): void {
     if (!this.cm) return;
+    // 局部常量 pos：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const pos = this.getPos();
     if (pos === undefined) return;
 
     const { from, to } = this.cm.state.selection.main;
+    // 局部常量 start：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const start = pos + 1 + from;
+    // 局部常量 end：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const end = pos + 1 + to;
+    // 局部常量 selection：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const selection = TextSelection.create(this.view.state.doc, start, end);
 
     if (!this.view.state.selection.eq(selection)) {
@@ -401,30 +425,39 @@ export class CodeBlockView implements NodeView {
    * direction=1 向下、-1 向上；若目标侧没有可落点则插入空段落。
    */
   private exitCodeBlock(direction: 1 | -1): void {
+    // 局部常量 pos：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const pos = this.getPos();
     if (pos === undefined) return;
 
     const { state } = this.view;
+    // 局部常量 nodeEnd：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const nodeEnd = pos + this.node.nodeSize;
 
     if (direction === 1) {
+      // 局部常量 isLastNode：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const isLastNode = nodeEnd >= state.doc.content.size;
       if (isLastNode) {
+        // 局部常量 paragraph：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const paragraph = state.schema.nodes.paragraph.create();
+        // 局部常量 tr：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const tr = state.tr.insert(nodeEnd, paragraph);
         tr.setSelection(TextSelection.create(tr.doc, nodeEnd + 1));
         this.view.dispatch(tr);
         this.view.focus();
         return;
       }
+      // 局部常量 selection：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const selection = Selection.near(state.doc.resolve(nodeEnd), 1);
       this.view.dispatch(state.tr.setSelection(selection));
       this.view.focus();
     } else {
+      // 局部常量 selection：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const selection = Selection.near(state.doc.resolve(pos), -1);
       // 前方无可用位置则在代码块前插入段落
       if (selection.from >= pos) {
+        // 局部常量 paragraph：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const paragraph = state.schema.nodes.paragraph.create();
+        // 局部常量 tr：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const tr = state.tr.insert(pos, paragraph);
         tr.setSelection(TextSelection.create(tr.doc, pos + 1));
         this.view.dispatch(tr);
@@ -440,6 +473,7 @@ export class CodeBlockView implements NodeView {
    * 在列表中跳出代码块并创建新列表项（移植自 PureMark exitCodeBlockAndCreateListItem）。
    */
   private exitCodeBlockAndCreateListItem(): void {
+    // 局部常量 pos：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const pos = this.getPos();
     if (pos === undefined) return;
 
@@ -448,6 +482,7 @@ export class CodeBlockView implements NodeView {
 
     let listItemDepth = -1;
     for (let d = $pos.depth; d > 0; d--) {
+      // 局部常量 ancestor：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const ancestor = $pos.node(d);
       if (ancestor.type.name === 'list_item' || ancestor.type.name === 'task_item') {
         listItemDepth = d;
@@ -459,12 +494,12 @@ export class CodeBlockView implements NodeView {
       return;
     }
 
+    // 局部常量 listItemAfter：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const listItemAfter = $pos.after(listItemDepth);
-    const newListItem = state.schema.nodes.list_item.create(
-      null,
-      state.schema.nodes.paragraph.create(),
-    );
+    // 局部常量 newListItem：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+    const newListItem = state.schema.nodes.list_item.create(null, state.schema.nodes.paragraph.create());
 
+    // 局部常量 tr：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const tr = state.tr;
     tr.insert(listItemAfter, newListItem);
     tr.setSelection(TextSelection.create(tr.doc, listItemAfter + 2));
@@ -476,14 +511,18 @@ export class CodeBlockView implements NodeView {
    * 删除整个代码块（移植自 PureMark deleteCodeBlock）。
    */
   private deleteCodeBlock(): void {
+    // 局部常量 pos：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const pos = this.getPos();
     if (pos === undefined) return;
 
     const { state } = this.view;
+    // 局部常量 nodeEnd：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const nodeEnd = pos + this.node.nodeSize;
+    // 局部常量 tr：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const tr = state.tr.delete(pos, nodeEnd);
 
     if (tr.doc.content.size === 0) {
+      // 局部常量 paragraph：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const paragraph = state.schema.nodes.paragraph.create();
       tr.insert(0, paragraph);
       tr.setSelection(TextSelection.create(tr.doc, 1));
@@ -505,12 +544,13 @@ export class CodeBlockView implements NodeView {
 
     const prevLanguage: string = this.node.attrs.language ?? '';
     this.node = node;
+    // 局部常量 newText：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const newText = node.textContent;
 
     if (this.cm && newText !== this.cm.state.doc.toString()) {
       this.updating = true;
       this.cm.dispatch({
-        changes: { from: 0, to: this.cm.state.doc.length, insert: newText },
+        changes: { from: 0, to: this.cm.state.doc.length, insert: newText }
       });
       this.updating = false;
     } else if (!this.cm) {
@@ -551,6 +591,7 @@ export class CodeBlockView implements NodeView {
    */
   stopEvent(event: Event): boolean {
     if (event.target instanceof HTMLElement) {
+      // 局部常量 isInHeader：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const isInHeader = event.target.closest('.steno-code-block-header');
       if (isInHeader) return false;
     }
@@ -575,7 +616,7 @@ export class CodeBlockView implements NodeView {
 export function createCodeBlockNodeView(
   node: ProseMirrorNode,
   view: ProseMirrorView,
-  getPos: () => number | undefined,
+  getPos: () => number | undefined
 ): NodeView {
   return new CodeBlockView(node, view, getPos);
 }

@@ -41,7 +41,7 @@ function findMarkRegionAt(
   parent: Node,
   parentStart: number,
   markType: MarkType,
-  pos: number,
+  pos: number
 ): { from: number; to: number } | null {
   let offset = parentStart;
   let runStart = -1;
@@ -49,7 +49,9 @@ function findMarkRegionAt(
   let result: { from: number; to: number } | null = null;
 
   parent.forEach(child => {
+    // 局部常量 start：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const start = offset;
+    // 局部常量 end：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const end = offset + child.nodeSize;
     offset = end;
     if (child.marks.some(m => m.type === markType)) {
@@ -75,16 +77,17 @@ function applyInlineSyntax(
   dispatch: (tr: Transaction) => void,
   markType: MarkType,
   syntaxType: string,
-  marker: string,
+  marker: string
 ): boolean {
   const { from, to } = state.selection;
   if (from === to) return false;
 
+  // 局部常量 syntaxMarkerType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const syntaxMarkerType = state.schema.marks.syntax_marker;
+  // 局部常量 semanticMark：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const semanticMark = markType.create();
-  const markerMarks = syntaxMarkerType
-    ? [syntaxMarkerType.create({ syntaxType }), semanticMark]
-    : [semanticMark];
+  // 局部常量 markerMarks：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+  const markerMarks = syntaxMarkerType ? [syntaxMarkerType.create({ syntaxType }), semanticMark] : [semanticMark];
 
   let tr = state.tr;
   // 1. 选区内容加语义 mark（保留嵌套的其他 mark / 结构）
@@ -93,9 +96,7 @@ function applyInlineSyntax(
   tr = tr.insert(to, state.schema.text(marker, markerMarks));
   tr = tr.insert(from, state.schema.text(marker, markerMarks));
   // 3. 选区落在内容（两 marker 之间），便于继续编辑 / 再次 toggle
-  tr = tr.setSelection(
-    TextSelection.create(tr.doc, from + marker.length, to + marker.length),
-  );
+  tr = tr.setSelection(TextSelection.create(tr.doc, from + marker.length, to + marker.length));
   dispatch(tr.scrollIntoView());
   return true;
 }
@@ -105,13 +106,16 @@ function removeInlineSyntax(
   state: EditorState,
   dispatch: (tr: Transaction) => void,
   markType: MarkType,
-  syntaxType: string,
+  syntaxType: string
 ): boolean {
   const { from, to } = state.selection;
   const $from = state.doc.resolve(from);
+  // 局部常量 parent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const parent = $from.parent;
+  // 局部常量 parentStart：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const parentStart = $from.start();
 
+  // 局部常量 region：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const region = findMarkRegionAt(parent, parentStart, markType, from);
   if (!region) {
     // 兜底：直接移除选区范围内的语义 mark
@@ -124,14 +128,15 @@ function removeInlineSyntax(
   const kept: Node[] = [];
   let offset = parentStart;
   parent.forEach(child => {
+    // 局部常量 start：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const start = offset;
+    // 局部常量 end：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const end = offset + child.nodeSize;
     offset = end;
     if (start < region.from || end > region.to) return;
-    const isOwnSyntaxMarker = child.isText
-      && child.marks.some(
-        m => m.type.name === 'syntax_marker' && m.attrs.syntaxType === syntaxType,
-      );
+    // 局部常量 isOwnSyntaxMarker：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+    const isOwnSyntaxMarker =
+      child.isText && child.marks.some(m => m.type.name === 'syntax_marker' && m.attrs.syntaxType === syntaxType);
     if (isOwnSyntaxMarker) return;
     kept.push(child.mark(child.marks.filter(m => m.type !== markType)));
   });
@@ -143,6 +148,7 @@ function removeInlineSyntax(
 /** 通用行内格式 toggle 命令工厂。 */
 function toggleInlineSyntax(markName: string, syntaxType: string, marker: string): Command {
   return (state, dispatch) => {
+    // 局部常量 markType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const markType = state.schema.marks[markName];
     if (!markType) return false;
 
@@ -170,11 +176,7 @@ export const toggleEmphasis: Command = toggleInlineSyntax('emphasis', 'emphasis'
 export const toggleCodeInline: Command = toggleInlineSyntax('code_inline', 'code_inline', '`');
 
 /** 切换删除线 */
-export const toggleStrikethrough: Command = toggleInlineSyntax(
-  'strikethrough',
-  'strikethrough',
-  '~~',
-);
+export const toggleStrikethrough: Command = toggleInlineSyntax('strikethrough', 'strikethrough', '~~');
 
 /** 切换高亮 */
 export const toggleHighlight: Command = toggleInlineSyntax('highlight', 'highlight', '==');
@@ -187,14 +189,15 @@ export const toggleHighlight: Command = toggleInlineSyntax('highlight', 'highlig
 /** 块首若为 heading 的 "#" 标记，返回其字符长度（含紧随的一个分隔空格），否则 0。 */
 function headingMarkerLength(block: Node): number {
   if (block.childCount === 0) return 0;
+  // 局部常量 first：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const first = block.child(0);
   if (!first.isText || !first.text) return 0;
-  const isHeadingMarker = first.marks.some(
-    m => m.type.name === 'syntax_marker' && m.attrs.syntaxType === 'heading',
-  );
+  // 局部常量 isHeadingMarker：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+  const isHeadingMarker = first.marks.some(m => m.type.name === 'syntax_marker' && m.attrs.syntaxType === 'heading');
   if (!isHeadingMarker) return 0;
   let len = first.text.length; // "#" 的数量
   if (block.childCount > 1) {
+    // 局部常量 second：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const second = block.child(1);
     if (second.isText && second.text && second.text.startsWith(' ')) {
       len += 1; // 与 parser 输出的 "# " 一致，仅算一个分隔空格
@@ -212,9 +215,10 @@ function reformatBlock(
   state: EditorState,
   dispatch: ((tr: Transaction) => void) | undefined,
   toType: NodeType,
-  level?: number,
+  level?: number
 ): boolean {
   const { $from } = state.selection;
+  // 局部常量 block：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const block = $from.parent;
 
   // 非文本块（如表格单元格上下文）回退给 prosemirror 的 setBlockType
@@ -224,8 +228,11 @@ function reformatBlock(
 
   if (!dispatch) return true;
 
+  // 局部常量 contentStart：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const contentStart = $from.start();
+  // 局部常量 syntaxMarkerType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const syntaxMarkerType = state.schema.marks.syntax_marker;
+  // 局部常量 headingType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const headingType = state.schema.nodes.heading;
 
   let tr = state.tr;
@@ -236,13 +243,13 @@ function reformatBlock(
   }
   // 2. 切换块类型
   if (toType === headingType) {
+    // 局部常量 lv：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const lv = level ?? 1;
     tr = tr.setBlockType(contentStart, contentStart, toType, { level: lv });
     // 3. 插入新的 "# " 标记：# 带 syntax_marker(heading)，空格为普通文本（与 parser 一致）
     const hashes = '#'.repeat(lv);
-    const markerMarks = syntaxMarkerType
-      ? [syntaxMarkerType.create({ syntaxType: 'heading' })]
-      : [];
+    // 局部常量 markerMarks：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+    const markerMarks = syntaxMarkerType ? [syntaxMarkerType.create({ syntaxType: 'heading' })] : [];
     tr = tr.insert(contentStart, state.schema.text(hashes, markerMarks));
     tr = tr.insert(contentStart + hashes.length, state.schema.text(' '));
   } else {
@@ -255,10 +262,13 @@ function reformatBlock(
 /** 设置标题级别（再次对同级标题执行则取消，回退为段落）。 */
 export function setHeading(level: number): Command {
   return (state, dispatch) => {
+    // 局部常量 headingType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const headingType = state.schema.nodes.heading;
+    // 局部常量 paragraphType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const paragraphType = state.schema.nodes.paragraph;
     if (!headingType || !paragraphType) return false;
 
+    // 局部常量 block：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const block = state.selection.$from.parent;
     if (block.type !== headingType && block.type !== paragraphType) return false;
 
@@ -272,6 +282,7 @@ export function setHeading(level: number): Command {
 
 /** 设置为段落（若原为标题则一并移除 "# " 标记）。 */
 export function setParagraph(state: EditorState, dispatch?: (tr: Transaction) => void): boolean {
+  // 局部常量 paragraphType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const paragraphType = state.schema.nodes.paragraph;
   if (!paragraphType) return false;
   return reformatBlock(state, dispatch, paragraphType);
@@ -280,6 +291,7 @@ export function setParagraph(state: EditorState, dispatch?: (tr: Transaction) =>
 /** 设置为代码块 */
 export function setCodeBlock(language = ''): Command {
   return (state, dispatch) => {
+    // 局部常量 nodeType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const nodeType = state.schema.nodes.code_block;
     if (!nodeType) return false;
     return setBlockType(nodeType, { language })(state, dispatch);
@@ -288,6 +300,7 @@ export function setCodeBlock(language = ''): Command {
 
 /** 包装为引用块 */
 export function wrapInBlockquote(state: EditorState, dispatch?: (tr: Transaction) => void): boolean {
+  // 局部常量 nodeType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const nodeType = state.schema.nodes.blockquote;
   if (!nodeType) return false;
   return wrapIn(nodeType)(state, dispatch);
@@ -295,16 +308,15 @@ export function wrapInBlockquote(state: EditorState, dispatch?: (tr: Transaction
 
 /** 包装为无序列表 */
 export function wrapInBulletList(state: EditorState, dispatch?: (tr: Transaction) => void): boolean {
+  // 局部常量 nodeType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const nodeType = state.schema.nodes.bullet_list;
   if (!nodeType) return false;
   return wrapIn(nodeType)(state, dispatch);
 }
 
 /** 包装为有序列表 */
-export function wrapInOrderedList(
-  state: EditorState,
-  dispatch?: (tr: Transaction) => void,
-): boolean {
+export function wrapInOrderedList(state: EditorState, dispatch?: (tr: Transaction) => void): boolean {
+  // 局部常量 nodeType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const nodeType = state.schema.nodes.ordered_list;
   if (!nodeType) return false;
   return wrapIn(nodeType)(state, dispatch);
@@ -316,10 +328,8 @@ export function liftBlock(state: EditorState, dispatch?: (tr: Transaction) => vo
 }
 
 /** 插入分隔线 */
-export function insertHorizontalRule(
-  state: EditorState,
-  dispatch?: (tr: Transaction) => void,
-): boolean {
+export function insertHorizontalRule(state: EditorState, dispatch?: (tr: Transaction) => void): boolean {
+  // 局部常量 nodeType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const nodeType = state.schema.nodes.horizontal_rule;
   if (!nodeType) return false;
   if (dispatch) {
@@ -331,14 +341,17 @@ export function insertHorizontalRule(
 /** 插入链接（选中文本则加 mark，否则插入文本后加 mark） */
 export function insertLink(href: string, title = ''): Command {
   return (state, dispatch) => {
+    // 局部常量 markType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const markType = state.schema.marks.link;
     if (!markType) return false;
     const { from, to, empty } = state.selection;
 
     if (dispatch) {
+      // 局部常量 mark：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const mark = markType.create({ href, title });
       let tr = state.tr;
       if (empty) {
+        // 局部常量 text：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const text = title || href;
         tr = tr.insertText(text, from);
         tr = tr.addMark(from, from + text.length, mark);
@@ -353,6 +366,7 @@ export function insertLink(href: string, title = ''): Command {
 
 /** 移除链接 */
 export function removeLink(state: EditorState, dispatch?: (tr: Transaction) => void): boolean {
+  // 局部常量 markType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const markType = state.schema.marks.link;
   if (!markType) return false;
   const { from, to } = state.selection;
@@ -378,5 +392,5 @@ export const commands = {
   liftBlock,
   insertHorizontalRule,
   insertLink,
-  removeLink,
+  removeLink
 };

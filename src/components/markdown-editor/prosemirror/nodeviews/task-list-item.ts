@@ -16,30 +16,37 @@
 import type { NodeView, EditorView } from 'prosemirror-view';
 import type { Node } from 'prosemirror-model';
 
+// 函数 createTaskItemNodeView：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 export function createTaskItemNodeView(
   initialNode: Node,
   view: EditorView,
-  getPos: () => number | undefined,
+  getPos: () => number | undefined
 ): NodeView {
   let node = initialNode;
 
+  // 局部常量 dom：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const dom = document.createElement('li');
   dom.className = 'task-item';
 
+  // 局部常量 checkbox：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.contentEditable = 'false';
   checkbox.checked = Boolean(node.attrs.checked);
 
+  // 局部常量 contentDOM：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const contentDOM = document.createElement('div');
   contentDOM.className = 'task-content';
 
   dom.appendChild(checkbox);
   dom.appendChild(contentDOM);
 
+  // 函数 onChange：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function onChange(evt: Event) {
+    // 局部常量 pos：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const pos = getPos();
     if (pos == null) return;
+    // 函数式常量 checked：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
     const checked = (evt.target as HTMLInputElement).checked;
     view.dispatch(view.state.tr.setNodeMarkup(pos, null, { ...node.attrs, checked }));
   }
@@ -52,6 +59,7 @@ export function createTaskItemNodeView(
     update(updated) {
       if (updated.type !== node.type) return false;
       node = updated;
+      // 局部常量 desired：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const desired = Boolean(node.attrs.checked);
       if (checkbox.checked !== desired) checkbox.checked = desired;
       return true;
@@ -66,6 +74,6 @@ export function createTaskItemNodeView(
     },
     destroy() {
       checkbox.removeEventListener('change', onChange);
-    },
+    }
   };
 }

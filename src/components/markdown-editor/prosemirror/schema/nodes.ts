@@ -20,7 +20,7 @@
 import type { NodeSpec, DOMOutputSpec } from 'prosemirror-model';
 
 const doc: NodeSpec = {
-  content: 'block+',
+  content: 'block+'
 };
 
 const paragraph: NodeSpec = {
@@ -46,7 +46,7 @@ const paragraph: NodeSpec = {
     mathBlockTotalLines: { default: null },
     listId: { default: null },
     listLineIndex: { default: null },
-    listTotalLines: { default: null },
+    listTotalLines: { default: null }
   },
   content: 'inline*',
   group: 'block',
@@ -86,13 +86,13 @@ const paragraph: NodeSpec = {
       attrs['data-list-total-lines'] = node.attrs.listTotalLines;
     }
     return ['p', attrs, 0];
-  },
+  }
 };
 
 const heading: NodeSpec = {
   attrs: {
     level: { default: 1 },
-    startLine: { default: null },
+    startLine: { default: null }
   },
   content: 'inline*',
   group: 'block',
@@ -103,16 +103,16 @@ const heading: NodeSpec = {
     { tag: 'h3', attrs: { level: 3 } },
     { tag: 'h4', attrs: { level: 4 } },
     { tag: 'h5', attrs: { level: 5 } },
-    { tag: 'h6', attrs: { level: 6 } },
+    { tag: 'h6', attrs: { level: 6 } }
   ],
   toDOM(node): DOMOutputSpec {
     return [`h${node.attrs.level}`, 0];
-  },
+  }
 };
 
 const blockquote: NodeSpec = {
   attrs: {
-    startLine: { default: null },
+    startLine: { default: null }
   },
   content: 'block+',
   group: 'block',
@@ -120,13 +120,13 @@ const blockquote: NodeSpec = {
   parseDOM: [{ tag: 'blockquote' }],
   toDOM(): DOMOutputSpec {
     return ['blockquote', 0];
-  },
+  }
 };
 
 const code_block: NodeSpec = {
   attrs: {
     language: { default: '' },
-    startLine: { default: null },
+    startLine: { default: null }
   },
   content: 'text*',
   marks: '',
@@ -138,49 +138,50 @@ const code_block: NodeSpec = {
       tag: 'pre',
       preserveWhitespace: 'full' as const,
       getAttrs(node) {
+        // 局部常量 el：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const el = node as HTMLElement;
+        // 局部常量 code：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const code = el.querySelector('code');
+        // 局部常量 className：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const className = code?.className ?? '';
+        // 局部常量 match：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const match = /language-(\w+)/.exec(className);
         return { language: match ? match[1] : '' };
-      },
-    },
+      }
+    }
   ],
   toDOM(node): DOMOutputSpec {
-    return [
-      'pre',
-      ['code', { class: node.attrs.language ? `language-${node.attrs.language}` : '' }, 0],
-    ];
-  },
+    return ['pre', ['code', { class: node.attrs.language ? `language-${node.attrs.language}` : '' }, 0]];
+  }
 };
 
 const horizontal_rule: NodeSpec = {
   attrs: {
-    startLine: { default: null },
+    startLine: { default: null }
   },
   group: 'block',
   parseDOM: [{ tag: 'hr' }],
   toDOM(): DOMOutputSpec {
     return ['hr'];
-  },
+  }
 };
 
 const bullet_list: NodeSpec = {
   attrs: {
-    startLine: { default: null },
+    startLine: { default: null }
   },
   content: 'list_item+',
   group: 'block',
   parseDOM: [{ tag: 'ul' }],
   toDOM(): DOMOutputSpec {
     return ['ul', 0];
-  },
+  }
 };
 
 const ordered_list: NodeSpec = {
   attrs: {
     start: { default: 1 },
-    startLine: { default: null },
+    startLine: { default: null }
   },
   content: 'list_item+',
   group: 'block',
@@ -188,14 +189,15 @@ const ordered_list: NodeSpec = {
     {
       tag: 'ol',
       getAttrs(node) {
+        // 局部常量 el：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const el = node as HTMLElement;
         return { start: el.hasAttribute('start') ? Number(el.getAttribute('start')) : 1 };
-      },
-    },
+      }
+    }
   ],
   toDOM(node): DOMOutputSpec {
     return node.attrs.start === 1 ? ['ol', 0] : ['ol', { start: node.attrs.start }, 0];
-  },
+  }
 };
 
 const list_item: NodeSpec = {
@@ -204,50 +206,52 @@ const list_item: NodeSpec = {
   toDOM(): DOMOutputSpec {
     return ['li', 0];
   },
-  defining: true,
+  defining: true
 };
 
 const task_list: NodeSpec = {
   attrs: {
-    startLine: { default: null },
+    startLine: { default: null }
   },
   content: 'task_item+',
   group: 'block',
   parseDOM: [{ tag: 'ul.task-list' }],
   toDOM(): DOMOutputSpec {
     return ['ul', { class: 'task-list' }, 0];
-  },
+  }
 };
 
 const task_item: NodeSpec = {
   attrs: {
-    checked: { default: false },
+    checked: { default: false }
   },
   content: 'block+',
   parseDOM: [
     {
       tag: 'li.task-item',
       getAttrs(node) {
+        // 局部常量 el：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const el = node as HTMLElement;
+        // 局部常量 checkbox：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const checkbox = el.querySelector('input[type="checkbox"]');
         return { checked: checkbox ? (checkbox as HTMLInputElement).checked : false };
-      },
-    },
+      }
+    }
   ],
   toDOM(node): DOMOutputSpec {
     return [
       'li',
       { class: 'task-item' },
       ['input', { type: 'checkbox', checked: node.attrs.checked ? 'checked' : null }],
-      ['span', 0],
+      ['span', 0]
     ];
   },
-  defining: true,
+  defining: true
 };
 
 const table: NodeSpec = {
   attrs: {
-    startLine: { default: null },
+    startLine: { default: null }
   },
   content: 'table_row+',
   group: 'block',
@@ -256,7 +260,7 @@ const table: NodeSpec = {
   parseDOM: [{ tag: 'table' }],
   toDOM(): DOMOutputSpec {
     return ['table', ['tbody', 0]];
-  },
+  }
 };
 
 const table_row: NodeSpec = {
@@ -265,7 +269,7 @@ const table_row: NodeSpec = {
   parseDOM: [{ tag: 'tr' }],
   toDOM(): DOMOutputSpec {
     return ['tr', 0];
-  },
+  }
 };
 
 const table_cell: NodeSpec = {
@@ -273,7 +277,7 @@ const table_cell: NodeSpec = {
   attrs: {
     colspan: { default: 1 },
     rowspan: { default: 1 },
-    align: { default: null },
+    align: { default: null }
   },
   tableRole: 'cell',
   isolating: true,
@@ -281,14 +285,15 @@ const table_cell: NodeSpec = {
     {
       tag: 'td',
       getAttrs(node) {
+        // 局部常量 el：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const el = node as HTMLElement;
         return {
           colspan: Number(el.getAttribute('colspan')) || 1,
           rowspan: Number(el.getAttribute('rowspan')) || 1,
-          align: el.style.textAlign || null,
+          align: el.style.textAlign || null
         };
-      },
-    },
+      }
+    }
   ],
   toDOM(node): DOMOutputSpec {
     const attrs: Record<string, unknown> = {};
@@ -296,7 +301,7 @@ const table_cell: NodeSpec = {
     if (node.attrs.rowspan !== 1) attrs.rowspan = node.attrs.rowspan;
     if (node.attrs.align) attrs.style = `text-align: ${node.attrs.align}`;
     return ['td', attrs, 0];
-  },
+  }
 };
 
 const table_header: NodeSpec = {
@@ -304,7 +309,7 @@ const table_header: NodeSpec = {
   attrs: {
     colspan: { default: 1 },
     rowspan: { default: 1 },
-    align: { default: null },
+    align: { default: null }
   },
   tableRole: 'header_cell',
   isolating: true,
@@ -312,14 +317,15 @@ const table_header: NodeSpec = {
     {
       tag: 'th',
       getAttrs(node) {
+        // 局部常量 el：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const el = node as HTMLElement;
         return {
           colspan: Number(el.getAttribute('colspan')) || 1,
           rowspan: Number(el.getAttribute('rowspan')) || 1,
-          align: el.style.textAlign || null,
+          align: el.style.textAlign || null
         };
-      },
-    },
+      }
+    }
   ],
   toDOM(node): DOMOutputSpec {
     const attrs: Record<string, unknown> = {};
@@ -327,13 +333,13 @@ const table_header: NodeSpec = {
     if (node.attrs.rowspan !== 1) attrs.rowspan = node.attrs.rowspan;
     if (node.attrs.align) attrs.style = `text-align: ${node.attrs.align}`;
     return ['th', attrs, 0];
-  },
+  }
 };
 
 const math_block: NodeSpec = {
   attrs: {
     language: { default: 'latex' },
-    startLine: { default: null },
+    startLine: { default: null }
   },
   content: 'text*',
   marks: '',
@@ -343,12 +349,12 @@ const math_block: NodeSpec = {
   parseDOM: [{ tag: 'div.math-block', preserveWhitespace: 'full' as const }],
   toDOM(): DOMOutputSpec {
     return ['div', { class: 'math-block' }, ['pre', 0]];
-  },
+  }
 };
 
 const mermaid_block: NodeSpec = {
   attrs: {
-    startLine: { default: null },
+    startLine: { default: null }
   },
   content: 'text*',
   marks: '',
@@ -358,12 +364,12 @@ const mermaid_block: NodeSpec = {
   parseDOM: [{ tag: 'div.mermaid-block', preserveWhitespace: 'full' as const }],
   toDOM(): DOMOutputSpec {
     return ['div', { class: 'mermaid-block' }, ['pre', 0]];
-  },
+  }
 };
 
 const html_block: NodeSpec = {
   attrs: {
-    startLine: { default: null },
+    startLine: { default: null }
   },
   content: 'text*',
   marks: '',
@@ -373,14 +379,14 @@ const html_block: NodeSpec = {
   parseDOM: [{ tag: 'div.html-block', preserveWhitespace: 'full' as const }],
   toDOM(): DOMOutputSpec {
     return ['div', { class: 'html-block' }, ['pre', 0]];
-  },
+  }
 };
 
 const container: NodeSpec = {
   attrs: {
     type: { default: 'note' },
     title: { default: '' },
-    startLine: { default: null },
+    startLine: { default: null }
   },
   content: 'block+',
   group: 'block',
@@ -389,13 +395,14 @@ const container: NodeSpec = {
     {
       tag: 'div.container',
       getAttrs(node) {
+        // 局部常量 el：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const el = node as HTMLElement;
         return {
           type: el.getAttribute('data-type') ?? 'note',
-          title: el.getAttribute('data-title') ?? '',
+          title: el.getAttribute('data-title') ?? ''
         };
-      },
-    },
+      }
+    }
   ],
   toDOM(node): DOMOutputSpec {
     return [
@@ -403,11 +410,11 @@ const container: NodeSpec = {
       {
         class: `container container-${node.attrs.type}`,
         'data-type': node.attrs.type,
-        'data-title': node.attrs.title,
+        'data-title': node.attrs.title
       },
-      0,
+      0
     ];
-  },
+  }
 };
 
 const image: NodeSpec = {
@@ -418,7 +425,7 @@ const image: NodeSpec = {
     linkHref: { default: '' },
     linkTitle: { default: '' },
     consecutiveGroup: { default: null },
-    startLine: { default: null },
+    startLine: { default: null }
   },
   group: 'block',
   draggable: true,
@@ -426,32 +433,31 @@ const image: NodeSpec = {
     {
       tag: 'img[src]',
       getAttrs(node) {
+        // 局部常量 el：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const el = node as HTMLElement;
+        // 局部常量 parentA：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const parentA = el.parentElement?.tagName === 'A' ? el.parentElement : null;
         return {
           src: el.getAttribute('src') ?? '',
           alt: el.getAttribute('alt') ?? '',
           title: el.getAttribute('title') ?? '',
           linkHref: parentA?.getAttribute('href') ?? '',
-          linkTitle: parentA?.getAttribute('title') ?? '',
+          linkTitle: parentA?.getAttribute('title') ?? ''
         };
-      },
-    },
+      }
+    }
   ],
   toDOM(node): DOMOutputSpec {
-    const img: DOMOutputSpec = [
-      'img',
-      { src: node.attrs.src, alt: node.attrs.alt, title: node.attrs.title },
-    ];
+    const img: DOMOutputSpec = ['img', { src: node.attrs.src, alt: node.attrs.alt, title: node.attrs.title }];
     if (node.attrs.linkHref) {
       return ['a', { href: node.attrs.linkHref, title: node.attrs.linkTitle || null }, img];
     }
     return img;
-  },
+  }
 };
 
 const text: NodeSpec = {
-  group: 'inline',
+  group: 'inline'
 };
 
 const hard_break: NodeSpec = {
@@ -461,7 +467,7 @@ const hard_break: NodeSpec = {
   parseDOM: [{ tag: 'br' }],
   toDOM(): DOMOutputSpec {
     return ['br'];
-  },
+  }
 };
 
 /** 节点定义集合 —— 顺序与 PureMark 保持一致，便于对照。 */
@@ -487,5 +493,5 @@ export const nodes = {
   container,
   image,
   text,
-  hard_break,
+  hard_break
 };

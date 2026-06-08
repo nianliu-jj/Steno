@@ -42,7 +42,7 @@ const INLINE_SYNTAXES: InlineSyntax[] = [
     pattern: /(\*\*\*|___)(.+?)\1/g,
     prefix: m => m[1],
     suffix: m => m[1],
-    contentIndex: 2,
+    contentIndex: 2
   },
   // 粗体 **text** 或 __text__ — 排除 *** 的情况
   {
@@ -50,7 +50,7 @@ const INLINE_SYNTAXES: InlineSyntax[] = [
     pattern: /(?<!\*)(\*\*)(?!\*)(.+?)(?<!\*)\1(?!\*)|(?<!_)(__)(?!_)(.+?)(?<!_)\3(?!_)/g,
     prefix: m => m[1] || m[3],
     suffix: m => m[1] || m[3],
-    contentIndex: 2,
+    contentIndex: 2
   },
   {
     type: 'emphasis',
@@ -58,28 +58,28 @@ const INLINE_SYNTAXES: InlineSyntax[] = [
       /(?<![*_\w])(\*)(?![*\s])(.+?)(?<![*\s])\1(?![*])|(?<![*_])(_)(?![_\s])(?=\S)(.+?)(?<=\S)(?<![_\s])\3(?![_\w])/g,
     prefix: m => m[1] || m[3],
     suffix: m => m[1] || m[3],
-    contentIndex: 2,
+    contentIndex: 2
   },
   {
     type: 'code_inline',
     pattern: /`([^`]+)`/g,
     prefix: '`',
     suffix: '`',
-    contentIndex: 1,
+    contentIndex: 1
   },
   {
     type: 'strikethrough',
     pattern: /~~(.+?)~~/g,
     prefix: '~~',
     suffix: '~~',
-    contentIndex: 1,
+    contentIndex: 1
   },
   {
     type: 'highlight',
     pattern: /==(.+?)==/g,
     prefix: '==',
     suffix: '==',
-    contentIndex: 1,
+    contentIndex: 1
   },
   {
     type: 'link',
@@ -89,8 +89,8 @@ const INLINE_SYNTAXES: InlineSyntax[] = [
     contentIndex: 1,
     getAttrs: (m: RegExpExecArray) => ({
       href: (m[2] || '').replace(/\\([()])/g, '$1'),
-      title: m[3] || '',
-    }),
+      title: m[3] || ''
+    })
   },
   {
     // 行内数学 $expr$ — 排除 $$ 的情况
@@ -99,7 +99,7 @@ const INLINE_SYNTAXES: InlineSyntax[] = [
     prefix: '$',
     suffix: '$',
     contentIndex: 1,
-    getAttrs: m => ({ content: m[1] }),
+    getAttrs: m => ({ content: m[1] })
   },
   // sub / sup 上下标（专属 mark）
   {
@@ -107,14 +107,14 @@ const INLINE_SYNTAXES: InlineSyntax[] = [
     pattern: /<sub>(.+?)<\/sub>/g,
     prefix: '<sub>',
     suffix: '</sub>',
-    contentIndex: 1,
+    contentIndex: 1
   },
   {
     type: 'sup',
     pattern: /<sup>(.+?)<\/sup>/g,
     prefix: '<sup>',
     suffix: '</sup>',
-    contentIndex: 1,
+    contentIndex: 1
   },
   // 通用行内 HTML 元素（排除已有专用 mark 的 sub/sup）
   {
@@ -123,8 +123,8 @@ const INLINE_SYNTAXES: InlineSyntax[] = [
     prefix: (m: RegExpExecArray) => `<${m[1]}${m[2] || ''}>`,
     suffix: (m: RegExpExecArray) => `</${m[1]}>`,
     contentIndex: 3,
-    getAttrs: (m: RegExpExecArray) => ({ tag: m[1].toLowerCase(), htmlAttrs: (m[2] || '').trim() }),
-  },
+    getAttrs: (m: RegExpExecArray) => ({ tag: m[1].toLowerCase(), htmlAttrs: (m[2] || '').trim() })
+  }
 ];
 
 /** 块级语法模式 */
@@ -153,14 +153,16 @@ const BLOCK_PATTERNS = {
   // 允许行尾有空格
   container_end: /^:::\s*$/,
   // 以 < 开头后跟标签名
-  html_block_start: /^<([a-zA-Z][a-zA-Z0-9]*)/,
+  html_block_start: /^<([a-zA-Z][a-zA-Z0-9]*)/
 };
 
+// 局部常量 IMAGE_TOKEN_PATTERNS：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const IMAGE_TOKEN_PATTERNS = {
   linked: /\[!\[([^\]]*)\]\((.+?)(?:\s+"([^"]*)")?\)\]\((.+?)(?:\s+"([^"]*)")?\)/y,
-  normal: /!\[([^\]]*)\]\((.+?)(?:\s+"([^"]*)")?\)/y,
+  normal: /!\[([^\]]*)\]\((.+?)(?:\s+"([^"]*)")?\)/y
 };
 
+// 函数 generateConsecutiveImageGroupId：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function generateConsecutiveImageGroupId(): string {
   return `cig_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 }
@@ -197,7 +199,7 @@ const INLINE_ELEMENTS = new Set([
   'del',
   'ins',
   'label',
-  'font',
+  'font'
 ]);
 
 /**
@@ -223,9 +225,12 @@ export class MarkdownParser {
 
     // 统一换行符
     const lines = markdown.replace(/\r\n?/g, '\n').split('\n');
+    // 局部常量 blocks：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const blocks = this.parseBlocks(lines, 0);
 
+    // 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const content = blocks.length > 0 ? blocks : [this.schema.node('paragraph')];
+    // 局部常量 doc：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const doc = this.schema.node('doc', null, content);
 
     return { doc, markers: this.markers };
@@ -243,7 +248,9 @@ export class MarkdownParser {
     let i = 0;
 
     while (i < lines.length) {
+      // 局部常量 line：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const line = lines[i];
+      // 局部常量 startLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const startLine = baseLineOffset + i;
 
       if (line.trim() === '') {
@@ -264,6 +271,7 @@ export class MarkdownParser {
       // 代码块（只有闭合的代码块才解析为 code_block 节点）
       const codeMatch = line.match(BLOCK_PATTERNS.code_block_start);
       if (codeMatch) {
+        // 局部常量 result：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const result = this.parseCodeBlock(lines, i, baseLineOffset);
         if (result) {
           blocks.push(result.node);
@@ -275,17 +283,18 @@ export class MarkdownParser {
       // 单行数学块 $$content$$
       const mathInlineMatch = line.match(BLOCK_PATTERNS.math_block_inline);
       if (mathInlineMatch) {
+        // 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const content = mathInlineMatch[1];
+        // 局部常量 textNode：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const textNode = content ? this.schema.text(content) : null;
-        blocks.push(
-          this.schema.node('math_block', { startLine }, textNode ? [textNode] : []),
-        );
+        blocks.push(this.schema.node('math_block', { startLine }, textNode ? [textNode] : []));
         i++;
         continue;
       }
 
       // 多行数学块
       if (BLOCK_PATTERNS.math_block_start.test(line)) {
+        // 局部常量 result：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const result = this.parseMathBlock(lines, i, baseLineOffset);
         blocks.push(result.node);
         i = result.endIndex + 1;
@@ -295,6 +304,7 @@ export class MarkdownParser {
       // 容器
       const containerMatch = line.match(BLOCK_PATTERNS.container_start);
       if (containerMatch) {
+        // 局部常量 result：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const result = this.parseContainer(lines, i, baseLineOffset);
         blocks.push(result.node);
         i = result.endIndex + 1;
@@ -342,6 +352,7 @@ export class MarkdownParser {
 
       // 引用
       if (BLOCK_PATTERNS.blockquote.test(line)) {
+        // 局部常量 result：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const result = this.parseBlockquote(lines, i, baseLineOffset);
         blocks.push(result.node);
         i = result.endIndex + 1;
@@ -350,6 +361,7 @@ export class MarkdownParser {
 
       // 任务列表
       if (BLOCK_PATTERNS.task_item.test(line)) {
+        // 局部常量 result：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const result = this.parseTaskList(lines, i, baseLineOffset);
         blocks.push(result.node);
         i = result.endIndex + 1;
@@ -358,6 +370,7 @@ export class MarkdownParser {
 
       // 无序列表
       if (BLOCK_PATTERNS.bullet_list.test(line)) {
+        // 局部常量 result：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const result = this.parseBulletList(lines, i, baseLineOffset);
         blocks.push(result.node);
         i = result.endIndex + 1;
@@ -366,6 +379,7 @@ export class MarkdownParser {
 
       // 有序列表
       if (BLOCK_PATTERNS.ordered_list.test(line)) {
+        // 局部常量 result：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const result = this.parseOrderedList(lines, i, baseLineOffset);
         blocks.push(result.node);
         i = result.endIndex + 1;
@@ -374,6 +388,7 @@ export class MarkdownParser {
 
       // 表格
       if (BLOCK_PATTERNS.table_row.test(line)) {
+        // 局部常量 result：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const result = this.parseTable(lines, i, baseLineOffset);
         if (result) {
           blocks.push(result.node);
@@ -385,9 +400,11 @@ export class MarkdownParser {
       // HTML 块（排除 autolink 如 <https://...> 和 <http://...>）
       const htmlMatch = line.match(BLOCK_PATTERNS.html_block_start);
       if (htmlMatch && !/^<(?:https?:\/\/|mailto:)/i.test(line)) {
+        // 局部常量 tagName：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const tagName = htmlMatch[1].toLowerCase();
         // 行内元素不解析为 html_block，作为段落处理
         if (!INLINE_ELEMENTS.has(tagName)) {
+          // 局部常量 result：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
           const result = this.parseHtmlBlock(lines, i, baseLineOffset);
           blocks.push(result.node);
           i = result.endIndex + 1;
@@ -405,18 +422,23 @@ export class MarkdownParser {
 
   /** 解析标题 — 保留 # 标记。 */
   private parseHeading(match: RegExpMatchArray, startLine: number): Node {
+    // 局部常量 hashes：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const hashes = match[1];
+    // 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const content = match[2];
+    // 局部常量 level：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const level = hashes.length;
 
     const nodes: Node[] = [];
 
+    // 局部常量 syntaxMark：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const syntaxMark = this.schema.marks.syntax_marker?.create({ syntaxType: 'heading' });
     if (syntaxMark) {
       nodes.push(this.schema.text(hashes, [syntaxMark]));
       nodes.push(this.schema.text(' '));
     }
 
+    // 局部常量 inlineNodes：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const inlineNodes = this.parseInlineWithSyntax(content);
     nodes.push(...inlineNodes);
 
@@ -425,18 +447,26 @@ export class MarkdownParser {
 
   /** 解析图片 — `![alt](src "title")` */
   private parseImage(match: RegExpMatchArray, startLine: number): Node {
+    // 局部常量 alt：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const alt = match[1] || '';
+    // 局部常量 src：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const src = match[2] || '';
+    // 局部常量 title：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const title = match[3] || '';
     return this.schema.node('image', { src, alt, title, startLine });
   }
 
   /** 解析链接图片 — `[![alt](src "title")](href "linkTitle")` */
   private parseLinkedImage(match: RegExpMatchArray, startLine: number): Node {
+    // 局部常量 alt：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const alt = match[1] || '';
+    // 局部常量 src：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const src = match[2] || '';
+    // 局部常量 title：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const title = match[3] || '';
+    // 局部常量 linkHref：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const linkHref = match[4] || '';
+    // 局部常量 linkTitle：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const linkTitle = match[5] || '';
     return this.schema.node('image', { src, alt, title, linkHref, linkTitle, startLine });
   }
@@ -447,6 +477,7 @@ export class MarkdownParser {
   private parseConsecutiveImages(line: string, startLine: number): Node[] | null {
     const images: Node[] = [];
     let index = 0;
+    // 局部常量 groupId：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const groupId = generateConsecutiveImageGroupId();
 
     while (index < line.length) {
@@ -467,8 +498,8 @@ export class MarkdownParser {
             linkHref: match[4] || '',
             linkTitle: match[5] || '',
             consecutiveGroup: groupId,
-            startLine,
-          }),
+            startLine
+          })
         );
         index = IMAGE_TOKEN_PATTERNS.linked.lastIndex;
         continue;
@@ -483,8 +514,8 @@ export class MarkdownParser {
             src: match[2] || '',
             title: match[3] || '',
             consecutiveGroup: groupId,
-            startLine,
-          }),
+            startLine
+          })
         );
         index = IMAGE_TOKEN_PATTERNS.normal.lastIndex;
         continue;
@@ -498,6 +529,7 @@ export class MarkdownParser {
 
   /** 解析段落。 */
   private parseParagraph(line: string, startLine: number): Node {
+    // 局部常量 nodes：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const nodes = this.parseInlineWithSyntax(line);
     return this.schema.node('paragraph', { startLine }, nodes.length > 0 ? nodes : undefined);
   }
@@ -511,16 +543,20 @@ export class MarkdownParser {
 
     // 转义预处理：先收集链接和行内数学匹配范围，这些范围内的转义不拆分文本
     const protectedRanges: Array<{ start: number; end: number }> = [];
+    // 局部常量 linkSyntax：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const linkSyntax = INLINE_SYNTAXES.find(s => s.type === 'link');
     if (linkSyntax) {
+      // 局部常量 linkRe：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const linkRe = new RegExp(linkSyntax.pattern.source, 'g');
       let lm: RegExpExecArray | null;
       while ((lm = linkRe.exec(text)) !== null) {
         protectedRanges.push({ start: lm.index, end: lm.index + lm[0].length });
       }
     }
+    // 局部常量 mathSyntax：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const mathSyntax = INLINE_SYNTAXES.find(s => s.type === 'math_inline');
     if (mathSyntax) {
+      // 局部常量 mathRe：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const mathRe = new RegExp(mathSyntax.pattern.source, 'g');
       let mm: RegExpExecArray | null;
       while ((mm = mathRe.exec(text)) !== null) {
@@ -529,13 +565,12 @@ export class MarkdownParser {
     }
 
     const escapePositions: Array<{ index: number; char: string }> = [];
+    // 局部常量 escapeRe：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const escapeRe = new RegExp(MarkdownParser.ESCAPE_RE.source, 'g');
     let escMatch: RegExpExecArray | null;
     while ((escMatch = escapeRe.exec(text)) !== null) {
       // 跳过链接 / 数学公式范围内的转义（公式中的 \| \hat 等是 LaTeX 命令，不是 Markdown 转义）
-      const inProtected = protectedRanges.some(
-        r => escMatch!.index >= r.start && escMatch!.index + 2 <= r.end,
-      );
+      const inProtected = protectedRanges.some(r => escMatch!.index >= r.start && escMatch!.index + 2 <= r.end);
       if (!inProtected) {
         escapePositions.push({ index: escMatch.index, char: escMatch[1] });
       }
@@ -545,6 +580,7 @@ export class MarkdownParser {
       return this.parseInlineWithEscapes(text, inheritedMarks, escapePositions);
     }
 
+    // 类型 MatchInfo：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
     interface MatchInfo {
       syntax: InlineSyntax;
       match: RegExpExecArray;
@@ -559,11 +595,14 @@ export class MarkdownParser {
     const matches: MatchInfo[] = [];
 
     for (const syntax of INLINE_SYNTAXES) {
+      // 局部常量 re：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const re = new RegExp(syntax.pattern.source, 'g');
       let match: RegExpExecArray | null;
 
       while ((match = re.exec(text)) !== null) {
+        // 局部常量 prefix：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const prefix = typeof syntax.prefix === 'function' ? syntax.prefix(match) : syntax.prefix;
+        // 局部常量 suffix：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const suffix = typeof syntax.suffix === 'function' ? syntax.suffix(match) : syntax.suffix;
         // 支持多捕获组的情况（如 strong 的正则有两种模式）
         const content = match[syntax.contentIndex] || match[syntax.contentIndex + 2] || '';
@@ -578,7 +617,7 @@ export class MarkdownParser {
           prefix,
           suffix,
           content,
-          attrs: syntax.getAttrs?.(match),
+          attrs: syntax.getAttrs?.(match)
         });
       }
     }
@@ -605,6 +644,7 @@ export class MarkdownParser {
     for (const m of filtered) {
       // 前面的纯文本
       if (m.start > pos) {
+        // 局部常量 plainText：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const plainText = text.slice(pos, m.start);
         if (inheritedMarks.length > 0) {
           nodes.push(this.schema.text(plainText, inheritedMarks));
@@ -613,25 +653,31 @@ export class MarkdownParser {
         }
       }
 
+      // 局部常量 syntaxMark：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const syntaxMark = this.schema.marks.syntax_marker?.create({
-        syntaxType: m.syntax.type,
+        syntaxType: m.syntax.type
       });
 
       const contentMarks: Mark[] = [];
       if (m.syntax.type === 'strong_emphasis') {
+        // 局部常量 strongMark：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const strongMark = this.schema.marks.strong?.create();
+        // 局部常量 emphasisMark：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const emphasisMark = this.schema.marks.emphasis?.create();
         if (strongMark) contentMarks.push(strongMark);
         if (emphasisMark) contentMarks.push(emphasisMark);
       } else {
+        // 局部常量 contentMark：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const contentMark = this.schema.marks[m.syntax.type]?.create(m.attrs);
         if (contentMark) contentMarks.push(contentMark);
       }
 
+      // 局部常量 allContentMarks：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const allContentMarks = [...inheritedMarks, ...contentMarks];
 
       // 前缀（带 syntax_marker）
       if (syntaxMark) {
+        // 局部常量 prefixMarks：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const prefixMarks = [...inheritedMarks, syntaxMark, ...contentMarks];
         nodes.push(this.schema.text(m.prefix, prefixMarks));
       }
@@ -646,6 +692,7 @@ export class MarkdownParser {
 
       // 后缀（带 syntax_marker）
       if (syntaxMark) {
+        // 局部常量 suffixMarks：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const suffixMarks = [...inheritedMarks, syntaxMark, ...contentMarks];
         nodes.push(this.schema.text(m.suffix, suffixMarks));
       }
@@ -655,6 +702,7 @@ export class MarkdownParser {
 
     // 剩余文本
     if (pos < text.length) {
+      // 局部常量 remainingText：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const remainingText = text.slice(pos);
       if (inheritedMarks.length > 0) {
         nodes.push(this.schema.text(remainingText, inheritedMarks));
@@ -674,19 +722,22 @@ export class MarkdownParser {
   private parseInlineWithEscapes(
     text: string,
     inheritedMarks: Mark[],
-    escapePositions: Array<{ index: number; char: string }>,
+    escapePositions: Array<{ index: number; char: string }>
   ): Node[] {
     const nodes: Node[] = [];
     let pos = 0;
 
     for (const esc of escapePositions) {
       if (esc.index > pos) {
+        // 局部常量 segment：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const segment = text.slice(pos, esc.index);
         nodes.push(...this.parseInlineWithSyntax(segment, inheritedMarks));
       }
 
+      // 局部常量 syntaxMark：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const syntaxMark = this.schema.marks.syntax_marker?.create({ syntaxType: 'escape' });
       if (syntaxMark) {
+        // 局部常量 backslashMarks：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const backslashMarks = [...inheritedMarks, syntaxMark];
         nodes.push(this.schema.text('\\', backslashMarks));
       }
@@ -701,6 +752,7 @@ export class MarkdownParser {
     }
 
     if (pos < text.length) {
+      // 局部常量 remaining：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const remaining = text.slice(pos);
       nodes.push(...this.parseInlineWithSyntax(remaining, inheritedMarks));
     }
@@ -716,12 +768,17 @@ export class MarkdownParser {
   private parseCodeBlock(
     lines: string[],
     startIndex: number,
-    baseLineOffset: number,
+    baseLineOffset: number
   ): { node: Node; endIndex: number } | null {
+    // 局部常量 startLineText：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const startLineText = lines[startIndex];
+    // 局部常量 startLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const startLine = baseLineOffset + startIndex;
+    // 局部常量 langMatch：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const langMatch = startLineText.match(BLOCK_PATTERNS.code_block_start);
+    // 局部常量 fenceIndent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const fenceIndent = langMatch ? langMatch[1].length : 0;
+    // 局部常量 language：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const language = langMatch ? langMatch[2] || '' : '';
 
     let endIndex = startIndex + 1;
@@ -729,8 +786,11 @@ export class MarkdownParser {
     let nestedLevel = 0;
 
     while (endIndex < lines.length) {
+      // 局部常量 line：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const line = lines[endIndex];
+      // 局部常量 isEnd：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const isEnd = BLOCK_PATTERNS.code_block_end.test(line);
+      // 局部常量 isStart：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const isStart = !isEnd && BLOCK_PATTERNS.code_block_start.test(line);
 
       if (isStart) {
@@ -743,8 +803,8 @@ export class MarkdownParser {
         }
       }
 
-      const stripped =
-        fenceIndent > 0 && line.length >= fenceIndent ? line.slice(fenceIndent) : line;
+      // 局部常量 stripped：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+      const stripped = fenceIndent > 0 && line.length >= fenceIndent ? line.slice(fenceIndent) : line;
       contentLines.push(stripped);
       endIndex++;
     }
@@ -753,17 +813,20 @@ export class MarkdownParser {
       return null;
     }
 
+    // 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const content = contentLines.join('\n');
+    // 局部常量 textNode：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const textNode = content ? this.schema.text(content) : null;
 
     // Steno 扩展：language === 'mermaid' 时输出 mermaid_block 节点，
     // 其余按 code_block 节点处理（含 startLine）
     const nodeName = language.toLowerCase() === 'mermaid' ? 'mermaid_block' : 'code_block';
+    // 局部常量 attrs：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const attrs = nodeName === 'mermaid_block' ? { startLine } : { language, startLine };
 
     return {
       node: this.schema.node(nodeName, attrs, textNode ? [textNode] : []),
-      endIndex,
+      endIndex
     };
   }
 
@@ -771,7 +834,7 @@ export class MarkdownParser {
   private parseMathBlock(
     lines: string[],
     startIndex: number,
-    baseLineOffset: number,
+    baseLineOffset: number
   ): { node: Node; endIndex: number } {
     let endIndex = startIndex + 1;
     const contentLines: string[] = [];
@@ -784,13 +847,16 @@ export class MarkdownParser {
       endIndex++;
     }
 
+    // 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const content = contentLines.join('\n');
+    // 局部常量 textNode：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const textNode = content ? this.schema.text(content) : null;
+    // 局部常量 startLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const startLine = baseLineOffset + startIndex;
 
     return {
       node: this.schema.node('math_block', { startLine }, textNode ? [textNode] : []),
-      endIndex,
+      endIndex
     };
   }
 
@@ -798,12 +864,17 @@ export class MarkdownParser {
   private parseContainer(
     lines: string[],
     startIndex: number,
-    baseLineOffset: number,
+    baseLineOffset: number
   ): { node: Node; endIndex: number } {
+    // 局部常量 startLineText：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const startLineText = lines[startIndex];
+    // 局部常量 match：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const match = startLineText.match(BLOCK_PATTERNS.container_start)!;
+    // 局部常量 type：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const type = match[1];
+    // 局部常量 title：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const title = match[2] || '';
+    // 局部常量 startLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const startLine = baseLineOffset + startIndex;
 
     let endIndex = startIndex + 1;
@@ -817,11 +888,12 @@ export class MarkdownParser {
       endIndex++;
     }
 
+    // 局部常量 innerBlocks：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const innerBlocks = this.parseBlocks(contentLines, startLine + 1);
 
     return {
       node: this.schema.node('container', { type, title, startLine }, innerBlocks),
-      endIndex,
+      endIndex
     };
   }
 
@@ -829,13 +901,18 @@ export class MarkdownParser {
   private parseHtmlBlock(
     lines: string[],
     startIndex: number,
-    baseLineOffset: number,
+    baseLineOffset: number
   ): { node: Node; endIndex: number } {
+    // 局部常量 startLineText：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const startLineText = lines[startIndex];
+    // 局部常量 tagMatch：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const tagMatch = startLineText.match(BLOCK_PATTERNS.html_block_start);
+    // 局部常量 tagName：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const tagName = tagMatch ? tagMatch[1] : '';
+    // 局部常量 startLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const startLine = baseLineOffset + startIndex;
 
+    // 局部常量 voidElements：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const voidElements = new Set([
       'area',
       'base',
@@ -850,24 +927,27 @@ export class MarkdownParser {
       'param',
       'source',
       'track',
-      'wbr',
+      'wbr'
     ]);
 
     if (voidElements.has(tagName.toLowerCase()) || startLineText.trimEnd().endsWith('/>')) {
+      // 局部常量 textNode：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const textNode = startLineText ? this.schema.text(startLineText) : null;
       return {
         node: this.schema.node('html_block', { startLine }, textNode ? [textNode] : []),
-        endIndex: startIndex,
+        endIndex: startIndex
       };
     }
 
+    // 局部常量 closePattern：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const closePattern = new RegExp(`</${tagName}\\s*>`, 'i');
 
     if (closePattern.test(startLineText)) {
+      // 局部常量 textNode：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const textNode = startLineText ? this.schema.text(startLineText) : null;
       return {
         node: this.schema.node('html_block', { startLine }, textNode ? [textNode] : []),
-        endIndex: startIndex,
+        endIndex: startIndex
       };
     }
 
@@ -875,9 +955,11 @@ export class MarkdownParser {
     let endIndex = startIndex + 1;
     let nestLevel = 1;
 
+    // 局部常量 openPattern：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const openPattern = new RegExp(`<${tagName}[\\s>/]`, 'i');
 
     while (endIndex < lines.length) {
+      // 局部常量 line：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const line = lines[endIndex];
       contentLines.push(line);
 
@@ -894,12 +976,14 @@ export class MarkdownParser {
       endIndex++;
     }
 
+    // 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const content = contentLines.join('\n');
+    // 局部常量 textNode：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const textNode = content ? this.schema.text(content) : null;
 
     return {
       node: this.schema.node('html_block', { startLine }, textNode ? [textNode] : []),
-      endIndex,
+      endIndex
     };
   }
 
@@ -907,13 +991,15 @@ export class MarkdownParser {
   private parseBlockquote(
     lines: string[],
     startIndex: number,
-    baseLineOffset: number,
+    baseLineOffset: number
   ): { node: Node; endIndex: number } {
+    // 局部常量 startLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const startLine = baseLineOffset + startIndex;
     let endIndex = startIndex;
     const contentLines: string[] = [];
 
     while (endIndex < lines.length) {
+      // 局部常量 line：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const line = lines[endIndex];
       if (line.trim() === '') {
         if (endIndex + 1 < lines.length && BLOCK_PATTERNS.blockquote.test(lines[endIndex + 1])) {
@@ -923,17 +1009,20 @@ export class MarkdownParser {
         }
         break;
       }
+      // 局部常量 match：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const match = line.match(BLOCK_PATTERNS.blockquote);
       if (!match) break;
       contentLines.push(match[1]);
       endIndex++;
     }
 
+    // 局部常量 innerBlocks：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const innerBlocks = this.parseBlocks(contentLines, startLine);
 
     // 为每个块级元素添加 > 前缀
     const processedBlocks = innerBlocks.map(block => {
       if (block.type.name === 'paragraph') {
+        // 局部常量 syntaxMark：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const syntaxMark = this.schema.marks.syntax_marker?.create({ syntaxType: 'blockquote' });
         const nodes: Node[] = [];
         if (syntaxMark) {
@@ -951,9 +1040,9 @@ export class MarkdownParser {
       node: this.schema.node(
         'blockquote',
         { startLine },
-        processedBlocks.length > 0 ? processedBlocks : [this.schema.node('paragraph')],
+        processedBlocks.length > 0 ? processedBlocks : [this.schema.node('paragraph')]
       ),
-      endIndex: endIndex - 1,
+      endIndex: endIndex - 1
     };
   }
 
@@ -961,19 +1050,23 @@ export class MarkdownParser {
   private parseBulletList(
     lines: string[],
     startIndex: number,
-    baseLineOffset: number,
+    baseLineOffset: number
   ): { node: Node; endIndex: number } {
+    // 局部常量 startLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const startLine = baseLineOffset + startIndex;
     const items: Node[] = [];
     let endIndex = startIndex;
     let baseIndent = -1;
 
     while (endIndex < lines.length) {
+      // 局部常量 line：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const line = lines[endIndex];
 
       if (line.trim() === '') {
         if (endIndex + 1 < lines.length) {
+          // 局部常量 nextLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
           const nextLine = lines[endIndex + 1];
+          // 局部常量 nextMatch：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
           const nextMatch = nextLine.match(BLOCK_PATTERNS.bullet_list);
           if (nextMatch && (baseIndent === -1 || nextMatch[1].length === baseIndent)) {
             endIndex++;
@@ -983,6 +1076,7 @@ export class MarkdownParser {
         break;
       }
 
+      // 局部常量 match：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const match = line.match(BLOCK_PATTERNS.bullet_list);
       if (!match) {
         if (baseIndent !== -1 && line.match(/^\s+/) && items.length > 0) {
@@ -991,6 +1085,7 @@ export class MarkdownParser {
         break;
       }
 
+      // 局部常量 indent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const indent = match[1].length;
       if (baseIndent === -1) {
         baseIndent = indent;
@@ -1000,11 +1095,13 @@ export class MarkdownParser {
       if (indent < baseIndent) break;
 
       const itemLines: string[] = [match[3]];
+      // 局部常量 itemIndent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const itemIndent = indent + 2;
       let itemEndIndex = endIndex + 1;
       let inCodeBlock = match[3].trim().startsWith('```');
 
       while (itemEndIndex < lines.length) {
+        // 局部常量 nextLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const nextLine = lines[itemEndIndex];
 
         if (nextLine.trim().startsWith('```')) {
@@ -1013,7 +1110,9 @@ export class MarkdownParser {
 
         if (nextLine.trim() === '') {
           if (!inCodeBlock && itemEndIndex + 1 < lines.length) {
+            // 局部常量 afterEmpty：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
             const afterEmpty = lines[itemEndIndex + 1];
+            // 局部常量 afterBulletMatch：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
             const afterBulletMatch = afterEmpty.match(BLOCK_PATTERNS.bullet_list);
             if (afterBulletMatch) {
               if (afterBulletMatch[1].length < itemIndent) break;
@@ -1027,14 +1126,17 @@ export class MarkdownParser {
         }
 
         if (!inCodeBlock) {
+          // 局部常量 nextBulletMatch：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
           const nextBulletMatch = nextLine.match(BLOCK_PATTERNS.bullet_list);
           if (nextBulletMatch && nextBulletMatch[1].length < itemIndent) {
             break;
           }
         }
 
+        // 局部常量 lineIndent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const lineIndent = nextLine.match(/^(\s*)/)?.[1].length || 0;
         if (lineIndent >= itemIndent || inCodeBlock || nextLine.trim().startsWith('```')) {
+          // 局部常量 trimmedLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
           const trimmedLine = nextLine.slice(Math.min(lineIndent, itemIndent));
           itemLines.push(trimmedLine);
           itemEndIndex++;
@@ -1043,13 +1145,10 @@ export class MarkdownParser {
         }
       }
 
+      // 局部常量 itemContent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const itemContent = this.parseBlocks(itemLines, baseLineOffset + endIndex);
       items.push(
-        this.schema.node(
-          'list_item',
-          null,
-          itemContent.length > 0 ? itemContent : [this.schema.node('paragraph')],
-        ),
+        this.schema.node('list_item', null, itemContent.length > 0 ? itemContent : [this.schema.node('paragraph')])
       );
       endIndex = itemEndIndex;
     }
@@ -1058,11 +1157,9 @@ export class MarkdownParser {
       node: this.schema.node(
         'bullet_list',
         { startLine },
-        items.length > 0
-          ? items
-          : [this.schema.node('list_item', null, [this.schema.node('paragraph')])],
+        items.length > 0 ? items : [this.schema.node('list_item', null, [this.schema.node('paragraph')])]
       ),
-      endIndex: endIndex - 1,
+      endIndex: endIndex - 1
     };
   }
 
@@ -1070,8 +1167,9 @@ export class MarkdownParser {
   private parseOrderedList(
     lines: string[],
     startIndex: number,
-    baseLineOffset: number,
+    baseLineOffset: number
   ): { node: Node; endIndex: number } {
+    // 局部常量 startLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const startLine = baseLineOffset + startIndex;
     const items: Node[] = [];
     let endIndex = startIndex;
@@ -1079,11 +1177,14 @@ export class MarkdownParser {
     let baseIndent = -1;
 
     while (endIndex < lines.length) {
+      // 局部常量 line：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const line = lines[endIndex];
 
       if (line.trim() === '') {
         if (endIndex + 1 < lines.length) {
+          // 局部常量 nextLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
           const nextLine = lines[endIndex + 1];
+          // 局部常量 nextMatch：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
           const nextMatch = nextLine.match(BLOCK_PATTERNS.ordered_list);
           if (nextMatch && (baseIndent === -1 || nextMatch[1].length === baseIndent)) {
             endIndex++;
@@ -1093,12 +1194,14 @@ export class MarkdownParser {
         break;
       }
 
+      // 局部常量 match：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const match = line.match(BLOCK_PATTERNS.ordered_list);
       if (!match) {
         if (baseIndent !== -1 && line.match(/^\s+/) && items.length > 0) break;
         break;
       }
 
+      // 局部常量 indent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const indent = match[1].length;
       if (baseIndent === -1) {
         baseIndent = indent;
@@ -1109,11 +1212,13 @@ export class MarkdownParser {
       if (indent < baseIndent) break;
 
       const itemLines: string[] = [match[3]];
+      // 局部常量 itemIndent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const itemIndent = indent + match[2].length + 2;
       let itemEndIndex = endIndex + 1;
       let inCodeBlock = match[3].trim().startsWith('```');
 
       while (itemEndIndex < lines.length) {
+        // 局部常量 nextLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const nextLine = lines[itemEndIndex];
 
         if (nextLine.trim().startsWith('```')) {
@@ -1122,7 +1227,9 @@ export class MarkdownParser {
 
         if (nextLine.trim() === '') {
           if (!inCodeBlock && itemEndIndex + 1 < lines.length) {
+            // 局部常量 afterEmpty：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
             const afterEmpty = lines[itemEndIndex + 1];
+            // 局部常量 afterOrderedMatch：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
             const afterOrderedMatch = afterEmpty.match(BLOCK_PATTERNS.ordered_list);
             if (afterOrderedMatch) {
               if (afterOrderedMatch[1].length < itemIndent) break;
@@ -1136,14 +1243,17 @@ export class MarkdownParser {
         }
 
         if (!inCodeBlock) {
+          // 局部常量 nextOrderedMatch：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
           const nextOrderedMatch = nextLine.match(BLOCK_PATTERNS.ordered_list);
           if (nextOrderedMatch && nextOrderedMatch[1].length < itemIndent) {
             break;
           }
         }
 
+        // 局部常量 lineIndent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const lineIndent = nextLine.match(/^(\s*)/)?.[1].length || 0;
         if (lineIndent >= itemIndent || inCodeBlock || nextLine.trim().startsWith('```')) {
+          // 局部常量 trimmedLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
           const trimmedLine = nextLine.slice(Math.min(lineIndent, itemIndent));
           itemLines.push(trimmedLine);
           itemEndIndex++;
@@ -1152,13 +1262,10 @@ export class MarkdownParser {
         }
       }
 
+      // 局部常量 itemContent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const itemContent = this.parseBlocks(itemLines, baseLineOffset + endIndex);
       items.push(
-        this.schema.node(
-          'list_item',
-          null,
-          itemContent.length > 0 ? itemContent : [this.schema.node('paragraph')],
-        ),
+        this.schema.node('list_item', null, itemContent.length > 0 ? itemContent : [this.schema.node('paragraph')])
       );
       endIndex = itemEndIndex;
     }
@@ -1167,33 +1274,33 @@ export class MarkdownParser {
       node: this.schema.node(
         'ordered_list',
         { start, startLine },
-        items.length > 0
-          ? items
-          : [this.schema.node('list_item', null, [this.schema.node('paragraph')])],
+        items.length > 0 ? items : [this.schema.node('list_item', null, [this.schema.node('paragraph')])]
       ),
-      endIndex: endIndex - 1,
+      endIndex: endIndex - 1
     };
   }
 
   /** 解析任务列表。 */
-  private parseTaskList(
-    lines: string[],
-    startIndex: number,
-    baseLineOffset: number,
-  ): { node: Node; endIndex: number } {
+  private parseTaskList(lines: string[], startIndex: number, baseLineOffset: number): { node: Node; endIndex: number } {
+    // 局部常量 startLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const startLine = baseLineOffset + startIndex;
     const items: Node[] = [];
     let endIndex = startIndex;
 
     while (endIndex < lines.length) {
+      // 局部常量 line：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const line = lines[endIndex];
       if (line.trim() === '') break;
 
+      // 局部常量 match：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const match = line.match(BLOCK_PATTERNS.task_item);
       if (!match) break;
 
+      // 局部常量 checked：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const checked = match[2].toLowerCase() === 'x';
+      // 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const content = match[3];
+      // 局部常量 para：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const para = this.parseParagraph(content, baseLineOffset + endIndex);
       items.push(this.schema.node('task_item', { checked }, [para]));
       endIndex++;
@@ -1203,11 +1310,9 @@ export class MarkdownParser {
       node: this.schema.node(
         'task_list',
         { startLine },
-        items.length > 0
-          ? items
-          : [this.schema.node('task_item', { checked: false }, [this.schema.node('paragraph')])],
+        items.length > 0 ? items : [this.schema.node('task_item', { checked: false }, [this.schema.node('paragraph')])]
       ),
-      endIndex: endIndex - 1,
+      endIndex: endIndex - 1
     };
   }
 
@@ -1215,24 +1320,30 @@ export class MarkdownParser {
   private parseTable(
     lines: string[],
     startIndex: number,
-    baseLineOffset: number,
+    baseLineOffset: number
   ): { node: Node; endIndex: number } | null {
     let sepIndex = startIndex + 1;
     if (sepIndex < lines.length && lines[sepIndex].trim() === '') sepIndex++;
     if (sepIndex >= lines.length) return null;
     if (!BLOCK_PATTERNS.table_separator.test(lines[sepIndex])) return null;
 
+    // 局部常量 startLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const startLine = baseLineOffset + startIndex;
     const rows: Node[] = [];
     let endIndex = startIndex;
 
+    // 局部常量 separatorLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const separatorLine = lines[sepIndex].trimEnd();
+    // 局部常量 alignments：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const alignments = separatorLine
       .slice(1, -1)
       .split('|')
       .map(col => {
+        // 局部常量 trimmed：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const trimmed = col.trim();
+        // 局部常量 left：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const left = trimmed.startsWith(':');
+        // 局部常量 right：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const right = trimmed.endsWith(':');
         if (left && right) return 'center';
         if (right) return 'right';
@@ -1240,6 +1351,7 @@ export class MarkdownParser {
         return null;
       });
 
+    // 局部常量 headerCells：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const headerCells = this.parseTableRow(lines[startIndex], true, alignments);
     rows.push(this.schema.node('table_row', null, headerCells));
     endIndex = sepIndex + 1;
@@ -1250,6 +1362,7 @@ export class MarkdownParser {
         continue;
       }
       if (!BLOCK_PATTERNS.table_row.test(lines[endIndex])) break;
+      // 局部常量 cells：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const cells = this.parseTableRow(lines[endIndex], false, alignments);
       rows.push(this.schema.node('table_row', null, cells));
       endIndex++;
@@ -1257,31 +1370,29 @@ export class MarkdownParser {
 
     return {
       node: this.schema.node('table', { startLine }, rows),
-      endIndex: endIndex - 1,
+      endIndex: endIndex - 1
     };
   }
 
   /** 解析表格行。 */
-  private parseTableRow(
-    line: string,
-    isHeader: boolean,
-    alignments: (string | null)[] = [],
-  ): Node[] {
+  private parseTableRow(line: string, isHeader: boolean, alignments: (string | null)[] = []): Node[] {
     const cells: Node[] = [];
+    // 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const content = line.trimEnd().slice(1, -1);
+    // 局部常量 cellContents：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const cellContents = content.split('|');
 
     for (let i = 0; i < cellContents.length; i++) {
+      // 局部常量 trimmed：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const trimmed = cellContents[i].trim();
+      // 局部常量 inlineContent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const inlineContent = this.parseInlineWithSyntax(trimmed);
+      // 局部常量 nodeType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const nodeType = isHeader ? 'table_header' : 'table_cell';
+      // 局部常量 align：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const align = alignments[i] || null;
       cells.push(
-        this.schema.node(
-          nodeType,
-          align ? { align } : null,
-          inlineContent.length > 0 ? inlineContent : undefined,
-        ),
+        this.schema.node(nodeType, align ? { align } : null, inlineContent.length > 0 ? inlineContent : undefined)
       );
     }
 

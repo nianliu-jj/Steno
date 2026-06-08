@@ -19,16 +19,16 @@ const strong: MarkSpec = {
     { tag: 'strong' },
     {
       tag: 'b',
-      getAttrs: node => (node as HTMLElement).style.fontWeight !== 'normal' && null,
+      getAttrs: node => (node as HTMLElement).style.fontWeight !== 'normal' && null
     },
     {
       style: 'font-weight',
-      getAttrs: value => /^(bold(er)?|[5-9]\d{2,})$/.test(value as string) && null,
-    },
+      getAttrs: value => /^(bold(er)?|[5-9]\d{2,})$/.test(value as string) && null
+    }
   ],
   toDOM(): DOMOutputSpec {
     return ['strong', 0];
-  },
+  }
 };
 
 const emphasis: MarkSpec = {
@@ -37,13 +37,13 @@ const emphasis: MarkSpec = {
     { tag: 'em' },
     {
       tag: 'i',
-      getAttrs: node => (node as HTMLElement).style.fontStyle !== 'normal' && null,
+      getAttrs: node => (node as HTMLElement).style.fontStyle !== 'normal' && null
     },
-    { style: 'font-style=italic' },
+    { style: 'font-style=italic' }
   ],
   toDOM(): DOMOutputSpec {
     return ['em', 0];
-  },
+  }
 };
 
 const code_inline: MarkSpec = {
@@ -51,7 +51,7 @@ const code_inline: MarkSpec = {
   parseDOM: [{ tag: 'code' }],
   toDOM(): DOMOutputSpec {
     return ['code', { class: 'steno-code-inline' }, 0];
-  },
+  }
 };
 
 const strikethrough: MarkSpec = {
@@ -62,35 +62,36 @@ const strikethrough: MarkSpec = {
     { tag: 'strike' },
     {
       style: 'text-decoration',
-      getAttrs: value => (value as string).includes('line-through') && null,
-    },
+      getAttrs: value => (value as string).includes('line-through') && null
+    }
   ],
   toDOM(): DOMOutputSpec {
     return ['del', 0];
-  },
+  }
 };
 
 const link: MarkSpec = {
   attrs: {
     href: { default: '' },
-    title: { default: '' },
+    title: { default: '' }
   },
   inclusive: false,
   parseDOM: [
     {
       tag: 'a[href]',
       getAttrs(node) {
+        // 局部常量 el：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const el = node as HTMLElement;
         return {
           href: el.getAttribute('href') ?? '',
-          title: el.getAttribute('title') ?? '',
+          title: el.getAttribute('title') ?? ''
         };
-      },
-    },
+      }
+    }
   ],
   toDOM(mark): DOMOutputSpec {
     return ['a', { href: mark.attrs.href, title: mark.attrs.title || null }, 0];
-  },
+  }
 };
 
 const highlight: MarkSpec = {
@@ -99,30 +100,31 @@ const highlight: MarkSpec = {
     { tag: 'mark' },
     {
       style: 'background-color',
-      getAttrs: value => (value as string) !== 'transparent' && null,
-    },
+      getAttrs: value => (value as string) !== 'transparent' && null
+    }
   ],
   toDOM(): DOMOutputSpec {
     return ['mark', 0];
-  },
+  }
 };
 
 const math_inline: MarkSpec = {
   attrs: {
-    content: { default: '' },
+    content: { default: '' }
   },
   parseDOM: [
     {
       tag: 'span.math-inline',
       getAttrs(node) {
+        // 局部常量 el：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const el = node as HTMLElement;
         return { content: el.getAttribute('data-content') ?? '' };
-      },
-    },
+      }
+    }
   ],
   toDOM(mark): DOMOutputSpec {
     return ['span', { class: 'math-inline', 'data-content': mark.attrs.content }, 0];
-  },
+  }
 };
 
 const sub: MarkSpec = {
@@ -130,7 +132,7 @@ const sub: MarkSpec = {
   parseDOM: [{ tag: 'sub' }],
   toDOM(): DOMOutputSpec {
     return ['sub', 0];
-  },
+  }
 };
 
 const sup: MarkSpec = {
@@ -138,42 +140,46 @@ const sup: MarkSpec = {
   parseDOM: [{ tag: 'sup' }],
   toDOM(): DOMOutputSpec {
     return ['sup', 0];
-  },
+  }
 };
 
 const html_inline: MarkSpec = {
   attrs: {
     tag: { default: 'span' },
     /** 原始属性字符串，例如 `style="color:red" class="foo"` */
-    htmlAttrs: { default: '' },
+    htmlAttrs: { default: '' }
   },
   inclusive: false,
   // 与其他 mark 共存
   excludes: '',
   toDOM(mark): DOMOutputSpec {
+    // 函数式常量 tag：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
     const tag = (mark.attrs.tag as string) || 'span';
+    // 局部常量 safeTag：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const safeTag = SAFE_INLINE_TAGS.has(tag) ? tag : 'span';
+    // 局部常量 attrs：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const attrs = parseHtmlAttrs(mark.attrs.htmlAttrs as string);
     return [safeTag, attrs, 0];
-  },
+  }
 };
 
 const footnote_ref: MarkSpec = {
   attrs: {
-    id: { default: '' },
+    id: { default: '' }
   },
   parseDOM: [
     {
       tag: 'sup.footnote-ref',
       getAttrs(node) {
+        // 局部常量 el：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const el = node as HTMLElement;
         return { id: el.getAttribute('data-id') ?? '' };
-      },
-    },
+      }
+    }
   ],
   toDOM(mark): DOMOutputSpec {
     return ['sup', { class: 'footnote-ref', 'data-id': mark.attrs.id }, 0];
-  },
+  }
 };
 
 /**
@@ -186,7 +192,7 @@ const footnote_ref: MarkSpec = {
 const syntax_marker: MarkSpec = {
   attrs: {
     /** 语法类型：strong / emphasis / code_inline / strikethrough / highlight / link / image / math_inline … */
-    syntaxType: { default: '' },
+    syntaxType: { default: '' }
   },
   excludes: '',
   // 防止用户在语法区域内继续输入时无法逃出
@@ -195,21 +201,22 @@ const syntax_marker: MarkSpec = {
     {
       tag: 'span.steno-syntax',
       getAttrs(node) {
+        // 局部常量 el：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const el = node as HTMLElement;
         return { syntaxType: el.getAttribute('data-syntax-type') ?? '' };
-      },
-    },
+      }
+    }
   ],
   toDOM(mark): DOMOutputSpec {
     return [
       'span',
       {
         class: 'steno-syntax',
-        'data-syntax-type': mark.attrs.syntaxType,
+        'data-syntax-type': mark.attrs.syntaxType
       },
-      0,
+      0
     ];
-  },
+  }
 };
 
 /**
@@ -228,5 +235,5 @@ export const marks = {
   sub,
   sup,
   html_inline,
-  footnote_ref,
+  footnote_ref
 };

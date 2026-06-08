@@ -27,13 +27,16 @@ function headingRule(nodeType: NodeType): InputRule {
     const decorationState = decorationPluginKey.getState(state);
     if (decorationState?.sourceView) return null;
 
+    // 局部常量 hashes：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const hashes = match[1];
+    // 局部常量 level：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const level = hashes.length;
     const $start = state.doc.resolve(start);
     if (!$start.node(-1).canReplaceWith($start.index(-1), $start.indexAfter(-1), nodeType)) {
       return null;
     }
 
+    // 局部常量 syntaxMarkerType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const syntaxMarkerType = state.schema.marks.syntax_marker;
     // 关键修复：保留 "#" 作为带 syntax_marker(heading) 的可见文本，与 parser.parseHeading
     // 的文档结构（"#" + 普通空格 + 内容）保持一致。
@@ -67,6 +70,7 @@ function codeBlockRule(nodeType: NodeType): InputRule {
     const decorationState = decorationPluginKey.getState(state);
     if (decorationState?.sourceView) return null;
 
+    // 局部常量 language：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const language = match[1] || '';
     const $start = state.doc.resolve(start);
 
@@ -74,8 +78,11 @@ function codeBlockRule(nodeType: NodeType): InputRule {
       return null;
     }
 
+    // 局部常量 paragraphStart：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const paragraphStart = $start.start();
+    // 局部常量 codeBlock：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const codeBlock = nodeType.create({ language });
+    // 局部常量 tr：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const tr = state.tr.replaceWith(paragraphStart, end, codeBlock);
     tr.setSelection(TextSelection.create(tr.doc, paragraphStart + 1));
     return tr;
@@ -85,7 +92,7 @@ function codeBlockRule(nodeType: NodeType): InputRule {
 /** 分隔线：`---` / `***` / `___` */
 function horizontalRuleRule(nodeType: NodeType): InputRule {
   return new InputRule(/^([-*_]){3,}\s$/, (state, _match, start, end) =>
-    state.tr.replaceWith(start - 1, end, nodeType.create()),
+    state.tr.replaceWith(start - 1, end, nodeType.create())
   );
 }
 
@@ -100,37 +107,45 @@ function orderedListRule(listType: NodeType, itemType: NodeType): InputRule {
     /^(\d+)\.\s$/,
     listType,
     match => ({ start: parseInt(match[1], 10) }),
-    (match, node) => node.type === itemType && node.childCount + parseInt(match[1], 10) === 1,
+    (match, node) => node.type === itemType && node.childCount + parseInt(match[1], 10) === 1
   );
 }
 
 /** 任务列表：在无序列表项内输入 `[] ` / `[ ] ` / `[x] ` */
 function taskListRule(listType: NodeType, itemType: NodeType): InputRule {
   return new InputRule(/^\[([ xX]?)\]\s$/, (state, match, start, end) => {
+    // 局部常量 checked：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const checked = match[1].toLowerCase() === 'x';
     const $start = state.doc.resolve(start);
 
     if ($start.depth < 2) return null;
 
+    // 局部常量 listItemDepth：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const listItemDepth = $start.depth - 1;
+    // 局部常量 listItem：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const listItem = $start.node(listItemDepth);
+    // 局部常量 listDepth：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const listDepth = listItemDepth - 1;
+    // 局部常量 list：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const list = $start.node(listDepth);
 
     if (listItem.type.name !== 'list_item' || list.type.name !== 'bullet_list') return null;
 
+    // 局部常量 paraStart：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const paraStart = $start.start($start.depth);
     if (start !== paraStart) return null;
 
+    // 局部常量 listPos：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const listPos = $start.before(listDepth);
+    // 局部常量 matchLen：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const matchLen = end - start;
 
+    // 局部常量 para：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const para = $start.node($start.depth);
+    // 局部常量 newParaContent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const newParaContent = para.content.cut(matchLen);
-    const newPara = para.type.create(
-      para.attrs,
-      newParaContent.size > 0 ? newParaContent : undefined,
-    );
+    // 局部常量 newPara：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+    const newPara = para.type.create(para.attrs, newParaContent.size > 0 ? newParaContent : undefined);
 
     const itemChildren: Node[] = [newPara];
     for (let i = 1; i < listItem.childCount; i++) {
@@ -138,15 +153,20 @@ function taskListRule(listType: NodeType, itemType: NodeType): InputRule {
     }
 
     if (list.childCount === 1) {
+      // 局部常量 newItem：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const newItem = itemType.create({ checked }, itemChildren);
+      // 局部常量 newList：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const newList = listType.create(null, newItem);
       let tr = state.tr.replaceWith(listPos, listPos + list.nodeSize, newList);
       tr = tr.setSelection(TextSelection.near(tr.doc.resolve(listPos + 2)));
       return tr;
     }
 
+    // 局部常量 itemIndex：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const itemIndex = $start.index(listDepth);
+    // 局部常量 newItem：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const newItem = itemType.create({ checked }, itemChildren);
+    // 局部常量 newTaskList：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const newTaskList = listType.create(null, newItem);
 
     const beforeItems: Node[] = [];
@@ -177,41 +197,47 @@ function taskListRule(listType: NodeType, itemType: NodeType): InputRule {
 }
 
 /** 无序列表项 → 有序列表（在 bullet_list > list_item > paragraph 开头输入 `数字. `） */
-function bulletToOrderedRule(
-  orderedListType: NodeType,
-  bulletListType: NodeType,
-  itemType: NodeType,
-): InputRule {
+function bulletToOrderedRule(orderedListType: NodeType, bulletListType: NodeType, itemType: NodeType): InputRule {
   return new InputRule(/^(\d+)\.\s$/, (state, match, start, end) => {
+    // 局部常量 startNum：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const startNum = parseInt(match[1], 10);
     const $start = state.doc.resolve(start);
     if ($start.depth < 2) return null;
 
+    // 局部常量 listItemDepth：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const listItemDepth = $start.depth - 1;
+    // 局部常量 listItem：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const listItem = $start.node(listItemDepth);
+    // 局部常量 listDepth：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const listDepth = listItemDepth - 1;
+    // 局部常量 list：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const list = $start.node(listDepth);
 
     if (listItem.type.name !== 'list_item' || list.type !== bulletListType) return null;
 
+    // 局部常量 paraStart：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const paraStart = $start.start($start.depth);
     if (start !== paraStart) return null;
 
+    // 局部常量 listPos：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const listPos = $start.before(listDepth);
+    // 局部常量 matchLen：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const matchLen = end - start;
+    // 局部常量 para：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const para = $start.node($start.depth);
+    // 局部常量 newParaContent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const newParaContent = para.content.cut(matchLen);
-    const newPara = para.type.create(
-      para.attrs,
-      newParaContent.size > 0 ? newParaContent : undefined,
-    );
+    // 局部常量 newPara：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+    const newPara = para.type.create(para.attrs, newParaContent.size > 0 ? newParaContent : undefined);
 
     const itemChildren: Node[] = [newPara];
     for (let i = 1; i < listItem.childCount; i++) {
       itemChildren.push(listItem.child(i));
     }
 
+    // 局部常量 newItem：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const newItem = itemType.create(null, itemChildren);
+    // 局部常量 newList：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const newList = orderedListType.create({ start: startNum }, newItem);
 
     if (list.childCount === 1) {
@@ -220,6 +246,7 @@ function bulletToOrderedRule(
       return tr;
     }
 
+    // 局部常量 itemIndex：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const itemIndex = $start.index(listDepth);
     const beforeItems: Node[] = [];
     const afterItems: Node[] = [];
@@ -249,40 +276,45 @@ function bulletToOrderedRule(
 }
 
 /** 有序列表项 → 无序列表（在 ordered_list > list_item > paragraph 开头输入 `- `/`* `/`+ `） */
-function orderedToBulletRule(
-  bulletListType: NodeType,
-  orderedListType: NodeType,
-  itemType: NodeType,
-): InputRule {
+function orderedToBulletRule(bulletListType: NodeType, orderedListType: NodeType, itemType: NodeType): InputRule {
   return new InputRule(/^[-*+]\s$/, (state, _match, start, end) => {
     const $start = state.doc.resolve(start);
     if ($start.depth < 2) return null;
 
+    // 局部常量 listItemDepth：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const listItemDepth = $start.depth - 1;
+    // 局部常量 listItem：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const listItem = $start.node(listItemDepth);
+    // 局部常量 listDepth：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const listDepth = listItemDepth - 1;
+    // 局部常量 list：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const list = $start.node(listDepth);
 
     if (listItem.type.name !== 'list_item' || list.type !== orderedListType) return null;
 
+    // 局部常量 paraStart：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const paraStart = $start.start($start.depth);
     if (start !== paraStart) return null;
 
+    // 局部常量 listPos：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const listPos = $start.before(listDepth);
+    // 局部常量 matchLen：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const matchLen = end - start;
+    // 局部常量 para：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const para = $start.node($start.depth);
+    // 局部常量 newParaContent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const newParaContent = para.content.cut(matchLen);
-    const newPara = para.type.create(
-      para.attrs,
-      newParaContent.size > 0 ? newParaContent : undefined,
-    );
+    // 局部常量 newPara：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+    const newPara = para.type.create(para.attrs, newParaContent.size > 0 ? newParaContent : undefined);
 
     const itemChildren: Node[] = [newPara];
     for (let i = 1; i < listItem.childCount; i++) {
       itemChildren.push(listItem.child(i));
     }
 
+    // 局部常量 newItem：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const newItem = itemType.create(null, itemChildren);
+    // 局部常量 newList：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const newList = bulletListType.create(null, newItem);
 
     if (list.childCount === 1) {
@@ -291,6 +323,7 @@ function orderedToBulletRule(
       return tr;
     }
 
+    // 局部常量 itemIndex：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const itemIndex = $start.index(listDepth);
     const beforeItems: Node[] = [];
     const afterItems: Node[] = [];
@@ -328,14 +361,19 @@ function createInlineRuleWithSyntax(
   prefix: string | ((match: RegExpMatchArray) => string),
   suffix: string | ((match: RegExpMatchArray) => string),
   contentIndex: number,
-  syntaxType: string,
+  syntaxType: string
 ): InputRule {
   return new InputRule(pattern, (state, match, start, end) => {
+    // 局部常量 schema：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const schema = state.schema;
+    // 局部常量 syntaxMarkerType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const syntaxMarkerType = schema.marks.syntax_marker;
+    // 局部常量 contentMark：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const contentMark = markType.create();
 
+    // 局部常量 prefixStr：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const prefixStr = typeof prefix === 'function' ? prefix(match) : prefix;
+    // 局部常量 suffixStr：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const suffixStr = typeof suffix === 'function' ? suffix(match) : suffix;
     // 支持多个捕获组的情况（如 strong 的正则有两种模式）
     const content = match[contentIndex] || match[contentIndex + 2] || '';
@@ -360,11 +398,7 @@ function createInlineRuleWithSyntax(
     const suffixStart = contentStart + content.length;
     tr = tr.insertText(suffixStr, suffixStart);
     if (syntaxMarkerType) {
-      tr = tr.addMark(
-        suffixStart,
-        suffixStart + suffixStr.length,
-        syntaxMarkerType.create({ syntaxType }),
-      );
+      tr = tr.addMark(suffixStart, suffixStart + suffixStr.length, syntaxMarkerType.create({ syntaxType }));
     }
     tr = tr.addMark(suffixStart, suffixStart + suffixStr.length, contentMark);
 
@@ -385,7 +419,7 @@ function strongRule(markType: MarkType): InputRule {
     m => m[1] || m[3],
     m => m[1] || m[3],
     2,
-    'strong',
+    'strong'
   );
 }
 
@@ -397,7 +431,7 @@ function emphasisRule(markType: MarkType): InputRule {
     m => m[1] || m[3],
     m => m[1] || m[3],
     2,
-    'emphasis',
+    'emphasis'
   );
 }
 
@@ -413,53 +447,55 @@ function highlightRule(markType: MarkType): InputRule {
 
 /** 链接：`[text](url)`（url 可为空，排除图片语法） */
 function linkRule(markType: MarkType): InputRule {
-  return new InputRule(
-    /(?<!!)\[([^\]]+)\]\(((?:[^)\\]|\\.)*)?\)$/,
-    (state, match, start, end) => {
-      const schema = state.schema;
-      const syntaxMarkerType = schema.marks.syntax_marker;
-      const url = match[2] || '';
-      const linkMark = markType.create({ href: url, title: '' });
-      const text = match[1];
+  return new InputRule(/(?<!!)\[([^\]]+)\]\(((?:[^)\\]|\\.)*)?\)$/, (state, match, start, end) => {
+    // 局部常量 schema：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+    const schema = state.schema;
+    // 局部常量 syntaxMarkerType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+    const syntaxMarkerType = schema.marks.syntax_marker;
+    // 局部常量 url：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+    const url = match[2] || '';
+    // 局部常量 linkMark：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+    const linkMark = markType.create({ href: url, title: '' });
+    // 局部常量 text：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+    const text = match[1];
 
-      let tr = state.tr.delete(start, end);
+    let tr = state.tr.delete(start, end);
 
-      const prefix = '[';
-      const suffix = `](${url})`;
+    // 局部常量 prefix：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+    const prefix = '[';
+    // 局部常量 suffix：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+    const suffix = `](${url})`;
 
-      // 前缀 [ (syntax_marker + link)
-      tr = tr.insertText(prefix, start);
-      if (syntaxMarkerType) {
-        tr = tr.addMark(start, start + prefix.length, syntaxMarkerType.create({ syntaxType: 'link' }));
-      }
-      tr = tr.addMark(start, start + prefix.length, linkMark);
+    // 前缀 [ (syntax_marker + link)
+    tr = tr.insertText(prefix, start);
+    if (syntaxMarkerType) {
+      tr = tr.addMark(start, start + prefix.length, syntaxMarkerType.create({ syntaxType: 'link' }));
+    }
+    tr = tr.addMark(start, start + prefix.length, linkMark);
 
-      // 链接文本 (link only)
-      const textStart = start + prefix.length;
-      tr = tr.insertText(text, textStart);
-      tr = tr.addMark(textStart, textStart + text.length, linkMark);
+    // 链接文本 (link only)
+    const textStart = start + prefix.length;
+    tr = tr.insertText(text, textStart);
+    tr = tr.addMark(textStart, textStart + text.length, linkMark);
 
-      // 后缀 ](url) (syntax_marker + link)
-      const suffixStart = textStart + text.length;
-      tr = tr.insertText(suffix, suffixStart);
-      if (syntaxMarkerType) {
-        tr = tr.addMark(
-          suffixStart,
-          suffixStart + suffix.length,
-          syntaxMarkerType.create({ syntaxType: 'link' }),
-        );
-      }
-      tr = tr.addMark(suffixStart, suffixStart + suffix.length, linkMark);
+    // 后缀 ](url) (syntax_marker + link)
+    const suffixStart = textStart + text.length;
+    tr = tr.insertText(suffix, suffixStart);
+    if (syntaxMarkerType) {
+      tr = tr.addMark(suffixStart, suffixStart + suffix.length, syntaxMarkerType.create({ syntaxType: 'link' }));
+    }
+    tr = tr.addMark(suffixStart, suffixStart + suffix.length, linkMark);
 
-      return tr;
-    },
-  );
+    return tr;
+  });
 }
 
 /** 行内图片：`![alt](src)` */
 function imageRule(nodeType: NodeType): InputRule {
   return new InputRule(/!\[([^\]]*)\]\(([^)]+)\)$/, (state, match, start, end) => {
+    // 局部常量 alt：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const alt = match[1] || '';
+    // 局部常量 src：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const src = match[2] || '';
     return state.tr.replaceWith(start, end, nodeType.create({ src, alt, title: '' }));
   });
@@ -468,14 +504,13 @@ function imageRule(nodeType: NodeType): InputRule {
 /** 链接图片：`[![alt](src)](href)` */
 function linkedImageRule(nodeType: NodeType): InputRule {
   return new InputRule(/\[!\[([^\]]*)\]\(([^)]+)\)\]\(([^)]+)\)$/, (state, match, start, end) => {
+    // 局部常量 alt：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const alt = match[1] || '';
+    // 局部常量 src：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const src = match[2] || '';
+    // 局部常量 linkHref：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const linkHref = match[3] || '';
-    return state.tr.replaceWith(
-      start,
-      end,
-      nodeType.create({ src, alt, title: '', linkHref, linkTitle: '' }),
-    );
+    return state.tr.replaceWith(start, end, nodeType.create({ src, alt, title: '', linkHref, linkTitle: '' }));
   });
 }
 
@@ -497,17 +532,25 @@ function htmlInlineRule(markType: MarkType): InputRule {
   return new InputRule(
     /<([a-zA-Z][a-zA-Z0-9]*)(\s(?:[^>"']|"[^"]*"|'[^']*')*)?>(.+?)<\/\1>$/,
     (state, match, start, end) => {
+      // 局部常量 tag：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const tag = match[1].toLowerCase();
+      // 函数式常量 htmlAttrs：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
       const htmlAttrs = (match[2] || '').trim();
 
       if (HTML_INLINE_SKIP_TAGS.has(tag)) return null;
 
+      // 局部常量 schema：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const schema = state.schema;
+      // 局部常量 syntaxMarkerType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const syntaxMarkerType = schema.marks.syntax_marker;
+      // 局部常量 contentMark：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const contentMark = markType.create({ tag, htmlAttrs });
 
+      // 局部常量 prefix：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const prefix = `<${match[1]}${match[2] || ''}>`;
+      // 局部常量 suffix：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const suffix = `</${match[1]}>`;
+      // 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const content = match[3];
       if (!content) return null;
 
@@ -515,31 +558,29 @@ function htmlInlineRule(markType: MarkType): InputRule {
 
       tr = tr.insertText(prefix, start);
       if (syntaxMarkerType) {
-        tr = tr.addMark(
-          start,
-          start + prefix.length,
-          syntaxMarkerType.create({ syntaxType: 'html_inline' }),
-        );
+        tr = tr.addMark(start, start + prefix.length, syntaxMarkerType.create({ syntaxType: 'html_inline' }));
       }
       tr = tr.addMark(start, start + prefix.length, contentMark);
 
+      // 局部常量 contentStart：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const contentStart = start + prefix.length;
       tr = tr.insertText(content, contentStart);
       tr = tr.addMark(contentStart, contentStart + content.length, contentMark);
 
+      // 局部常量 suffixStart：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const suffixStart = contentStart + content.length;
       tr = tr.insertText(suffix, suffixStart);
       if (syntaxMarkerType) {
         tr = tr.addMark(
           suffixStart,
           suffixStart + suffix.length,
-          syntaxMarkerType.create({ syntaxType: 'html_inline' }),
+          syntaxMarkerType.create({ syntaxType: 'html_inline' })
         );
       }
       tr = tr.addMark(suffixStart, suffixStart + suffix.length, contentMark);
 
       return tr;
-    },
+    }
   );
 }
 
@@ -550,6 +591,7 @@ function mathBlockRule(nodeType: NodeType): InputRule {
     if (!$start.node(-1).canReplaceWith($start.index(-1), $start.indexAfter(-1), nodeType)) {
       return null;
     }
+    // 局部常量 tr：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const tr = state.tr.delete(start, end).setBlockType(start, start, nodeType);
     tr.setSelection(TextSelection.create(tr.doc, start + 1));
     return tr;
@@ -563,11 +605,11 @@ function mathBlockInlineRule(nodeType: NodeType): InputRule {
     if (!$start.node(-1).canReplaceWith($start.index(-1), $start.indexAfter(-1), nodeType)) {
       return null;
     }
+    // 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const content = match[1];
+    // 局部常量 textNode：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const textNode = content ? state.schema.text(content) : null;
-    return state.tr
-      .delete(start, end)
-      .replaceWith(start, start, nodeType.create({}, textNode ? [textNode] : []));
+    return state.tr.delete(start, end).replaceWith(start, start, nodeType.create({}, textNode ? [textNode] : []));
   });
 }
 
@@ -579,8 +621,11 @@ function mathInlineRule(markType: MarkType): InputRule {
 /** 容器：`:::type` */
 function containerRule(nodeType: NodeType): InputRule {
   return new InputRule(/^:::(\w+)(?:\s+(.*))?$/, (state, match, start, end) => {
+    // 局部常量 type：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const type = match[1];
+    // 局部常量 title：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const title = match[2] || '';
+    // 局部常量 paragraph：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const paragraph = state.schema.nodes.paragraph.create();
     return state.tr.replaceWith(start - 1, end, nodeType.create({ type, title }, paragraph));
   });
@@ -607,12 +652,8 @@ export function createInputRulesPlugin(schema: Schema = stenoSchema): Plugin {
   }
   // 列表类型转换规则（必须在基础列表规则之前，否则 wrappingInputRule 会先匹配）
   if (schema.nodes.bullet_list && schema.nodes.ordered_list && schema.nodes.list_item) {
-    rules.push(
-      bulletToOrderedRule(schema.nodes.ordered_list, schema.nodes.bullet_list, schema.nodes.list_item),
-    );
-    rules.push(
-      orderedToBulletRule(schema.nodes.bullet_list, schema.nodes.ordered_list, schema.nodes.list_item),
-    );
+    rules.push(bulletToOrderedRule(schema.nodes.ordered_list, schema.nodes.bullet_list, schema.nodes.list_item));
+    rules.push(orderedToBulletRule(schema.nodes.bullet_list, schema.nodes.ordered_list, schema.nodes.list_item));
   }
   if (schema.nodes.task_list && schema.nodes.task_item) {
     rules.push(taskListRule(schema.nodes.task_list, schema.nodes.task_item));

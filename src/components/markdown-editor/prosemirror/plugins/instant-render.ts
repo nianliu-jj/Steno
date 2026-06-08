@@ -14,7 +14,8 @@ import { type EditorState, Plugin, PluginKey, type Transaction } from 'prosemirr
 import {
   createDecorationPlugin,
   findSyntaxMarkerRegions,
-  type SyntaxMarkerRegion,
+  // 类型 SyntaxMarkerRegion：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
+  type SyntaxMarkerRegion
 } from '../decorations';
 
 /** 即时渲染插件状态 */
@@ -35,17 +36,20 @@ export interface InstantRenderConfig {
 }
 
 const defaultConfig: Required<Omit<InstantRenderConfig, 'sourceView'>> = {
-  enabled: true,
+  enabled: true
 };
 
 /**
  * 创建即时渲染插件（返回 [装饰插件, 控制插件] 两个 Plugin）
  */
 export function createInstantRenderPlugin(config: InstantRenderConfig = {}): Plugin[] {
+  // 局部常量 mergedConfig：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const mergedConfig = { ...defaultConfig, ...config };
 
+  // 局部常量 decorationPlugin：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const decorationPlugin = createDecorationPlugin(config.sourceView ?? false);
 
+  // 局部常量 controlPlugin：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const controlPlugin = new Plugin<InstantRenderState>({
     key: instantRenderPluginKey,
 
@@ -54,37 +58,38 @@ export function createInstantRenderPlugin(config: InstantRenderConfig = {}): Plu
         return {
           enabled: mergedConfig.enabled,
           activeRegions: [],
-          lastCursorPos: 0,
+          lastCursorPos: 0
         };
       },
 
       apply(tr, state, _oldEditorState, newEditorState) {
+        // 局部常量 meta：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const meta = tr.getMeta(instantRenderPluginKey) as { enabled?: boolean } | undefined;
 
         if (meta?.enabled !== undefined) {
           return { ...state, enabled: meta.enabled };
         }
 
+        // 局部常量 cursorPos：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const cursorPos = newEditorState.selection.head;
         if (cursorPos !== state.lastCursorPos || tr.docChanged) {
+          // 局部常量 regions：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
           const regions = findSyntaxMarkerRegions(newEditorState.doc);
+          // 局部常量 activeRegions：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
           const activeRegions = regions.filter(r => cursorPos >= r.from && cursorPos <= r.to);
           return { ...state, activeRegions, lastCursorPos: cursorPos };
         }
 
         return state;
-      },
-    },
+      }
+    }
   });
 
   return [decorationPlugin, controlPlugin];
 }
 
 /** 启用即时渲染 */
-export function enableInstantRender(
-  state: EditorState,
-  dispatch?: (tr: Transaction) => void,
-): boolean {
+export function enableInstantRender(state: EditorState, dispatch?: (tr: Transaction) => void): boolean {
   if (dispatch) {
     dispatch(state.tr.setMeta(instantRenderPluginKey, { enabled: true }));
   }
@@ -92,10 +97,7 @@ export function enableInstantRender(
 }
 
 /** 禁用即时渲染 */
-export function disableInstantRender(
-  state: EditorState,
-  dispatch?: (tr: Transaction) => void,
-): boolean {
+export function disableInstantRender(state: EditorState, dispatch?: (tr: Transaction) => void): boolean {
   if (dispatch) {
     dispatch(state.tr.setMeta(instantRenderPluginKey, { enabled: false }));
   }
@@ -103,10 +105,8 @@ export function disableInstantRender(
 }
 
 /** 切换即时渲染 */
-export function toggleInstantRender(
-  state: EditorState,
-  dispatch?: (tr: Transaction) => void,
-): boolean {
+export function toggleInstantRender(state: EditorState, dispatch?: (tr: Transaction) => void): boolean {
+  // 局部常量 pluginState：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const pluginState = instantRenderPluginKey.getState(state);
   if (!pluginState) return false;
   if (dispatch) {

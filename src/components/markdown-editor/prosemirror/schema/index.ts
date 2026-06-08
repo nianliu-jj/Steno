@@ -23,6 +23,9 @@ export { marks } from './marks';
 /** Steno 全平台 Markdown WYSIWYG 内核所用的 ProseMirror schema。 */
 export const stenoSchema = new Schema({ nodes, marks });
 
+// 类型 StenoSchema：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
 export type StenoSchema = typeof stenoSchema;
+// 类型 StenoNodeName：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
 export type StenoNodeName = keyof typeof nodes;
+// 类型 StenoMarkName：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
 export type StenoMarkName = keyof typeof marks;

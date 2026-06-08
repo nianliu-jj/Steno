@@ -29,7 +29,7 @@ export interface SerializeOptions {
 const defaultOptions: Required<SerializeOptions> = {
   compact: false,
   listIndent: 2,
-  codeFence: '```',
+  codeFence: '```'
 };
 
 /** Markdown 序列化器。 */
@@ -55,13 +55,8 @@ export class MarkdownSerializer {
   }
 
   /** 序列化节点（派发到对应 handler）。 */
-  private serializeNode(
-    node: Node,
-    lines: string[],
-    indent: string,
-    index: number,
-    fragment: Fragment,
-  ): void {
+  private serializeNode(node: Node, lines: string[], indent: string, index: number, fragment: Fragment): void {
+    // 局部常量 handler：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const handler = this.nodeHandlers[node.type.name];
     if (handler) {
       handler.call(this, node, lines, indent, index, fragment);
@@ -79,31 +74,42 @@ export class MarkdownSerializer {
       // PureMark source-view 模式遗留的 paragraph 子类型（Steno 不会主动生成
       // 这些 attrs，但保留兼容以接收 PureMark 风格的文档输入）
       if (node.attrs.codeBlockId) {
+        // 局部常量 text：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const text = node.textContent;
         lines.push(indent + text);
+        // 局部常量 isLastLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const isLastLine = node.attrs.lineIndex === (node.attrs.totalLines as number) - 1;
         if (isLastLine && !this.options.compact) lines.push('');
       } else if (node.attrs.tableId) {
+        // 局部常量 text：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const text = node.textContent;
         lines.push(indent + text);
+        // 局部常量 isLastLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const isLastLine = node.attrs.tableRowIndex === (node.attrs.tableTotalRows as number) - 1;
         if (isLastLine && !this.options.compact) lines.push('');
       } else if (node.attrs.htmlBlockId) {
+        // 局部常量 text：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const text = node.textContent;
         lines.push(indent + text);
+        // 局部常量 isLastLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const isLastLine = node.attrs.htmlBlockLineIndex === (node.attrs.htmlBlockTotalLines as number) - 1;
         if (isLastLine && !this.options.compact) lines.push('');
       } else if (node.attrs.mathBlockId) {
+        // 局部常量 text：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const text = node.textContent;
         lines.push(indent + text);
+        // 局部常量 isLastLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const isLastLine = node.attrs.mathBlockLineIndex === (node.attrs.mathBlockTotalLines as number) - 1;
         if (isLastLine && !this.options.compact) lines.push('');
       } else if (node.attrs.listId) {
+        // 局部常量 text：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const text = node.textContent;
         lines.push(indent + text);
+        // 局部常量 isLastLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const isLastLine = node.attrs.listLineIndex === (node.attrs.listTotalLines as number) - 1;
         if (isLastLine && !this.options.compact) lines.push('');
       } else {
+        // 局部常量 text：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const text = this.serializeInline(node);
         lines.push(indent + text);
         if (!this.options.compact && text.length > 0) lines.push('');
@@ -111,6 +117,7 @@ export class MarkdownSerializer {
     },
 
     heading: (node, lines, indent) => {
+      // 函数式常量 level：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
       const level = (node.attrs.level as number) || 1;
       // serializeInline 会输出节点内可能保留的 "# " 标记文本（parser / input-rules 路径）。
       // 以 attrs.level 为权威级别统一重建 "#" 前缀：先剥离开头可能存在的标记，再按 level 补回。
@@ -137,9 +144,9 @@ export class MarkdownSerializer {
 
         // 判断当前子节点是否为空段落（文本仅为 "> " 即引用前缀）
         const isEmptyParagraph =
-          child.type.name === 'paragraph'
-          && childLines.length === 1
-          && (childLines[0].trim() === '>' || childLines[0] === '> ');
+          child.type.name === 'paragraph' &&
+          childLines.length === 1 &&
+          (childLines[0].trim() === '>' || childLines[0] === '> ');
 
         if (prevWasContent) {
           lines.push(indent + '>');
@@ -161,8 +168,11 @@ export class MarkdownSerializer {
     },
 
     code_block: (node, lines, indent) => {
+      // 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const content = node.textContent;
+      // 函数式常量 lang：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
       const lang = (node.attrs.language as string) || '';
+      // 局部常量 fence：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const fence = this.options.codeFence;
 
       lines.push(indent + fence + lang);
@@ -176,7 +186,9 @@ export class MarkdownSerializer {
     },
 
     mermaid_block: (node, lines, indent) => {
+      // 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const content = node.textContent;
+      // 局部常量 fence：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const fence = this.options.codeFence;
       lines.push(`${indent}${fence}mermaid`);
       if (content) {
@@ -201,6 +213,7 @@ export class MarkdownSerializer {
     },
 
     ordered_list: (node, lines, indent) => {
+      // 函数式常量 start：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
       const start = (node.attrs.start as number) || 1;
       node.content.forEach((item, _, i) => {
         this.serializeListItem(item, lines, indent, `${start + i}.`);
@@ -210,6 +223,7 @@ export class MarkdownSerializer {
 
     task_list: (node, lines, indent) => {
       node.content.forEach(item => {
+        // 局部常量 checked：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const checked = item.attrs.checked ? 'x' : ' ';
         this.serializeListItem(item, lines, indent, `- [${checked}]`);
       });
@@ -241,6 +255,7 @@ export class MarkdownSerializer {
 
     math_block: (node, lines, indent) => {
       lines.push(`${indent}$$`);
+      // 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const content = node.textContent || '';
       if (content) {
         for (const line of content.split('\n')) {
@@ -252,6 +267,7 @@ export class MarkdownSerializer {
     },
 
     html_block: (node, lines, indent) => {
+      // 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const content = node.textContent || '';
       for (const line of content.split('\n')) {
         lines.push(indent + line);
@@ -260,7 +276,9 @@ export class MarkdownSerializer {
     },
 
     container: (node, lines, indent) => {
+      // 函数式常量 type：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
       const type = (node.attrs.type as string) || 'note';
+      // 函数式常量 title：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
       const title = (node.attrs.title as string) || '';
       lines.push(`${indent}:::${type}${title ? ` ${title}` : ''}`);
       this.serializeFragment(node.content, lines, indent);
@@ -269,27 +287,34 @@ export class MarkdownSerializer {
     },
 
     image: (node, lines, indent, index, fragment) => {
+      // 函数式常量 alt：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
       const alt = (node.attrs.alt as string) || '';
+      // 函数式常量 src：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
       const src = (node.attrs.src as string) || '';
+      // 函数式常量 title：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
       const title = (node.attrs.title as string) || '';
+      // 函数式常量 linkHref：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
       const linkHref = (node.attrs.linkHref as string) || '';
+      // 函数式常量 linkTitle：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
       const linkTitle = (node.attrs.linkTitle as string) || '';
+      // 函数式常量 consecutiveGroup：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
       const consecutiveGroup = (node.attrs.consecutiveGroup as string | null) || null;
+      // 局部常量 titlePart：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const titlePart = title ? ` "${title}"` : '';
+      // 局部常量 imgMarkdown：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const imgMarkdown = `![${alt}](${src}${titlePart})`;
-      const markdown = linkHref
-        ? `[${imgMarkdown}](${linkHref}${linkTitle ? ` "${linkTitle}"` : ''})`
-        : imgMarkdown;
+      // 局部常量 markdown：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+      const markdown = linkHref ? `[${imgMarkdown}](${linkHref}${linkTitle ? ` "${linkTitle}"` : ''})` : imgMarkdown;
+      // 局部常量 prevNode：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const prevNode = index > 0 ? fragment.child(index - 1) : null;
+      // 局部常量 nextNode：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const nextNode = index + 1 < fragment.childCount ? fragment.child(index + 1) : null;
+      // 局部常量 prevSameGroup：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const prevSameGroup =
-        !!consecutiveGroup
-        && prevNode?.type.name === 'image'
-        && prevNode.attrs.consecutiveGroup === consecutiveGroup;
+        !!consecutiveGroup && prevNode?.type.name === 'image' && prevNode.attrs.consecutiveGroup === consecutiveGroup;
+      // 局部常量 nextSameGroup：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const nextSameGroup =
-        !!consecutiveGroup
-        && nextNode?.type.name === 'image'
-        && nextNode.attrs.consecutiveGroup === consecutiveGroup;
+        !!consecutiveGroup && nextNode?.type.name === 'image' && nextNode.attrs.consecutiveGroup === consecutiveGroup;
 
       if (prevSameGroup && lines.length > 0) {
         lines[lines.length - 1] += markdown;
@@ -302,7 +327,7 @@ export class MarkdownSerializer {
 
     hard_break: () => {
       // 硬换行由行内序列化处理
-    },
+    }
   };
 
   /** 序列化列表项（处理多行内容与续行缩进对齐）。 */
@@ -314,6 +339,7 @@ export class MarkdownSerializer {
     const continuationIndent = marker.length + 1;
 
     for (let i = 0; i < innerLines.length; i++) {
+      // 局部常量 line：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const line = innerLines[i];
       if (i === 0) {
         lines.push(`${indent}${marker} ${line}`);
@@ -338,14 +364,22 @@ export class MarkdownSerializer {
       } else if (child.type.name === 'hard_break') {
         result += '  \n';
       } else if (child.type.name === 'image') {
+        // 函数式常量 alt：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
         const alt = (child.attrs.alt as string) || '';
+        // 函数式常量 src：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
         const src = (child.attrs.src as string) || '';
+        // 函数式常量 title：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
         const title = (child.attrs.title as string) || '';
+        // 函数式常量 linkHref：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
         const linkHref = (child.attrs.linkHref as string) || '';
+        // 函数式常量 linkTitle：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
         const linkTitle = (child.attrs.linkTitle as string) || '';
+        // 局部常量 titlePart：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const titlePart = title ? ` "${title}"` : '';
+        // 局部常量 imgMarkdown：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const imgMarkdown = `![${alt}](${src}${titlePart})`;
         if (linkHref) {
+          // 局部常量 linkTitlePart：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
           const linkTitlePart = linkTitle ? ` "${linkTitle}"` : '';
           result += `[${imgMarkdown}](${linkHref}${linkTitlePart})`;
         } else {
@@ -392,10 +426,13 @@ export class MarkdownSerializer {
       case 'highlight':
         return `==${text}==`;
       case 'link': {
+        // 函数式常量 rawHref：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
         const rawHref = (mark.attrs.href as string) || '';
         // 重新转义 URL 中的括号，避免 ) 提前终止链接语法
         const href = rawHref.replace(/([()])/g, '\\$1');
+        // 函数式常量 title：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
         const title = (mark.attrs.title as string) || '';
+        // 局部常量 titlePart：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const titlePart = title ? ` "${title}"` : '';
         return `[${text}](${href}${titlePart})`;
       }
@@ -406,8 +443,11 @@ export class MarkdownSerializer {
       case 'sup':
         return `<sup>${text}</sup>`;
       case 'html_inline': {
+        // 函数式常量 tag：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
         const tag = (mark.attrs.tag as string) || 'span';
+        // 函数式常量 htmlAttrs：以闭包形式组织逻辑，便于在组件、store 或测试中传递。
         const htmlAttrs = (mark.attrs.htmlAttrs as string) || '';
+        // 局部常量 openTag：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const openTag = htmlAttrs ? `<${tag} ${htmlAttrs}>` : `<${tag}>`;
         return `${openTag}${text}</${tag}>`;
       }
@@ -424,6 +464,7 @@ export const defaultSerializer = new MarkdownSerializer();
 
 /** 序列化文档为 Markdown 字符串（推荐入口）。 */
 export function serializeMarkdown(doc: Node, options?: SerializeOptions): string {
+  // 局部常量 serializer：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const serializer = options ? new MarkdownSerializer(options) : defaultSerializer;
   return serializer.serialize(doc);
 }

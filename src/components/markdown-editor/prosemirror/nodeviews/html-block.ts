@@ -18,21 +18,24 @@ import type { Node } from 'prosemirror-model';
 
 import { sanitizeHtml } from '@/utils/markdown/sanitize';
 
+// 函数 createHtmlBlockNodeView：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 export function createHtmlBlockNodeView(
   initialNode: Node,
   view: EditorView,
-  getPos: () => number | undefined,
+  getPos: () => number | undefined
 ): NodeView {
   let node = initialNode;
   let editing = false;
   let textarea: HTMLTextAreaElement | null = null;
 
+  // 局部常量 dom：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const dom = document.createElement('div');
   dom.className = 'html-block';
   dom.setAttribute('contenteditable', 'false');
 
   renderRendered();
 
+  // 函数 renderRendered：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function renderRendered() {
     editing = false;
     textarea = null;
@@ -40,11 +43,13 @@ export function createHtmlBlockNodeView(
     dom.addEventListener('dblclick', onDblClick);
   }
 
+  // 函数 onDblClick：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function onDblClick(evt: Event) {
     evt.preventDefault();
     enterEditing();
   }
 
+  // 函数 enterEditing：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function enterEditing() {
     editing = true;
     dom.removeEventListener('dblclick', onDblClick);
@@ -58,6 +63,7 @@ export function createHtmlBlockNodeView(
     textarea.focus();
   }
 
+  // 函数 onKeyDown：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function onKeyDown(evt: KeyboardEvent) {
     if (evt.key === 'Enter' && (evt.ctrlKey || evt.metaKey)) {
       evt.preventDefault();
@@ -68,23 +74,26 @@ export function createHtmlBlockNodeView(
     }
   }
 
+  // 函数 commit：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function commit() {
     if (!editing || !textarea) return;
+    // 局部常量 pos：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const pos = getPos();
     if (pos == null) {
       cancel();
       return;
     }
+    // 局部常量 value：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const value = textarea.value;
+    // 局部常量 schema：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const schema = view.state.schema;
-    const newNode = schema.nodes.html_block.create(
-      node.attrs,
-      value ? [schema.text(value)] : [],
-    );
+    // 局部常量 newNode：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+    const newNode = schema.nodes.html_block.create(node.attrs, value ? [schema.text(value)] : []);
     view.dispatch(view.state.tr.replaceWith(pos, pos + node.nodeSize, newNode));
     // 新文档会触发新一轮 update()，由 update 决定是否重新渲染。
   }
 
+  // 函数 cancel：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
   function cancel() {
     renderRendered();
   }
@@ -93,6 +102,7 @@ export function createHtmlBlockNodeView(
     dom,
     update(updated) {
       if (updated.type !== node.type) return false;
+      // 局部常量 wasEditing：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const wasEditing = editing;
       node = updated;
       if (!wasEditing) renderRendered();
@@ -107,6 +117,6 @@ export function createHtmlBlockNodeView(
       dom.removeEventListener('dblclick', onDblClick);
       textarea?.removeEventListener('blur', commit);
       textarea?.removeEventListener('keydown', onKeyDown);
-    },
+    }
   };
 }

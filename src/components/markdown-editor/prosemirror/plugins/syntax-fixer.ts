@@ -24,7 +24,7 @@ const SYNTAX_DEFS: SyntaxDef[] = [
   { markType: 'code_inline', markers: ['`'] },
   { markType: 'strikethrough', markers: ['~~'] },
   { markType: 'highlight', markers: ['=='] },
-  { markType: 'math_inline', markers: ['$'] },
+  { markType: 'math_inline', markers: ['$'] }
 ];
 
 /** 插件 Key */
@@ -55,6 +55,7 @@ function collectSyntaxMarkers(node: Node, basePos: number): SyntaxMarkerInfo[] {
   let offset = 0;
   node.forEach(child => {
     if (child.isText) {
+      // 局部常量 syntaxMark：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const syntaxMark = child.marks.find(m => m.type.name === 'syntax_marker');
       if (syntaxMark) {
         // 跳过 escape 类型的 syntax_marker
@@ -63,8 +64,9 @@ function collectSyntaxMarkers(node: Node, basePos: number): SyntaxMarkerInfo[] {
           return;
         }
 
+        // 局部常量 semanticMark：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const semanticMark = child.marks.find(
-          m => m.type.name !== 'syntax_marker' && SYNTAX_DEFS.some(s => s.markType === m.type.name),
+          m => m.type.name !== 'syntax_marker' && SYNTAX_DEFS.some(s => s.markType === m.type.name)
         );
 
         markers.push({
@@ -72,7 +74,7 @@ function collectSyntaxMarkers(node: Node, basePos: number): SyntaxMarkerInfo[] {
           to: basePos + offset + child.nodeSize,
           text: child.text ?? '',
           syntaxType: syntaxMark.attrs.syntaxType as string,
-          semanticMark: semanticMark?.type.name ?? null,
+          semanticMark: semanticMark?.type.name ?? null
         });
       }
     }
@@ -86,12 +88,14 @@ function collectSyntaxMarkers(node: Node, basePos: number): SyntaxMarkerInfo[] {
  * 检查语法标记是否成对，返回需要移除 marks 的范围
  */
 function findUnpairedMarkers(node: Node, basePos: number): InvalidRange[] {
+  // 局部常量 markers：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const markers = collectSyntaxMarkers(node, basePos);
   const invalidRanges: InvalidRange[] = [];
 
   // 按语法类型分组
   const markersByType = new Map<string, SyntaxMarkerInfo[]>();
   for (const marker of markers) {
+    // 局部常量 key：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const key = marker.syntaxType;
     if (!markersByType.has(key)) {
       markersByType.set(key, []);
@@ -100,6 +104,7 @@ function findUnpairedMarkers(node: Node, basePos: number): InvalidRange[] {
   }
 
   for (const [syntaxType, typeMarkers] of markersByType) {
+    // 局部常量 syntaxDef：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const syntaxDef = SYNTAX_DEFS.find(s => s.markType === syntaxType);
     if (!syntaxDef) continue;
 
@@ -107,10 +112,12 @@ function findUnpairedMarkers(node: Node, basePos: number): InvalidRange[] {
 
     // 检查是否成对（相同的标记文本）
     const stack: SyntaxMarkerInfo[] = [];
+    // 局部常量 paired：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const paired = new Set<SyntaxMarkerInfo>();
 
     for (const marker of typeMarkers) {
       if (stack.length > 0) {
+        // 局部常量 top：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const top = stack[stack.length - 1];
         if (top.text === marker.text && syntaxDef.markers.includes(marker.text)) {
           paired.add(top);
@@ -125,6 +132,7 @@ function findUnpairedMarkers(node: Node, basePos: number): InvalidRange[] {
     // 未配对的标记需要移除 marks
     for (const marker of typeMarkers) {
       if (!paired.has(marker)) {
+        // 局部常量 region：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const region = findSemanticRegion(node, basePos, marker, syntaxType);
         if (region) {
           invalidRanges.push(region);
@@ -143,7 +151,7 @@ function findSemanticRegion(
   node: Node,
   basePos: number,
   marker: SyntaxMarkerInfo,
-  markType: string,
+  markType: string
 ): InvalidRange | null {
   let offset = 0;
   let regionStart = -1;
@@ -152,8 +160,11 @@ function findSemanticRegion(
 
   node.forEach(child => {
     if (child.isText) {
+      // 局部常量 hasMark：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const hasMark = child.marks.some(m => m.type.name === markType);
+      // 局部常量 childStart：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const childStart = basePos + offset;
+      // 局部常量 childEnd：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const childEnd = basePos + offset + child.nodeSize;
 
       if (hasMark) {
@@ -191,6 +202,7 @@ export function createSyntaxFixerPlugin(): Plugin {
     key: syntaxFixerPluginKey,
 
     appendTransaction(transactions, _oldState, newState) {
+      // 局部常量 docChanged：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const docChanged = transactions.some(tr => tr.docChanged);
       if (!docChanged) return null;
 
@@ -208,21 +220,21 @@ export function createSyntaxFixerPlugin(): Plugin {
 
       if (invalidRanges.length === 0) return null;
 
+      // 局部常量 uniqueRanges：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const uniqueRanges = invalidRanges.filter(
         (range, index, self) =>
-          index ===
-          self.findIndex(
-            r => r.from === range.from && r.to === range.to && r.markType === range.markType,
-          ),
+          index === self.findIndex(r => r.from === range.from && r.to === range.to && r.markType === range.markType)
       );
 
       let tr = newState.tr;
       tr = tr.setMeta('syntax-plugin-internal', true);
       for (const range of uniqueRanges) {
+        // 局部常量 markType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const markType = newState.schema.marks[range.markType];
         if (markType) {
           tr = tr.removeMark(range.from, range.to, markType);
         }
+        // 局部常量 syntaxMarkerType：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const syntaxMarkerType = newState.schema.marks.syntax_marker;
         if (syntaxMarkerType) {
           tr = tr.removeMark(range.from, range.to, syntaxMarkerType);
@@ -230,6 +242,6 @@ export function createSyntaxFixerPlugin(): Plugin {
       }
 
       return tr.docChanged ? tr : null;
-    },
+    }
   });
 }

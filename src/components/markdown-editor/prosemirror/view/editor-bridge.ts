@@ -49,6 +49,7 @@ export function createEditorBridge(options: EditorBridgeOptions): EditorBridge {
   /** 正在应用外部内容（setContent）—— 期间不向外冒泡 onChange。 */
   let applyingExternal = false;
 
+  // 局部常量 userOnChange：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const userOnChange = options.onChange;
 
   // 包装 onChange：外部回写期间吞掉，避免 emit → watch → setContent 死循环
@@ -57,9 +58,10 @@ export function createEditorBridge(options: EditorBridgeOptions): EditorBridge {
     onChange: (markdown: string) => {
       if (applyingExternal) return;
       userOnChange?.(markdown);
-    },
+    }
   };
 
+  // 局部常量 view：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const view = createEditor(wrappedOptions);
 
   /** 当前文档序列化。 */
@@ -75,7 +77,9 @@ export function createEditorBridge(options: EditorBridgeOptions): EditorBridge {
     // 闸二：替换全文期间静默 onChange
     applyingExternal = true;
     try {
+      // 局部常量 nextDoc：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const nextDoc = parseMarkdown(markdown).doc;
+      // 局部常量 tr：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const tr = view.state.tr.replaceWith(0, view.state.doc.content.size, nextDoc.content);
       // 不留历史合并标记，外部回写视为一次完整替换
       tr.setMeta('addToHistory', false);
@@ -99,11 +103,13 @@ export function createEditorBridge(options: EditorBridgeOptions): EditorBridge {
    */
   function scrollToLine(line: number): void {
     try {
+      // 局部常量 doc：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const doc = view.state.doc;
       let targetPos = -1;
       let pos = 0;
 
       doc.forEach(child => {
+        // 局部常量 startLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const startLine = child.attrs?.startLine;
         if (typeof startLine === 'number' && startLine <= line) {
           targetPos = pos;
@@ -116,7 +122,9 @@ export function createEditorBridge(options: EditorBridgeOptions): EditorBridge {
 
       // 取目标块的 DOM 并滚动到可视区
       const domInfo = view.domAtPos(targetPos + 1);
+      // 局部常量 node：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const node = domInfo.node;
+      // 局部常量 el：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const el = node.nodeType === 1 ? (node as HTMLElement) : node.parentElement;
       el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch {
@@ -146,11 +154,7 @@ export function createEditorBridge(options: EditorBridgeOptions): EditorBridge {
       let pos = 0;
 
       doc.forEach(child => {
-        if (
-          targetPos < 0
-          && child.type.name === 'heading'
-          && child.textContent.replace(/^#+\s*/, '').trim() === id
-        ) {
+        if (targetPos < 0 && child.type.name === 'heading' && child.textContent.replace(/^#+\s*/, '').trim() === id) {
           targetPos = pos;
         }
         pos += child.nodeSize;
@@ -158,8 +162,11 @@ export function createEditorBridge(options: EditorBridgeOptions): EditorBridge {
 
       if (targetPos < 0) return;
 
+      // 局部常量 domInfo：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const domInfo = view.domAtPos(targetPos + 1);
+      // 局部常量 node：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const node = domInfo.node;
+      // 局部常量 el：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const el = node.nodeType === 1 ? (node as HTMLElement) : node.parentElement;
       el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch {
@@ -175,6 +182,7 @@ export function createEditorBridge(options: EditorBridgeOptions): EditorBridge {
   // 设置初始选区到文档开头（避免某些场景下选区落在非法位置）
   if (view.state.doc.content.size > 0) {
     try {
+      // 局部常量 tr：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const tr = view.state.tr.setSelection(TextSelection.atStart(view.state.doc));
       tr.setMeta('addToHistory', false);
       view.dispatch(tr);
@@ -190,6 +198,6 @@ export function createEditorBridge(options: EditorBridgeOptions): EditorBridge {
     focus,
     scrollToLine,
     scrollToHeading,
-    destroy,
+    destroy
   };
 }

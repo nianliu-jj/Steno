@@ -19,6 +19,7 @@ export const placeholderPluginKey = new PluginKey('steno-placeholder');
 /** 检查文档是否为空（仅一个空段落） */
 function isEmpty(doc: Node): boolean {
   if (doc.childCount !== 1) return false;
+  // 局部常量 firstChild：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const firstChild = doc.firstChild;
   if (!firstChild || firstChild.type.name !== 'paragraph') return false;
   return firstChild.content.size === 0;
@@ -33,8 +34,11 @@ export function createPlaceholderPlugin(placeholder: string): Plugin {
 
     props: {
       attributes(state: EditorState) {
+        // 局部常量 doc：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const doc = state.doc;
+        // 局部常量 decorationState：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const decorationState = decorationPluginKey.getState(state);
+        // 局部常量 sourceView：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const sourceView = decorationState?.sourceView ?? false;
 
         let className = 'steno-editor';
@@ -50,7 +54,7 @@ export function createPlaceholderPlugin(placeholder: string): Plugin {
           attributes['data-placeholder'] = placeholder;
         }
         return attributes;
-      },
-    },
+      }
+    }
   });
 }

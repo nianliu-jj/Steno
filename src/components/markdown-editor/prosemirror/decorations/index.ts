@@ -62,7 +62,7 @@ export const SYNTAX_CLASSES: Record<string, string> = {
   escape: 'puremark-escape', // 转义
   sub: 'puremark-sub', // 下标
   sup: 'puremark-sup', // 上标
-  html_inline: 'puremark-html-inline', // 行内 HTML
+  html_inline: 'puremark-html-inline' // 行内 HTML
 };
 
 /** 语法类型关联映射 - 用于处理嵌套语法 */
@@ -79,7 +79,7 @@ const SYNTAX_TYPE_RELATIONS: Record<string, string[]> = {
   escape: ['escape'],
   sub: ['sub'],
   sup: ['sup'],
-  html_inline: ['html_inline'],
+  html_inline: ['html_inline']
 };
 
 /**
@@ -90,12 +90,13 @@ export function findSyntaxMarkerRegions(doc: Node): SyntaxMarkerRegion[] {
 
   doc.descendants((node, pos) => {
     if (node.isText) {
+      // 局部常量 syntaxMark：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const syntaxMark = node.marks.find(m => m.type.name === 'syntax_marker');
       if (syntaxMark) {
         regions.push({
           from: pos,
           to: pos + node.nodeSize,
-          syntaxType: syntaxMark.attrs.syntaxType as string,
+          syntaxType: syntaxMark.attrs.syntaxType as string
         });
       }
     }
@@ -127,13 +128,18 @@ export function findMathInlineRegions(doc: Node): MathInlineRegion[] {
       let currentRegion: MathInlineRegion | null = null;
 
       for (let i = 0; i < node.childCount; i++) {
+        // 局部常量 child：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const child = node.child(i);
+        // 局部常量 childStart：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const childStart = offset;
+        // 局部常量 childEnd：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const childEnd = offset + child.nodeSize;
 
+        // 局部常量 hasMathMark：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const hasMathMark = child.marks.some(m => m.type.name === 'math_inline');
+        // 局部常量 hasSyntaxMark：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const hasSyntaxMark = child.marks.some(
-          m => m.type.name === 'syntax_marker' && m.attrs.syntaxType === 'math_inline',
+          m => m.type.name === 'syntax_marker' && m.attrs.syntaxType === 'math_inline'
         );
 
         if (hasMathMark) {
@@ -143,7 +149,7 @@ export function findMathInlineRegions(doc: Node): MathInlineRegion[] {
               to: childEnd,
               content: '',
               contentFrom: childStart,
-              contentTo: childEnd,
+              contentTo: childEnd
             };
           } else {
             currentRegion.to = childEnd;
@@ -189,28 +195,30 @@ interface SemanticRegion {
  */
 export function findSemanticRegionsAt(doc: Node, pos: number): SemanticRegion[] {
   const $pos = doc.resolve(pos);
+  // 局部常量 parent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const parent = $pos.parent;
 
   if (!parent.isTextblock) return [];
 
+  // 局部常量 parentStart：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const parentStart = $pos.start();
   let offset = parentStart;
   const regions: SemanticRegion[] = [];
+  // 局部常量 foundTypes：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const foundTypes = new Set<string>();
 
   for (let i = 0; i < parent.childCount; i++) {
+    // 局部常量 child：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const child = parent.child(i);
+    // 局部常量 childStart：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const childStart = offset;
+    // 局部常量 childEnd：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const childEnd = offset + child.nodeSize;
 
     if (pos >= childStart && pos <= childEnd) {
       // 检查这个节点的所有 marks
       for (const mark of child.marks) {
-        if (
-          mark.type.name !== 'syntax_marker'
-          && SYNTAX_CLASSES[mark.type.name]
-          && !foundTypes.has(mark.type.name)
-        ) {
+        if (mark.type.name !== 'syntax_marker' && SYNTAX_CLASSES[mark.type.name] && !foundTypes.has(mark.type.name)) {
           // 找到语义 mark，现在需要找到整个区域
           const region = findFullMarkRegion(parent, mark.type.name, childStart, parentStart);
           if (region) {
@@ -235,7 +243,7 @@ function findFullMarkRegion(
   parent: Node,
   markType: string,
   startHint: number,
-  parentOffset: number,
+  parentOffset: number
 ): SemanticRegion | null {
   // 收集所有有该 mark 的连续区域
   const regions: Array<{ from: number; to: number }> = [];
@@ -243,10 +251,14 @@ function findFullMarkRegion(
   let offset = parentOffset;
 
   for (let i = 0; i < parent.childCount; i++) {
+    // 局部常量 child：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const child = parent.child(i);
+    // 局部常量 childStart：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const childStart = offset;
+    // 局部常量 childEnd：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const childEnd = offset + child.nodeSize;
 
+    // 局部常量 hasMark：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const hasMark = child.marks.some(m => m.type.name === markType);
 
     if (hasMark) {
@@ -295,10 +307,13 @@ export function getActiveSemanticRegions(doc: Node, cursorPos: number): Semantic
 
   // 检查块级节点（如标题）
   const $pos = doc.resolve(cursorPos);
+  // 局部常量 parent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const parent = $pos.parent;
 
   if (parent.type.name === 'heading') {
+    // 局部常量 start：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const start = $pos.start();
+    // 局部常量 end：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const end = $pos.end();
     regions.push({ type: 'heading', from: start, to: end });
   }
@@ -310,6 +325,7 @@ export function getActiveSemanticRegions(doc: Node, cursorPos: number): Semantic
  * 检查语法类型是否与语义区域类型相关
  */
 function isSyntaxTypeRelated(syntaxType: string, semanticType: string): boolean {
+  // 局部常量 relatedTypes：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const relatedTypes = SYNTAX_TYPE_RELATIONS[syntaxType] ?? [syntaxType];
   return relatedTypes.includes(semanticType);
 }
@@ -339,7 +355,7 @@ export function computeDecorations(
   cursorPos: number,
   sourceView: boolean,
   precomputedSyntaxRegions?: SyntaxMarkerRegion[],
-  precomputedMathRegions?: MathInlineRegion[],
+  precomputedMathRegions?: MathInlineRegion[]
 ): ComputeResult {
   // 源码模式下跳过所有装饰计算：
   // - 语法标记通过 mark 自带的 `steno-syntax` 类已有正确样式
@@ -349,11 +365,13 @@ export function computeDecorations(
       decorations: DecorationSet.empty,
       activeRegions: [],
       syntaxRegions: precomputedSyntaxRegions ?? [],
-      mathInlineRegions: precomputedMathRegions ?? [],
+      mathInlineRegions: precomputedMathRegions ?? []
     };
   }
 
+  // 局部常量 syntaxRegions：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const syntaxRegions = precomputedSyntaxRegions ?? findSyntaxMarkerRegions(doc);
+  // 局部常量 mathInlineRegions：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const mathInlineRegions = precomputedMathRegions ?? findMathInlineRegions(doc);
   const decorations: Decoration[] = [];
 
@@ -394,22 +412,23 @@ export function computeDecorations(
       if (region.syntaxType === 'heading') {
         // 标题语法标记特殊处理：只隐藏 # 字符，保留尾部空格可见
         const text = doc.textBetween(region.from, region.to);
+        // 局部常量 hashEnd：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const hashEnd = text.search(/[^#]/);
         if (hashEnd > 0 && hashEnd < text.length) {
           decorations.push(
             Decoration.inline(region.from, region.from + hashEnd, {
               class: 'puremark-syntax-hidden',
               contenteditable: 'false',
-              'aria-hidden': 'true',
-            }),
+              'aria-hidden': 'true'
+            })
           );
         } else {
           decorations.push(
             Decoration.inline(region.from, region.to, {
               class: 'puremark-syntax-hidden',
               contenteditable: 'false',
-              'aria-hidden': 'true',
-            }),
+              'aria-hidden': 'true'
+            })
           );
         }
       } else {
@@ -417,34 +436,37 @@ export function computeDecorations(
           Decoration.inline(region.from, region.to, {
             class: 'puremark-syntax-hidden',
             contenteditable: 'false',
-            'aria-hidden': 'true',
-          }),
+            'aria-hidden': 'true'
+          })
         );
       }
     } else {
       // 显示语法标记
       decorations.push(
         Decoration.inline(region.from, region.to, {
-          class: 'puremark-syntax-visible',
-        }),
+          class: 'puremark-syntax-visible'
+        })
       );
     }
   }
 
   // 为行内数学公式添加渲染装饰
   for (const mathRegion of mathInlineRegions) {
+    // 局部常量 cursorInMath：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const cursorInMath = cursorPos >= mathRegion.from && cursorPos <= mathRegion.to;
 
     if (!cursorInMath && mathRegion.content.trim()) {
       // 光标不在公式内：隐藏源码，显示渲染结果
       decorations.push(
         Decoration.inline(mathRegion.from, mathRegion.to, {
-          class: 'puremark-math-source-hidden',
-        }),
+          class: 'puremark-math-source-hidden'
+        })
       );
 
+      // 局部常量 renderedHtml：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const renderedHtml = renderInlineMath(mathRegion.content);
       if (renderedHtml) {
+        // 局部常量 widget：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const widget = document.createElement('span');
         widget.className = 'puremark-math-rendered';
         widget.innerHTML = renderedHtml;
@@ -457,7 +479,7 @@ export function computeDecorations(
     decorations: DecorationSet.create(doc, decorations),
     activeRegions: syntaxRegions.filter(r => cursorPos >= r.from && cursorPos <= r.to),
     syntaxRegions,
-    mathInlineRegions,
+    mathInlineRegions
   };
 }
 
@@ -473,60 +495,60 @@ export function createDecorationPlugin(initialSourceView = false): Plugin<Decora
         const { decorations, activeRegions, syntaxRegions, mathInlineRegions } = computeDecorations(
           state.doc,
           state.selection.head,
-          initialSourceView,
+          initialSourceView
         );
         return {
           decorations,
           activeRegions,
           sourceView: initialSourceView,
           cachedSyntaxRegions: syntaxRegions,
-          cachedMathInlineRegions: mathInlineRegions,
+          cachedMathInlineRegions: mathInlineRegions
         };
       },
 
       apply(tr, pluginState, oldState, newState) {
+        // 局部常量 selectionChanged：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const selectionChanged = !oldState.selection.eq(newState.selection);
+        // 局部常量 docChanged：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const docChanged = tr.docChanged;
 
+        // 局部常量 meta：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const meta = tr.getMeta(decorationPluginKey) as { sourceView?: boolean } | undefined;
+        // 局部常量 sourceView：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
         const sourceView = meta?.sourceView ?? pluginState.sourceView;
 
         if (docChanged || selectionChanged || meta?.sourceView !== undefined) {
           // 仅在文档变化或源码模式切换时重新扫描区域，选区变化时复用缓存
           const needRescan = docChanged || meta?.sourceView !== undefined;
+          // 局部常量 syntaxRegions：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
           const syntaxRegions = needRescan ? undefined : pluginState.cachedSyntaxRegions;
+          // 局部常量 mathRegions：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
           const mathRegions = needRescan ? undefined : pluginState.cachedMathInlineRegions;
 
           const {
             decorations,
             activeRegions,
             syntaxRegions: newSyntax,
-            mathInlineRegions: newMath,
-          } = computeDecorations(
-            newState.doc,
-            newState.selection.head,
-            sourceView,
-            syntaxRegions,
-            mathRegions,
-          );
+            mathInlineRegions: newMath
+          } = computeDecorations(newState.doc, newState.selection.head, sourceView, syntaxRegions, mathRegions);
           return {
             decorations,
             activeRegions,
             sourceView,
             cachedSyntaxRegions: newSyntax,
-            cachedMathInlineRegions: newMath,
+            cachedMathInlineRegions: newMath
           };
         }
 
         return pluginState;
-      },
+      }
     },
 
     props: {
       decorations(state) {
         return this.getState(state)?.decorations ?? DecorationSet.empty;
-      },
-    },
+      }
+    }
   });
 }
 
@@ -534,15 +556,16 @@ export function createDecorationPlugin(initialSourceView = false): Plugin<Decora
  * 切换源码视图（仅切换装饰显隐，不做块级结构转换 —— Steno 适配）
  */
 export function toggleSourceView(state: EditorState, dispatch?: (tr: Transaction) => void): boolean {
+  // 局部常量 pluginState：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const pluginState = decorationPluginKey.getState(state);
   if (!pluginState) return false;
 
+  // 局部常量 newSourceView：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const newSourceView = !pluginState.sourceView;
 
   if (dispatch) {
-    const tr = state.tr
-      .setMeta(decorationPluginKey, { sourceView: newSourceView })
-      .setMeta('addToHistory', false);
+    // 局部常量 tr：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+    const tr = state.tr.setMeta(decorationPluginKey, { sourceView: newSourceView }).setMeta('addToHistory', false);
     dispatch(tr);
   }
 
@@ -552,15 +575,10 @@ export function toggleSourceView(state: EditorState, dispatch?: (tr: Transaction
 /**
  * 设置源码视图状态
  */
-export function setSourceView(
-  state: EditorState,
-  enabled: boolean,
-  dispatch?: (tr: Transaction) => void,
-): boolean {
+export function setSourceView(state: EditorState, enabled: boolean, dispatch?: (tr: Transaction) => void): boolean {
   if (dispatch) {
-    const tr = state.tr
-      .setMeta(decorationPluginKey, { sourceView: enabled })
-      .setMeta('addToHistory', false);
+    // 局部常量 tr：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+    const tr = state.tr.setMeta(decorationPluginKey, { sourceView: enabled }).setMeta('addToHistory', false);
     dispatch(tr);
   }
 

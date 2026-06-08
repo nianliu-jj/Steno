@@ -24,7 +24,7 @@ import {
   createHtmlBlockNodeView,
   createMathBlockNodeView,
   createMermaidBlockNodeView,
-  createCodeBlockNodeView,
+  createCodeBlockNodeView
 } from '../nodeviews';
 
 /** prosemirror-tables 表格列最小宽度（像素），用默认值 25。 */
@@ -69,6 +69,7 @@ function createHeadingAnchorPlugin(): Plugin {
         const decorations: Decoration[] = [];
         state.doc.descendants((node, pos) => {
           if (node.type.name === 'heading') {
+            // 局部常量 startLine：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
             const startLine = node.attrs.startLine as number | null;
             if (startLine != null) {
               // parser 的 startLine 为 0-indexed，useMarkdownOutline 用 1-indexed
@@ -76,8 +77,8 @@ function createHeadingAnchorPlugin(): Plugin {
               decorations.push(
                 Decoration.node(pos, pos + node.nodeSize, {
                   id,
-                  'data-heading-id': id,
-                }),
+                  'data-heading-id': id
+                })
               );
             }
             return false;
@@ -85,8 +86,8 @@ function createHeadingAnchorPlugin(): Plugin {
           return true;
         });
         return DecorationSet.create(state.doc, decorations);
-      },
-    },
+      }
+    }
   });
 }
 
@@ -106,7 +107,7 @@ function buildNodeViews(): Record<string, NodeViewConstructor> {
     code_block: (node, view, getPos) => createCodeBlockNodeView(node, view, getPos),
     // prosemirror-tables 的 TableView 实现 NodeView 接口，但其构造签名不含
     // view/getPos，这里只取 node 并传入默认最小列宽。
-    table: (node: PMNode): NodeView => new TableView(node, TABLE_CELL_MIN_WIDTH),
+    table: (node: PMNode): NodeView => new TableView(node, TABLE_CELL_MIN_WIDTH)
   };
 }
 
@@ -130,7 +131,7 @@ export function createEditor(options: CreateEditorOptions): EditorView {
     onChange,
     onFocusChange,
     onPasteImage,
-    headingAnchors = false,
+    headingAnchors = false
   } = options;
 
   // 1. 解析初始 Markdown 为 ProseMirror 文档
@@ -141,9 +142,10 @@ export function createEditor(options: CreateEditorOptions): EditorView {
   if (headingAnchors) {
     plugins.push(createHeadingAnchorPlugin());
   }
+  // 局部常量 state：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const state = EditorState.create({
     doc,
-    plugins,
+    plugins
   });
 
   // 3. 构造 EditorView
@@ -160,16 +162,17 @@ export function createEditor(options: CreateEditorOptions): EditorView {
       blur: () => {
         onFocusChange?.(false);
         return false;
-      },
+      }
     },
     dispatchTransaction(this: EditorView, tr: Transaction) {
+      // 局部常量 next：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const next = this.state.apply(tr);
       this.updateState(next);
       // 仅在文档真正变化时才向外冒泡，避免选区变化触发无谓 onChange
       if (tr.docChanged) {
         onChange?.(serializeDoc(next.doc));
       }
-    },
+    }
   });
 
   // 4. 只读模式：关闭拼写检查（editable() 已返回 false 阻止编辑）
