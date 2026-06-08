@@ -1,4 +1,12 @@
+<!--
+  @file 前端视图 - Main View
+
+  承载 Main View 的界面结构、响应式状态和用户交互，是 前端视图 模块的可视入口之一。
+  注释重点标明模板结构、脚本状态、事件派发和样式隔离边界。
+-->
+
 <script setup lang="ts">
+// 脚本区：组织 Main View 的响应式状态、计算属性、事件处理和外部模块协作。
 /**
  * @component MainView
  * @description 主窗口落地页（`mode === 'main'`）— 笔记卡片网格视图。
@@ -30,26 +38,36 @@ import { useUiStore } from '@/stores/ui';
 import type { Note } from '@/types/steno';
 import { renderNotePreviewHtml } from '@/utils/notePreview';
 
+// 局部常量 cardExportOptions：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const cardExportOptions = [
   { key: 'markdown', label: '导出为 Markdown' },
   { key: 'html', label: '导出为 Html' },
-  { key: 'pdf', label: '导出为 PDF' },
+  { key: 'pdf', label: '导出为 PDF' }
 ];
 
+// 局部常量 notes：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const notes = useNotesStore();
+// 局部常量 ui：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const ui = useUiStore();
+// 局部常量 win：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const win = useWindow();
+// 局部常量 message：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const message = useMessage();
+// 局部常量 db：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const db = useDb();
+// 局部常量 appEvents：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const appEvents = useAppEvents();
 
+// 局部常量 untaggedFilterValue：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const untaggedFilterValue = '__untagged__';
 let removeNoteSavedListener: (() => void) | null = null;
 let removeNoteRemovedListener: (() => void) | null = null;
 let noteSavedListenerDisposed = false;
 let initialNotesLoading = true;
+// 局部常量 pendingExternalNotes：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const pendingExternalNotes = new Map<string, Note>();
 
+// 函数 syncExternalNote：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function syncExternalNote(note: Note) {
   notes.syncExternalNote(note);
   if (initialNotesLoading) {
@@ -65,6 +83,7 @@ onMounted(() => {
       return;
     }
 
+    // 局部常量 bufferedNotes：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const bufferedNotes = Array.from(pendingExternalNotes.values());
     pendingExternalNotes.clear();
 
@@ -72,33 +91,39 @@ onMounted(() => {
       notes.syncExternalNote(note);
     }
   });
-  void notes.loadPinned().catch((e) => {
+  void notes.loadPinned().catch(e => {
     console.error('[main] failed to load pinned notes:', e);
   });
-  void appEvents.listenNoteSaved((note) => {
-    syncExternalNote(note);
-  }).then((unlisten) => {
-    if (noteSavedListenerDisposed) {
-      unlisten();
-      return;
-    }
-    removeNoteSavedListener = unlisten;
-  }).catch((error) => {
-    console.error('[main] failed to listen for note save events:', error);
-  });
-  void appEvents.listenNoteRemoved(({ id }) => {
-    // 速记浮窗 promote 草稿后 / 关闭空草稿后，由该事件通知主窗口同步清卡片。
-    notes.purgeLocal(id);
-    pendingExternalNotes.delete(id);
-  }).then((unlisten) => {
-    if (noteSavedListenerDisposed) {
-      unlisten();
-      return;
-    }
-    removeNoteRemovedListener = unlisten;
-  }).catch((error) => {
-    console.error('[main] failed to listen for note remove events:', error);
-  });
+  void appEvents
+    .listenNoteSaved(note => {
+      syncExternalNote(note);
+    })
+    .then(unlisten => {
+      if (noteSavedListenerDisposed) {
+        unlisten();
+        return;
+      }
+      removeNoteSavedListener = unlisten;
+    })
+    .catch(error => {
+      console.error('[main] failed to listen for note save events:', error);
+    });
+  void appEvents
+    .listenNoteRemoved(({ id }) => {
+      // 速记浮窗 promote 草稿后 / 关闭空草稿后，由该事件通知主窗口同步清卡片。
+      notes.purgeLocal(id);
+      pendingExternalNotes.delete(id);
+    })
+    .then(unlisten => {
+      if (noteSavedListenerDisposed) {
+        unlisten();
+        return;
+      }
+      removeNoteRemovedListener = unlisten;
+    })
+    .catch(error => {
+      console.error('[main] failed to listen for note remove events:', error);
+    });
 });
 
 onUnmounted(() => {
@@ -110,15 +135,21 @@ onUnmounted(() => {
   removeNoteRemovedListener = null;
 });
 
+// 局部常量 recentNotes：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const recentNotes = computed(() => notes.notes.slice(0, 30));
+// 局部常量 filterOpen：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const filterOpen = ref(false);
+// 局部常量 selectedFilterValues：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const selectedFilterValues = ref<string[]>([]);
 
+// 局部常量 filterOptions：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const filterOptions = computed(() => {
+  // 局部常量 tagCounts：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const tagCounts = new Map<string, number>();
   let untaggedCount = 0;
 
   for (const note of recentNotes.value) {
+    // 局部常量 tags：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const tags = normalizedTags(note);
     if (tags.length === 0) {
       untaggedCount++;
@@ -133,31 +164,42 @@ const filterOptions = computed(() => {
   return [
     { value: untaggedFilterValue, label: '无标签', count: untaggedCount, testId: 'filter-option-untagged' },
     ...Array.from(tagCounts.entries())
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-CN'))
-        .map(([tag, count]) => ({ value: tag, label: `#${tag}`, count, testId: `filter-option-${tag}` })),
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-CN'))
+      .map(([tag, count]) => ({ value: tag, label: `#${tag}`, count, testId: `filter-option-${tag}` }))
   ];
 });
 
+// 局部常量 totalNoteCount：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const totalNoteCount = computed(() => recentNotes.value.length);
+// 局部常量 isAllFiltersSelected：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const isAllFiltersSelected = computed(() => selectedFilterValues.value.length === 0);
 
+// 局部常量 visibleNotes：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const visibleNotes = computed(() => {
+  // 局部常量 selected：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const selected = new Set(selectedFilterValues.value);
   if (selected.size === 0) {
     return recentNotes.value;
   }
 
-  return recentNotes.value.filter((note) => {
+  return recentNotes.value.filter(note => {
+    // 局部常量 tags：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const tags = normalizedTags(note);
+    // 局部常量 matchesTag：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const matchesTag = tags.some(tag => selected.has(tag));
+    // 局部常量 matchesUntagged：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const matchesUntagged = tags.length === 0 && selected.has(untaggedFilterValue);
     return matchesTag || matchesUntagged;
   });
 });
+// 局部常量 visibleNoteCount：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const visibleNoteCount = computed(() => visibleNotes.value.length);
+// 局部常量 filterStatText：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const filterStatText = computed(() => `${visibleNoteCount.value} / ${totalNoteCount.value} 篇`);
+// 局部常量 activeFilterCount：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const activeFilterCount = computed(() => selectedFilterValues.value.length);
 
+// 局部常量 contextMenu：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const contextMenu = ref<{
   visible: boolean;
   x: number;
@@ -169,50 +211,67 @@ const contextMenu = ref<{
   x: 0,
   y: 0,
   note: null,
-  exportOpen: false,
+  exportOpen: false
 });
 
+// 局部常量 contextTargetNote：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const contextTargetNote = computed(() => contextMenu.value.note);
+// 局部常量 contextHasTarget：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const contextHasTarget = computed(() => contextTargetNote.value !== null);
+// 局部常量 contextTargetIsDraft：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const contextTargetIsDraft = computed(() => contextTargetNote.value?.isDraft === true);
 
+// 局部常量 tagDialogVisible：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const tagDialogVisible = ref(false);
+// 局部常量 tagDialogNote：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const tagDialogNote = ref<Note | null>(null);
+// 局部常量 tagDraftRows：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const tagDraftRows = ref<string[]>([]);
+// 局部常量 renameDialogVisible：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const renameDialogVisible = ref(false);
+// 局部常量 renameDialogNote：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const renameDialogNote = ref<Note | null>(null);
+// 局部常量 renameDraft：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const renameDraft = ref('');
 
+// 函数 normalizedTags：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function normalizedTags(note: Note): string[] {
   return note.tags.map(tag => tag.trim()).filter(Boolean);
 }
 
+// 函数 onToggleAllFilters：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onToggleAllFilters(checked: boolean) {
   if (checked || selectedFilterValues.value.length > 0) {
     selectedFilterValues.value = [];
   }
 }
 
+// 函数 onToggleAllFiltersChange：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onToggleAllFiltersChange(event: Event) {
   onToggleAllFilters((event.target as HTMLInputElement).checked);
 }
 
+// 函数 onResetFilters：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onResetFilters() {
   selectedFilterValues.value = [];
 }
 
+// 函数 onApplyFilters：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onApplyFilters() {
   filterOpen.value = false;
 }
 
+// 函数 isFilterValueSelected：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function isFilterValueSelected(value: string) {
   return selectedFilterValues.value.includes(value);
 }
 
+// 函数 toggleFilterMenu：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function toggleFilterMenu() {
   filterOpen.value = !filterOpen.value;
 }
 
+// 函数 onNewQuickNote：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onNewQuickNote() {
   try {
     // "新建速记"按钮语义 = 全新空白浮窗。多份草稿天然共存，浮窗会按
@@ -224,6 +283,7 @@ async function onNewQuickNote() {
   }
 }
 
+// 函数 onNewNote：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onNewNote() {
   ui.navigateTo('note-editor');
 }
@@ -240,6 +300,7 @@ function blockDraftEdit(note: Note): boolean {
   return false;
 }
 
+// 函数 onOpenNoteEditor：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onOpenNoteEditor(note: Note) {
   if (note.isDraft) {
     // 未保存草稿走速记浮窗：按 noteId 让浮窗 hydrate 这份指定草稿。
@@ -253,9 +314,11 @@ async function onOpenNoteEditor(note: Note) {
   ui.navigateTo('note-editor', note.id);
 }
 
+// 函数 onSaveDraftFromCard：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onSaveDraftFromCard(note: Note) {
   if (!note.isDraft) return;
   try {
+    // 局部常量 promoted：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const promoted = await db.promoteDraft(note.id);
     if (promoted) {
       notes.syncExternalNote(promoted);
@@ -271,11 +334,13 @@ async function onSaveDraftFromCard(note: Note) {
   }
 }
 
+// 函数 closeContextMenu：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function closeContextMenu() {
   contextMenu.value.visible = false;
   contextMenu.value.exportOpen = false;
 }
 
+// 函数 openContextMenu：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function openContextMenu(event: MouseEvent, note: Note | null) {
   event.preventDefault();
   contextMenu.value = {
@@ -283,24 +348,29 @@ function openContextMenu(event: MouseEvent, note: Note | null) {
     x: event.clientX,
     y: event.clientY,
     note,
-    exportOpen: false,
+    exportOpen: false
   };
 }
 
+// 函数 onContextMenuBlank：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onContextMenuBlank(event: MouseEvent) {
   openContextMenu(event, null);
 }
 
+// 函数 onContextMenuNote：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onContextMenuNote(event: MouseEvent, note: Note) {
   openContextMenu(event, note);
 }
 
+// 函数 onContextNewNote：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onContextNewNote() {
   closeContextMenu();
   onNewNote();
 }
 
+// 函数 onContextEdit：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onContextEdit() {
+  // 局部常量 note：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const note = contextTargetNote.value;
   if (!note) return;
   closeContextMenu();
@@ -308,14 +378,18 @@ function onContextEdit() {
   ui.navigateTo('zen', note.id, { mode: 'main', noteId: null });
 }
 
+// 函数 onContextSaveDraft：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onContextSaveDraft() {
+  // 局部常量 note：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const note = contextTargetNote.value;
   if (!note || !note.isDraft) return;
   closeContextMenu();
   await onSaveDraftFromCard(note);
 }
 
+// 函数 onContextTags：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onContextTags() {
+  // 局部常量 note：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const note = contextTargetNote.value;
   if (!note) return;
   tagDialogNote.value = note;
@@ -324,7 +398,9 @@ function onContextTags() {
   closeContextMenu();
 }
 
+// 函数 onContextRename：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onContextRename() {
+  // 局部常量 note：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const note = contextTargetNote.value;
   if (!note) return;
   renameDialogNote.value = note;
@@ -333,21 +409,26 @@ function onContextRename() {
   closeContextMenu();
 }
 
+// 函数 onToggleExportSubmenu：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onToggleExportSubmenu() {
   if (!contextTargetNote.value) return;
   contextMenu.value.exportOpen = !contextMenu.value.exportOpen;
 }
 
+// 函数 onContextExport：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onContextExport(format: 'markdown' | 'html' | 'pdf') {
+  // 局部常量 note：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const note = contextTargetNote.value;
   if (!note) return;
   await exportNote(note, format);
 }
 
+// 函数 onCardExportSelect：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onCardExportSelect(key: string, note: Note) {
   await exportNote(note, key as 'markdown' | 'html' | 'pdf');
 }
 
+// 函数 exportNote：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function exportNote(note: Note, format: 'markdown' | 'html' | 'pdf') {
   try {
     if (format === 'pdf') {
@@ -355,32 +436,36 @@ async function exportNote(note: Note, format: 'markdown' | 'html' | 'pdf') {
       await win.openPrintWindow(note.id);
       return;
     }
-    const path = format === 'markdown'
-        ? await db.exportNoteMarkdown(note.id)
-        : await db.exportNoteHtml(note.id);
+    // 局部常量 path：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+    const path = format === 'markdown' ? await db.exportNoteMarkdown(note.id) : await db.exportNoteHtml(note.id);
     message.success(`已导出：${path}`);
   } catch (e) {
     message.error(String(e));
   }
 }
 
+// 函数 onContextPrint：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onContextPrint() {
   window.print();
 }
 
+// 函数 onContextDelete：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onContextDelete() {
+  // 局部常量 note：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const note = contextTargetNote.value;
   if (!note) return;
   closeContextMenu();
   await onConfirmDelete(note);
 }
 
+// 函数 onCloseTagDialog：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onCloseTagDialog() {
   tagDialogVisible.value = false;
   tagDialogNote.value = null;
   tagDraftRows.value = [];
 }
 
+// 函数 onAddTagRow：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onAddTagRow() {
   if (tagDraftRows.value.length >= 3) {
     message.warning('最多只能添加 3 个标签');
@@ -389,6 +474,7 @@ function onAddTagRow() {
   tagDraftRows.value.push('');
 }
 
+// 函数 onDeleteTagRow：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onDeleteTagRow(index: number) {
   tagDraftRows.value.splice(index, 1);
   if (tagDraftRows.value.length === 0) {
@@ -396,16 +482,12 @@ function onDeleteTagRow(index: number) {
   }
 }
 
+// 函数 parseTagRows：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function parseTagRows(rows: string[]): string[] {
-  return Array.from(
-      new Set(
-          rows
-              .map(tag => tag.replace(/^#+/, '').trim())
-              .filter(Boolean),
-      ),
-  );
+  return Array.from(new Set(rows.map(tag => tag.replace(/^#+/, '').trim()).filter(Boolean)));
 }
 
+// 函数 buildSaveRequest：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function buildSaveRequest(note: Note, overrides: Partial<Pick<Note, 'title' | 'tags'>>) {
   return {
     id: note.id,
@@ -414,13 +496,16 @@ function buildSaveRequest(note: Note, overrides: Partial<Pick<Note, 'title' | 't
     tags: overrides.tags ?? note.tags,
     isPinned: note.isPinned,
     pinnedWindowConfig: note.pinnedWindowConfig ?? null,
-    canvasPosition: note.canvasPosition ?? null,
+    canvasPosition: note.canvasPosition ?? null
   };
 }
 
+// 函数 onConfirmTagDialog：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onConfirmTagDialog() {
+  // 局部常量 note：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const note = tagDialogNote.value;
   if (!note) return;
+  // 局部常量 tags：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const tags = parseTagRows(tagDraftRows.value);
   if (tags.length > 3) {
     message.warning('最多只能添加 3 个标签');
@@ -434,13 +519,16 @@ async function onConfirmTagDialog() {
   }
 }
 
+// 函数 onCloseRenameDialog：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onCloseRenameDialog() {
   renameDialogVisible.value = false;
   renameDialogNote.value = null;
   renameDraft.value = '';
 }
 
+// 函数 onConfirmRenameDialog：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onConfirmRenameDialog() {
+  // 局部常量 note：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const note = renameDialogNote.value;
   if (!note) return;
   try {
@@ -451,6 +539,7 @@ async function onConfirmRenameDialog() {
   }
 }
 
+// 函数 onTogglePin：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onTogglePin(note: Note) {
   if (blockDraftEdit(note)) return;
   try {
@@ -466,33 +555,39 @@ async function onTogglePin(note: Note) {
   }
 }
 
+// 局部常量 editingTitleId：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const editingTitleId = ref<string | null>(null);
+// 局部常量 titleDraft：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const titleDraft = ref('');
 
+// 函数 onStartTitleEdit：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onStartTitleEdit(note: Note) {
   if (blockDraftEdit(note)) return;
   editingTitleId.value = note.id;
   titleDraft.value = note.title;
   await nextTick();
-  const input = document.querySelector<HTMLInputElement>(
-      `[data-testid="card-title-input-${note.id}"] input`,
-  );
+  // 局部常量 input：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+  const input = document.querySelector<HTMLInputElement>(`[data-testid="card-title-input-${note.id}"] input`);
   input?.focus();
   input?.select();
 }
 
+// 函数 onCancelTitleEdit：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onCancelTitleEdit() {
   editingTitleId.value = null;
   titleDraft.value = '';
 }
 
+// 函数 onSaveTitleEdit：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onSaveTitleEdit(note: Note) {
+  // 局部常量 next：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const next = titleDraft.value.trim();
   if (next === note.title) {
     editingTitleId.value = null;
     return;
   }
   if (next) {
+    // 局部常量 conflict：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const conflict = notes.notes.find(n => n.id !== note.id && n.title === next);
     if (conflict) {
       message.error(`已存在同名笔记「${next}」，请更换标题`);
@@ -508,6 +603,7 @@ async function onSaveTitleEdit(note: Note) {
   }
 }
 
+// 函数 onConfirmDelete：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onConfirmDelete(note: Note) {
   try {
     if (note.isPinned) {
@@ -520,6 +616,7 @@ async function onConfirmDelete(note: Note) {
   }
 }
 
+// 函数 onOpenTagDialogForCard：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onOpenTagDialogForCard(note: Note) {
   if (blockDraftEdit(note)) return;
   tagDialogNote.value = note;
@@ -527,18 +624,21 @@ function onOpenTagDialogForCard(note: Note) {
   tagDialogVisible.value = true;
 }
 
+// 函数 previewHtml：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function previewHtml(content: string): string {
   return renderNotePreviewHtml(content);
 }
 
+// 函数 formatUpdatedAt：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function formatUpdatedAt(iso: string): string {
   try {
+    // 局部常量 d：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const d = new Date(iso);
+    // 局部常量 now：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const now = new Date();
+    // 局部常量 sameDay：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const sameDay =
-        d.getFullYear() === now.getFullYear() &&
-        d.getMonth() === now.getMonth() &&
-        d.getDate() === now.getDate();
+      d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
     if (sameDay) {
       return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
     }
@@ -550,6 +650,7 @@ function formatUpdatedAt(iso: string): string {
 </script>
 
 <template>
+  <!-- 模板区：描述 Main View 的 DOM 层级、可交互区域和条件渲染边界。 -->
   <div class="main-root" @click="closeContextMenu" @contextmenu="onContextMenuBlank">
     <div class="main-toolbar" data-testid="main-toolbar">
       <div class="filter-wrap" @click.stop>
@@ -573,11 +674,7 @@ function formatUpdatedAt(iso: string): string {
               :class="{ 'filter-row--checked': isAllFiltersSelected }"
               data-testid="filter-select-all"
             >
-              <input
-                type="checkbox"
-                :checked="isAllFiltersSelected"
-                @change="onToggleAllFiltersChange"
-              >
+              <input type="checkbox" :checked="isAllFiltersSelected" @change="onToggleAllFiltersChange" />
               <span class="filter-row__check" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                   <polyline points="20 6 9 17 4 12" />
@@ -592,15 +689,11 @@ function formatUpdatedAt(iso: string): string {
               class="filter-row"
               :class="{
                 'filter-row--checked': isFilterValueSelected(option.value),
-                'filter-row--untagged': option.value === untaggedFilterValue,
+                'filter-row--untagged': option.value === untaggedFilterValue
               }"
               :data-testid="option.testId"
             >
-              <input
-                v-model="selectedFilterValues"
-                type="checkbox"
-                :value="option.value"
-              >
+              <input v-model="selectedFilterValues" type="checkbox" :value="option.value" />
               <span class="filter-row__check" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                   <polyline points="20 6 9 17 4 12" />
@@ -612,13 +705,16 @@ function formatUpdatedAt(iso: string): string {
           </div>
           <footer class="filter-menu__footer">
             <span data-testid="filter-stat">{{ filterStatText }}</span>
-            <button type="button" data-testid="filter-apply" @click="onApplyFilters">
-              完成
-            </button>
+            <button type="button" data-testid="filter-apply" @click="onApplyFilters">完成</button>
           </footer>
         </div>
       </div>
-      <button class="toolbar-btn toolbar-btn--ghost" type="button" data-testid="main-new-quicknote" @click="onNewQuickNote">
+      <button
+        class="toolbar-btn toolbar-btn--ghost"
+        type="button"
+        data-testid="main-new-quicknote"
+        @click="onNewQuickNote"
+      >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <path d="M12 20h9" />
           <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z" />
@@ -648,13 +744,11 @@ function formatUpdatedAt(iso: string): string {
               class="note-card-draft-tag"
               data-testid="card-draft-tag"
               title="未保存的草稿，仅可在速记浮窗里继续编辑"
-            >未保存</span>
-            <span v-if="note.isPinned" class="note-pin"></span>
-            <h3
-              v-if="editingTitleId !== note.id"
-              class="note-card-title"
-              @click="onStartTitleEdit(note)"
             >
+              未保存
+            </span>
+            <span v-if="note.isPinned" class="note-pin"></span>
+            <h3 v-if="editingTitleId !== note.id" class="note-card-title" @click="onStartTitleEdit(note)">
               {{ note.title || '无标题' }}
             </h3>
             <NInput
@@ -679,23 +773,15 @@ function formatUpdatedAt(iso: string): string {
             >
               <template #icon>
                 <NIcon>
-                  <svg
-                    v-if="editingTitleId === note.id"
-                    viewBox="0 0 24 24"
-                    width="12"
-                    height="12"
-                    fill="currentColor"
-                  >
-                    <path d="m9 16.17-3.88-3.88a.996.996 0 1 0-1.41 1.41l4.59 4.59c.39.39 1.02.39 1.41 0L21.7 6.7a.996.996 0 1 0-1.41-1.41z" />
+                  <svg v-if="editingTitleId === note.id" viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                    <path
+                      d="m9 16.17-3.88-3.88a.996.996 0 1 0-1.41 1.41l4.59 4.59c.39.39 1.02.39 1.41 0L21.7 6.7a.996.996 0 1 0-1.41-1.41z"
+                    />
                   </svg>
-                  <svg
-                    v-else
-                    viewBox="0 0 24 24"
-                    width="12"
-                    height="12"
-                    fill="currentColor"
-                  >
-                    <path d="M3 17.46V21h3.54l10.4-10.4-3.54-3.54L3 17.46zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.54 3.54 2.04-2.04z" />
+                  <svg v-else viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                    <path
+                      d="M3 17.46V21h3.54l10.4-10.4-3.54-3.54L3 17.46zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.54 3.54 2.04-2.04z"
+                    />
                   </svg>
                 </NIcon>
               </template>
@@ -708,13 +794,7 @@ function formatUpdatedAt(iso: string): string {
             @positive-click="onConfirmDelete(note)"
           >
             <template #trigger>
-              <NButton
-                quaternary
-                circle
-                size="tiny"
-                title="删除"
-                data-testid="card-action-delete"
-              >
+              <NButton quaternary circle size="tiny" title="删除" data-testid="card-action-delete">
                 <template #icon>
                   <NIcon>
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
@@ -741,7 +821,9 @@ function formatUpdatedAt(iso: string): string {
           >
             <template v-if="note.tags.length > 0">
               <span v-for="tag in note.tags.slice(0, 2)" :key="tag" class="note-card-tag">#{{ tag }}</span>
-              <span v-if="note.tags.length > 2" class="note-card-tag note-card-tag-more">+{{ note.tags.length - 2 }}</span>
+              <span v-if="note.tags.length > 2" class="note-card-tag note-card-tag-more">
+                +{{ note.tags.length - 2 }}
+              </span>
             </template>
             <span v-else>空标签</span>
             <NButton
@@ -756,24 +838,22 @@ function formatUpdatedAt(iso: string): string {
               <template #icon>
                 <NIcon>
                   <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                    <path d="M3 17.46V21h3.54l10.4-10.4-3.54-3.54L3 17.46zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.54 3.54 2.04-2.04z" />
+                    <path
+                      d="M3 17.46V21h3.54l10.4-10.4-3.54-3.54L3 17.46zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.54 3.54 2.04-2.04z"
+                    />
                   </svg>
                 </NIcon>
               </template>
             </NButton>
           </div>
           <div class="note-card-actions" data-testid="card-actions">
-            <NButton
-              quaternary
-              size="tiny"
-              title="编辑"
-              data-testid="card-action-edit"
-              @click="onOpenNoteEditor(note)"
-            >
+            <NButton quaternary size="tiny" title="编辑" data-testid="card-action-edit" @click="onOpenNoteEditor(note)">
               <template #icon>
                 <NIcon>
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 0 0 0-1.42l-2.34-2.33a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75z" />
+                    <path
+                      d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 0 0 0-1.42l-2.34-2.33a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75z"
+                    />
                   </svg>
                 </NIcon>
               </template>
@@ -789,7 +869,9 @@ function formatUpdatedAt(iso: string): string {
               <template #icon>
                 <NIcon>
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                    <path d="M14.4 6 14 4H7.7L7 5.2l3 5.3L7.3 13 4 16.3V17h6.7L12 22l1.3-5h6.7v-.7L16.7 13 14 10.5 17 5.2 16.3 4H14.4z" />
+                    <path
+                      d="M14.4 6 14 4H7.7L7 5.2l3 5.3L7.3 13 4 16.3V17h6.7L12 22l1.3-5h6.7v-.7L16.7 13 14 10.5 17 5.2 16.3 4H14.4z"
+                    />
                   </svg>
                 </NIcon>
               </template>
@@ -842,14 +924,21 @@ function formatUpdatedAt(iso: string): string {
         <h2>这里还空着</h2>
         <p>第一条笔记从一次复制开始。按下快捷键呼出浮窗，或直接新建。</p>
         <div class="empty-actions">
-          <button class="empty-primary" type="button" data-action="new-note" @click="onNewNote">
-            新建笔记
-          </button>
+          <button class="empty-primary" type="button" data-action="new-note" @click="onNewNote">新建笔记</button>
         </div>
         <div class="empty-tips">
-          <div><span class="empty-kbd">⌥ S</span> 呼出浮窗速记</div>
-          <div><span class="empty-kbd">⌘ N</span> 新建一篇笔记</div>
-          <div><span class="empty-kbd">⌘ K</span> 搜索任意内容</div>
+          <div>
+            <span class="empty-kbd">⌥ S</span>
+            呼出浮窗速记
+          </div>
+          <div>
+            <span class="empty-kbd">⌘ N</span>
+            新建一篇笔记
+          </div>
+          <div>
+            <span class="empty-kbd">⌘ K</span>
+            搜索任意内容
+          </div>
         </div>
       </div>
     </section>
@@ -920,13 +1009,31 @@ function formatUpdatedAt(iso: string): string {
           <span aria-hidden="true">›</span>
         </button>
         <div v-if="contextMenu.exportOpen && contextHasTarget" class="context-submenu" role="menu">
-          <button class="context-item" type="button" data-testid="context-export-markdown" role="menuitem" @click="onContextExport('markdown')">
+          <button
+            class="context-item"
+            type="button"
+            data-testid="context-export-markdown"
+            role="menuitem"
+            @click="onContextExport('markdown')"
+          >
             Markdown
           </button>
-          <button class="context-item" type="button" data-testid="context-export-html" role="menuitem" @click="onContextExport('html')">
+          <button
+            class="context-item"
+            type="button"
+            data-testid="context-export-html"
+            role="menuitem"
+            @click="onContextExport('html')"
+          >
             Html
           </button>
-          <button class="context-item" type="button" data-testid="context-export-pdf" role="menuitem" @click="onContextExport('pdf')">
+          <button
+            class="context-item"
+            type="button"
+            data-testid="context-export-pdf"
+            role="menuitem"
+            @click="onContextExport('pdf')"
+          >
             PDF
           </button>
         </div>
@@ -1043,6 +1150,7 @@ function formatUpdatedAt(iso: string): string {
 </template>
 
 <style scoped>
+/* 样式区：限定 Main View 的布局、主题色和响应式细节。 */
 .main-toolbar {
   display: flex;
   align-items: center;
@@ -1069,9 +1177,9 @@ function formatUpdatedAt(iso: string): string {
   font-weight: 500;
   cursor: pointer;
   transition:
-      background 0.15s ease,
-      border-color 0.15s ease,
-      color 0.15s ease;
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .toolbar-btn:hover {
@@ -1208,8 +1316,8 @@ function formatUpdatedAt(iso: string): string {
   background: oklch(99% 0.006 78);
   color: white;
   transition:
-      background 0.12s ease,
-      border-color 0.12s ease;
+    background 0.12s ease,
+    border-color 0.12s ease;
 }
 
 .filter-row__check svg {
@@ -1294,7 +1402,7 @@ function formatUpdatedAt(iso: string): string {
   min-height: 100%;
   padding: 18px 20px 20px;
   color: #2a2a2a;
-  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 .note-context-menu {
@@ -1476,9 +1584,9 @@ function formatUpdatedAt(iso: string): string {
   background: oklch(99% 0.006 78);
   cursor: default;
   transition:
-      border-color 0.15s ease,
-      box-shadow 0.15s ease,
-      transform 0.15s ease;
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
 
 .note-card:hover {
@@ -1650,7 +1758,7 @@ function formatUpdatedAt(iso: string): string {
   position: absolute;
   right: 0;
   bottom: 0;
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
   font-size: 10.5px;
   color: oklch(49% 0.018 70);
 }
@@ -1821,7 +1929,7 @@ function formatUpdatedAt(iso: string): string {
   border-radius: 4px;
   background: oklch(99% 0.006 78);
   color: oklch(49% 0.018 70);
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
   font-size: 10px;
   line-height: 1;
 }

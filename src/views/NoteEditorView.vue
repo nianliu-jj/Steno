@@ -1,4 +1,12 @@
+<!--
+  @file 前端视图 - Note Editor View
+
+  承载 Note Editor View 的界面结构、响应式状态和用户交互，是 前端视图 模块的可视入口之一。
+  注释重点标明模板结构、脚本状态、事件派发和样式隔离边界。
+-->
+
 <script setup lang="ts">
+// 脚本区：组织 Note Editor View 的响应式状态、计算属性、事件处理和外部模块协作。
 /**
  * @component NoteEditorView
  * @description 笔记编辑器页面（`mode === 'note-editor'`）— 在 main 窗口内打开。
@@ -29,49 +37,68 @@ import { useMarkdownOutline } from '@/composables/useMarkdownOutline';
 import { useWritingSession } from '@/composables/useWritingSession';
 import { useUiStore } from '@/stores/ui';
 
+// 局部常量 ui：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const ui = useUiStore();
+// 局部常量 message：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const message = useMessage();
 useMarkdown();
 
+// 局部常量 currentNoteId：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const currentNoteId = ref<string | null>(ui.noteId ?? null);
+// 局部常量 session：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const session = useWritingSession(currentNoteId);
+// 局部常量 title：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const title = session.title;
+// 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const content = session.content;
+// 局部常量 tags：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const tags = session.tags;
+// 局部常量 editingTitle：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const editingTitle = ref(false);
+// 局部常量 tagsDialogVisible：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const tagsDialogVisible = ref(false);
+// 局部常量 tagsDraftRows：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const tagsDraftRows = ref<string[]>([]);
+// 局部常量 titleInputRef：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const titleInputRef = ref<{ focus: () => void } | null>(null);
+// 局部常量 editorRef：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const editorRef = ref<{ focus: () => void; scrollToLine: (line: number) => void } | null>(null);
+// 局部常量 viewMode：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const viewMode = ref<'edit' | 'read'>('edit');
+// 局部常量 outlineOpen：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const outlineOpen = ref(false);
+// 局部常量 modeDropdownOpen：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const modeDropdownOpen = ref(false);
+// 局部常量 modeDropdownRef：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const modeDropdownRef = ref<HTMLElement | null>(null);
 
+// 局部常量 wordCount：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const wordCount = session.wordCount;
+// 局部常量 displayTitle：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const displayTitle = computed(() => title.value.trim() || '无标题');
 const { buildOutline } = useMarkdownOutline();
+// 局部常量 outlineNodes：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const outlineNodes = computed(() => buildOutline(content.value));
 
+// 局部常量 MAX_TAGS：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const MAX_TAGS = 3;
+// 局部常量 displayedTags：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const displayedTags = computed(() => tags.value.slice(0, 2));
+// 局部常量 extraTagCount：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const extraTagCount = computed(() => Math.max(0, tags.value.length - 2));
+// 局部常量 modeLabel：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const modeLabel = computed(() => (viewMode.value === 'read' ? '只读模式' : '编辑模式'));
 
 onClickOutside(modeDropdownRef, () => {
   modeDropdownOpen.value = false;
 });
 
+// 函数 parseTagRows：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function parseTagRows(rows: string[]): string[] {
-  return Array.from(
-    new Set(
-      rows
-        .map(tag => tag.replace(/^#+/, '').trim())
-        .filter(Boolean),
-    ),
-  );
+  return Array.from(new Set(rows.map(tag => tag.replace(/^#+/, '').trim()).filter(Boolean)));
 }
 
+// 局部常量 statusText：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const statusText = computed(() => {
   switch (session.status.value) {
     case 'idle':
@@ -91,30 +118,36 @@ const statusText = computed(() => {
   }
 });
 
+// 函数 onBack：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onBack() {
   await session.flushSave();
   ui.navigateToMain();
 }
 
+// 函数 onStartTitleEdit：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onStartTitleEdit() {
   editingTitle.value = true;
   await nextTick();
   titleInputRef.value?.focus();
 }
 
+// 函数 onFinishTitleEdit：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onFinishTitleEdit() {
   editingTitle.value = false;
 }
 
+// 函数 onOpenTagsDialog：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onOpenTagsDialog() {
   tagsDraftRows.value = tags.value.length ? [...tags.value] : [''];
   tagsDialogVisible.value = true;
 }
 
+// 函数 onCloseTagsDialog：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onCloseTagsDialog() {
   tagsDialogVisible.value = false;
 }
 
+// 函数 onAddTagRow：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onAddTagRow() {
   if (tagsDraftRows.value.length >= MAX_TAGS) {
     message.warning('最多只能添加 3 个标签');
@@ -123,6 +156,7 @@ function onAddTagRow() {
   tagsDraftRows.value.push('');
 }
 
+// 函数 onDeleteTagRow：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onDeleteTagRow(index: number) {
   tagsDraftRows.value.splice(index, 1);
   if (tagsDraftRows.value.length === 0) {
@@ -130,7 +164,9 @@ function onDeleteTagRow(index: number) {
   }
 }
 
+// 函数 onConfirmTagsDialog：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onConfirmTagsDialog() {
+  // 局部常量 parsed：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const parsed = parseTagRows(tagsDraftRows.value);
   if (parsed.length > MAX_TAGS) {
     message.warning('最多只能添加 3 个标签');
@@ -140,20 +176,24 @@ function onConfirmTagsDialog() {
   tagsDialogVisible.value = false;
 }
 
+// 函数 onToggleReadMode：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onToggleReadMode() {
   viewMode.value = 'read';
 }
 
+// 函数 onToggleEditMode：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onToggleEditMode() {
   viewMode.value = 'edit';
   nextTick(() => editorRef.value?.focus());
 }
 
+// 函数 onOpenZen：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onOpenZen() {
   await session.flushSave();
   ui.navigateToZenFromEditor(currentNoteId.value);
 }
 
+// 函数 onSelectMode：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onSelectMode(mode: 'edit' | 'read' | 'zen') {
   modeDropdownOpen.value = false;
   if (mode === 'zen') {
@@ -167,6 +207,7 @@ function onSelectMode(mode: 'edit' | 'read' | 'zen') {
   onToggleEditMode();
 }
 
+// 函数 onSelectOutline：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onSelectOutline(node: { line: number; id: string }) {
   if (viewMode.value === 'edit') {
     editorRef.value?.scrollToLine(node.line);
@@ -175,12 +216,13 @@ function onSelectOutline(node: { line: number; id: string }) {
 
   document.getElementById(node.id)?.scrollIntoView({
     block: 'center',
-    behavior: 'smooth',
+    behavior: 'smooth'
   });
 }
 </script>
 
 <template>
+  <!-- 模板区：描述 Note Editor View 的 DOM 层级、可交互区域和条件渲染边界。 -->
   <div class="note-editor-root">
     <header class="note-editor-header">
       <div class="note-editor-title">
@@ -220,9 +262,7 @@ function onSelectOutline(node: { line: number; id: string }) {
         </div>
       </div>
       <div class="note-editor-actions">
-        <NButton size="small" tertiary class="note-editor-back-button" @click="onBack">
-          返回列表
-        </NButton>
+        <NButton size="small" tertiary class="note-editor-back-button" @click="onBack">返回列表</NButton>
       </div>
     </header>
 
@@ -236,7 +276,17 @@ function onSelectOutline(node: { line: number; id: string }) {
         :aria-pressed="outlineOpen"
         @click="outlineOpen = !outlineOpen"
       >
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg
+          viewBox="0 0 24 24"
+          width="16"
+          height="16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
           <line x1="8" y1="6" x2="20" y2="6" />
           <line x1="8" y1="12" x2="20" y2="12" />
           <line x1="8" y1="18" x2="20" y2="18" />
@@ -245,42 +295,19 @@ function onSelectOutline(node: { line: number; id: string }) {
           <circle cx="4" cy="18" r="1.4" />
         </svg>
       </button>
-      <aside
-        v-if="outlineOpen"
-        class="note-editor-outline-panel"
-        data-testid="note-outline-panel"
-      >
+      <aside v-if="outlineOpen" class="note-editor-outline-panel" data-testid="note-outline-panel">
         <DocumentOutlineTree :nodes="outlineNodes" @select="onSelectOutline" />
       </aside>
-      <MarkdownEditor
-        v-if="viewMode === 'edit'"
-        ref="editorRef"
-        v-model="content"
-        autofocus
-        placeholder="开始写作…"
-      />
-      <MarkdownReadSurface
-        v-else
-        data-testid="note-read-surface"
-        :title="displayTitle"
-        :content="content"
-      />
+      <MarkdownEditor v-if="viewMode === 'edit'" ref="editorRef" v-model="content" autofocus placeholder="开始写作…" />
+      <MarkdownReadSurface v-else data-testid="note-read-surface" :title="displayTitle" :content="content" />
     </div>
 
     <footer class="note-editor-footer">
       <div class="note-editor-footer-tags" aria-label="文档标签">
         <span v-if="tags.length === 0" class="note-editor-tag-empty">无标签</span>
         <template v-else>
-          <span
-            v-for="tag in displayedTags"
-            :key="tag"
-            class="note-editor-tag"
-          >
-            #{{ tag }}
-          </span>
-          <span v-if="extraTagCount > 0" class="note-editor-tag-more">
-            +{{ extraTagCount }}
-          </span>
+          <span v-for="tag in displayedTags" :key="tag" class="note-editor-tag">#{{ tag }}</span>
+          <span v-if="extraTagCount > 0" class="note-editor-tag-more">+{{ extraTagCount }}</span>
         </template>
         <NButton
           quaternary
@@ -313,11 +340,7 @@ function onSelectOutline(node: { line: number; id: string }) {
           <span>{{ modeLabel }}</span>
           <span class="note-editor-mode-caret" aria-hidden="true">▾</span>
         </button>
-        <ul
-          v-show="modeDropdownOpen"
-          class="note-editor-mode-options"
-          role="listbox"
-        >
+        <ul v-show="modeDropdownOpen" class="note-editor-mode-options" role="listbox">
           <li class="note-editor-mode-item">
             <button
               type="button"
@@ -362,19 +385,10 @@ function onSelectOutline(node: { line: number; id: string }) {
       @click.self="onCloseTagsDialog"
       @keydown.esc="onCloseTagsDialog"
     >
-      <section
-        class="note-editor-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="note-editor-tags-title"
-      >
+      <section class="note-editor-dialog" role="dialog" aria-modal="true" aria-labelledby="note-editor-tags-title">
         <h2 id="note-editor-tags-title" class="note-editor-dialog-title">编辑标签</h2>
         <div class="note-editor-tag-editor">
-          <div
-            v-for="(_, index) in tagsDraftRows"
-            :key="index"
-            class="note-editor-tag-row"
-          >
+          <div v-for="(_, index) in tagsDraftRows" :key="index" class="note-editor-tag-row">
             <NInput
               v-model:value="tagsDraftRows[index]"
               size="small"
@@ -422,15 +436,8 @@ function onSelectOutline(node: { line: number; id: string }) {
           </NButton>
         </div>
         <div class="note-editor-dialog-actions">
-          <NButton size="small" class="note-editor-dialog-cancel" @click="onCloseTagsDialog">
-            取消
-          </NButton>
-          <NButton
-            size="small"
-            type="primary"
-            data-testid="note-tags-confirm"
-            @click="onConfirmTagsDialog"
-          >
+          <NButton size="small" class="note-editor-dialog-cancel" @click="onCloseTagsDialog">取消</NButton>
+          <NButton size="small" type="primary" data-testid="note-tags-confirm" @click="onConfirmTagsDialog">
             保存
           </NButton>
         </div>
@@ -440,6 +447,7 @@ function onSelectOutline(node: { line: number; id: string }) {
 </template>
 
 <style scoped>
+/* 样式区：限定 Note Editor View 的布局、主题色和响应式细节。 */
 .note-editor-root {
   display: flex;
   flex-direction: column;
@@ -819,7 +827,10 @@ function onSelectOutline(node: { line: number; id: string }) {
   font: inherit;
   cursor: pointer;
   box-shadow: 0 8px 24px rgba(38, 31, 25, 0.12);
-  transition: color 0.15s, background 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s,
+    border-color 0.15s;
 }
 
 .note-editor-outline-fab:hover,
@@ -829,7 +840,7 @@ function onSelectOutline(node: { line: number; id: string }) {
   background: rgba(255, 250, 244, 1);
 }
 
-.note-editor-outline-fab[aria-pressed="true"] {
+.note-editor-outline-fab[aria-pressed='true'] {
   color: #2f2923;
   background: rgba(132, 82, 47, 0.12);
   border-color: rgba(132, 82, 47, 0.36);

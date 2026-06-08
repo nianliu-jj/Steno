@@ -1,4 +1,12 @@
+<!--
+  @file 前端视图 - Settings View
+
+  承载 Settings View 的界面结构、响应式状态和用户交互，是 前端视图 模块的可视入口之一。
+  注释重点标明模板结构、脚本状态、事件派发和样式隔离边界。
+-->
+
 <script setup lang="ts">
+// 脚本区：组织 Settings View 的响应式状态、计算属性、事件处理和外部模块协作。
 /**
  * @component SettingsView
  * @description 设置面板 — 主窗口内由 `NModal` 承载（`embedded=true`），
@@ -32,7 +40,7 @@ import {
   NSwitch,
   NText,
   NTooltip,
-  useMessage,
+  useMessage
 } from 'naive-ui';
 
 import { useAppEvents } from '@/composables/useAppEvents';
@@ -40,32 +48,30 @@ import { useDb } from '@/composables/useDb';
 import {
   DEFAULT_REMINDER_QUICK_OPTIONS,
   useSettingsStore,
+  // 类型 EditorMode：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
   type EditorMode,
+  // 类型 StenoSettings：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
   type StenoSettings,
-  type ThemeMode,
+  // 类型 ThemeMode：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
+  type ThemeMode
 } from '@/stores/settings';
 import type { ReminderOption } from '@/types/steno';
 import { useUiStore } from '@/stores/ui';
 import { useI18n } from '@/i18n';
 import { LOCALE_OPTIONS, type Locale } from '@/i18n/types';
 
+// 局部常量 props：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const props = withDefaults(defineProps<{ embedded?: boolean }>(), {
-  embedded: false,
+  embedded: false
 });
 
+// 局部常量 emit：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const emit = defineEmits<{
   close: [];
 }>();
 
-type SettingsSection =
-  | 'general'
-  | 'appearance'
-  | 'shortcuts'
-  | 'todo'
-  | 'reminders'
-  | 'privacy'
-  | 'storage'
-  | 'about';
+// 类型 SettingsSection：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
+type SettingsSection = 'general' | 'appearance' | 'shortcuts' | 'todo' | 'reminders' | 'privacy' | 'storage' | 'about';
 
 const sections: { key: SettingsSection; label: string }[] = [
   { key: 'general', label: '常规' },
@@ -75,19 +81,27 @@ const sections: { key: SettingsSection; label: string }[] = [
   { key: 'reminders', label: '提醒设置' },
   { key: 'privacy', label: '隐私安全' },
   { key: 'storage', label: '存储' },
-  { key: 'about', label: '关于' },
+  { key: 'about', label: '关于' }
 ];
 
+// 局部常量 db：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const db = useDb();
+// 局部常量 settings：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const settings = useSettingsStore();
+// 局部常量 ui：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const ui = useUiStore();
+// 局部常量 message：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const message = useMessage();
 const { emitThemeModeChanged } = useAppEvents();
+// 局部常量 i18n：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const i18n = useI18n();
+// 局部常量 activeSection：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const activeSection = ref<SettingsSection>('general');
 
+// 局部常量 localeOptions：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const localeOptions = LOCALE_OPTIONS.map(opt => ({ label: opt.label, value: opt.value }));
 
+// 函数 onLocaleChange：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onLocaleChange(value: Locale) {
   try {
     await settings.update('locale', value);
@@ -97,6 +111,7 @@ async function onLocaleChange(value: Locale) {
   }
 }
 
+// 函数 onThemeChange：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onThemeChange(value: ThemeMode) {
   try {
     await settings.update('themeMode', value);
@@ -112,14 +127,22 @@ async function onThemeChange(value: ThemeMode) {
   }
 }
 
+// 局部常量 mainShortcut：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const mainShortcut = ref('');
+// 局部常量 quicknoteShortcut：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const quicknoteShortcut = ref('');
+// 局部常量 clipboardShortcut：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const clipboardShortcut = ref('');
+// 局部常量 searchShortcut：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const searchShortcut = ref('');
+// 局部常量 todoShortcut：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const todoShortcut = ref('');
+// 局部常量 shortcutDialogKey：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const shortcutDialogKey = ref<ShortcutKey | null>(null);
+// 局部常量 shortcutDialogRef：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const shortcutDialogRef = ref<HTMLElement | null>(null);
 
+// 类型 ShortcutKey：记录模块边界的数据形状，帮助调用方理解字段来源和约束。
 type ShortcutKey =
   | 'mainWindowShortcut'
   | 'quicknoteShortcut'
@@ -127,6 +150,7 @@ type ShortcutKey =
   | 'searchShortcut'
   | 'todoQuickPanelShortcut';
 
+// 函数 syncShortcutLocals：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function syncShortcutLocals() {
   mainShortcut.value = settings.state.mainWindowShortcut;
   quicknoteShortcut.value = settings.state.quicknoteShortcut;
@@ -135,19 +159,19 @@ function syncShortcutLocals() {
   todoShortcut.value = settings.state.todoQuickPanelShortcut;
 }
 
-const shortcutDialogLabel = computed(() =>
-  shortcutDialogKey.value ? labelOf(shortcutDialogKey.value) : '',
-);
+// 局部常量 shortcutDialogLabel：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+const shortcutDialogLabel = computed(() => (shortcutDialogKey.value ? labelOf(shortcutDialogKey.value) : ''));
+// 局部常量 shortcutDialogCurrent：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const shortcutDialogCurrent = computed(() =>
-  shortcutDialogKey.value ? shortcutRefOf(shortcutDialogKey.value).value : '',
+  shortcutDialogKey.value ? shortcutRefOf(shortcutDialogKey.value).value : ''
 );
 
-async function commitShortcut(
-  key: ShortcutKey,
-  value: string,
-) {
+// 函数 commitShortcut：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
+async function commitShortcut(key: ShortcutKey, value: string) {
+  // 局部常量 trimmed：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const trimmed = value.trim();
   if (!trimmed || trimmed === settings.state[key]) return;
+  // 局部常量 previous：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const previous = settings.state[key];
   try {
     await settings.update(key, trimmed);
@@ -169,6 +193,7 @@ async function commitShortcut(
   }
 }
 
+// 函数 shortcutRefOf：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function shortcutRefOf(key: ShortcutKey) {
   switch (key) {
     case 'mainWindowShortcut':
@@ -184,7 +209,9 @@ function shortcutRefOf(key: ShortcutKey) {
   }
 }
 
+// 函数 formatShortcutKey：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function formatShortcutKey(event: KeyboardEvent) {
+  // 局部常量 key：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const key = normalizeShortcutKey(event);
   if (!key) return '';
   const parts: string[] = [];
@@ -197,7 +224,9 @@ function formatShortcutKey(event: KeyboardEvent) {
   return parts.join('+');
 }
 
+// 函数 normalizeShortcutKey：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function normalizeShortcutKey(event: KeyboardEvent) {
+  // 局部常量 ignored：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const ignored = new Set(['Control', 'Alt', 'Shift', 'Meta', 'Process', 'Unidentified']);
   if (ignored.has(event.key)) return '';
   if (event.key === ' ') return 'Space';
@@ -205,15 +234,18 @@ function normalizeShortcutKey(event: KeyboardEvent) {
   return event.key;
 }
 
+// 函数 openShortcutDialog：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function openShortcutDialog(key: ShortcutKey) {
   shortcutDialogKey.value = key;
   void nextTick(() => shortcutDialogRef.value?.focus());
 }
 
+// 函数 closeShortcutDialog：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function closeShortcutDialog() {
   shortcutDialogKey.value = null;
 }
 
+// 函数 captureShortcut：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function captureShortcut(event: KeyboardEvent) {
   event.preventDefault();
   event.stopPropagation();
@@ -222,9 +254,11 @@ function captureShortcut(event: KeyboardEvent) {
     return;
   }
 
+  // 局部常量 key：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const key = shortcutDialogKey.value;
   if (!key) return;
 
+  // 局部常量 next：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const next = formatShortcutKey(event);
   if (!next) {
     message.info('请同时按下 Ctrl / Alt / Shift / Meta 与一个按键');
@@ -240,9 +274,8 @@ function captureShortcut(event: KeyboardEvent) {
   void commitShortcut(key, next);
 }
 
-function labelOf(
-  key: ShortcutKey,
-) {
+// 函数 labelOf：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
+function labelOf(key: ShortcutKey) {
   switch (key) {
     case 'mainWindowShortcut':
       return '主窗口快捷键';
@@ -257,8 +290,16 @@ function labelOf(
   }
 }
 
+// 函数 onUpdateNumber：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onUpdateNumber<
-  K extends 'floatingWidth' | 'floatingHeight' | 'blurCloseDelayMs' | 'backupEveryChanges' | 'windowBorderRadius' | 'unsavedNoteRetentionDays' | 'clipboardRetentionDays',
+  K extends
+    | 'floatingWidth'
+    | 'floatingHeight'
+    | 'blurCloseDelayMs'
+    | 'backupEveryChanges'
+    | 'windowBorderRadius'
+    | 'unsavedNoteRetentionDays'
+    | 'clipboardRetentionDays'
 >(key: K, value: number | null) {
   if (value == null || !Number.isFinite(value)) return;
   if (value === settings.state[key]) return;
@@ -269,6 +310,7 @@ async function onUpdateNumber<
   }
 }
 
+// 函数 onEditorModeChange：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onEditorModeChange(value: EditorMode) {
   try {
     await settings.update('editorMode', value);
@@ -277,6 +319,7 @@ async function onEditorModeChange(value: EditorMode) {
   }
 }
 
+// 函数 onTodoEnabledChange：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onTodoEnabledChange(value: boolean) {
   try {
     await settings.update('todoQuickPanelEnabled', value);
@@ -289,6 +332,7 @@ async function onTodoEnabledChange(value: boolean) {
   }
 }
 
+// 函数 onTodoPositionChange：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onTodoPositionChange(value: StenoSettings['todoQuickPanelPosition']) {
   try {
     await settings.update('todoQuickPanelPosition', value);
@@ -297,6 +341,7 @@ async function onTodoPositionChange(value: StenoSettings['todoQuickPanelPosition
   }
 }
 
+// 函数 onPopupPositionChange：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onPopupPositionChange(_key: 'quicknotePopupPosition', value: string) {
   try {
     await settings.update('quicknotePopupPosition', value as 'cursor' | 'center' | 'last');
@@ -305,7 +350,9 @@ async function onPopupPositionChange(_key: 'quicknotePopupPosition', value: stri
   }
 }
 
+// 函数 onLaunchAtStartupChange：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onLaunchAtStartupChange(value: boolean) {
+  // 局部常量 previous：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const previous = settings.state.launchAtStartup;
   try {
     await settings.update('launchAtStartup', value);
@@ -322,35 +369,43 @@ async function onLaunchAtStartupChange(value: boolean) {
   }
 }
 
+// 局部常量 editorModeOptions：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const editorModeOptions = [
   { label: '编辑 + 预览', value: 'split' },
   { label: '只编辑', value: 'edit' },
-  { label: '只预览', value: 'preview' },
+  { label: '只预览', value: 'preview' }
 ] satisfies { label: string; value: EditorMode }[];
 
+// 局部常量 popupPositionOptions：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const popupPositionOptions = [
   { label: '跟随光标', value: 'cursor' },
   { label: '屏幕居中', value: 'center' },
-  { label: '上次位置', value: 'last' },
+  { label: '上次位置', value: 'last' }
 ];
 
+// 局部常量 reminderUnitOptions：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const reminderUnitOptions = [
   { label: '分钟', value: 'minute' },
   { label: '小时', value: 'hour' },
-  { label: '天', value: 'day' },
+  { label: '天', value: 'day' }
 ] satisfies { label: string; value: ReminderOption['unit'] }[];
 
+// 函数 cloneReminderOptions：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function cloneReminderOptions(options: ReminderOption[]) {
   return options.map(option => ({ ...option }));
 }
 
+// 函数 nanoid：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function nanoid(size = 10) {
+  // 局部常量 alphabet：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  // 局部常量 bytes：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const bytes = new Uint8Array(size);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, byte => alphabet[byte % alphabet.length]).join('');
 }
 
+// 函数 persistReminderOptions：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function persistReminderOptions(options: ReminderOption[]) {
   try {
     await settings.update('reminderQuickOptions', options);
@@ -359,12 +414,15 @@ async function persistReminderOptions(options: ReminderOption[]) {
   }
 }
 
+// 函数 updateReminderOption：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function updateReminderOption(index: number, patch: Partial<ReminderOption>) {
+  // 局部常量 next：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const next = cloneReminderOptions(settings.state.reminderQuickOptions);
   next[index] = { ...next[index], ...patch };
   void persistReminderOptions(next);
 }
 
+// 函数 onReminderTypeChange：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onReminderTypeChange(index: number, type: ReminderOption['type']) {
   if (type === 'relative') {
     updateReminderOption(index, {
@@ -372,7 +430,7 @@ function onReminderTypeChange(index: number, type: ReminderOption['type']) {
       value: 15,
       unit: 'minute',
       absoluteTime: undefined,
-      dayOffset: undefined,
+      dayOffset: undefined
     });
     return;
   }
@@ -382,19 +440,17 @@ function onReminderTypeChange(index: number, type: ReminderOption['type']) {
     value: 0,
     unit: 'minute',
     absoluteTime: '16:00',
-    dayOffset: 0,
+    dayOffset: 0
   });
 }
 
-function onReminderNumberChange(
-  index: number,
-  key: 'value' | 'dayOffset',
-  value: number | null,
-) {
+// 函数 onReminderNumberChange：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
+function onReminderNumberChange(index: number, key: 'value' | 'dayOffset', value: number | null) {
   if (value === null || !Number.isFinite(value)) return;
   updateReminderOption(index, { [key]: value });
 }
 
+// 函数 addReminderOption：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function addReminderOption() {
   void persistReminderOptions([
     ...cloneReminderOptions(settings.state.reminderQuickOptions),
@@ -403,23 +459,28 @@ function addReminderOption() {
       label: '15 分钟后',
       type: 'relative',
       value: 15,
-      unit: 'minute',
-    },
+      unit: 'minute'
+    }
   ]);
 }
 
+// 函数 deleteReminderOption：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function deleteReminderOption(index: number) {
+  // 局部常量 next：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const next = cloneReminderOptions(settings.state.reminderQuickOptions);
   next.splice(index, 1);
   void persistReminderOptions(next);
 }
 
+// 函数 restoreDefaultReminderOptions：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function restoreDefaultReminderOptions() {
   void persistReminderOptions(cloneReminderOptions(DEFAULT_REMINDER_QUICK_OPTIONS));
 }
 
+// 局部常量 paths：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const paths = ref<{ dataDir: string; dbPath: string; backupDir: string } | null>(null);
 
+// 函数 loadPaths：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function loadPaths() {
   try {
     paths.value = await db.getDataPaths();
@@ -428,6 +489,7 @@ async function loadPaths() {
   }
 }
 
+// 函数 copyPath：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function copyPath(p: string) {
   try {
     await navigator.clipboard.writeText(p);
@@ -437,6 +499,7 @@ async function copyPath(p: string) {
   }
 }
 
+// 函数 closePanel：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function closePanel() {
   if (props.embedded) {
     emit('close');
@@ -453,12 +516,12 @@ onMounted(async () => {
   await loadPaths();
 });
 
-const headerSub = computed(() =>
-  settings.error ? `加载错误：${settings.error}` : '所有更改自动保存',
-);
+// 局部常量 headerSub：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+const headerSub = computed(() => (settings.error ? `加载错误：${settings.error}` : '所有更改自动保存'));
 </script>
 
 <template>
+  <!-- 模板区：描述 Settings View 的 DOM 层级、可交互区域和条件渲染边界。 -->
   <div class="settings-shell" :class="{ 'settings-shell--embedded': props.embedded }">
     <section class="settings-panel" role="dialog" aria-labelledby="settingsTitle">
       <header class="settings-panel__header">
@@ -469,12 +532,7 @@ const headerSub = computed(() =>
             <p>{{ headerSub }}</p>
           </div>
         </div>
-        <button
-          class="settings-close-btn"
-          type="button"
-          aria-label="关闭设置"
-          @click="closePanel"
-        >
+        <button class="settings-close-btn" type="button" aria-label="关闭设置" @click="closePanel">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path d="M18 6 6 18M6 6l12 12" />
           </svg>
@@ -506,10 +564,17 @@ const headerSub = computed(() =>
             <h3 class="settings-group">启动与速记</h3>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>开机自启动
+                <strong>
+                  开机自启动
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -526,10 +591,17 @@ const headerSub = computed(() =>
             </div>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>速记浮窗宽度
+                <strong>
+                  速记浮窗宽度
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -549,10 +621,17 @@ const headerSub = computed(() =>
             </div>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>速记浮窗高度
+                <strong>
+                  速记浮窗高度
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -572,10 +651,17 @@ const headerSub = computed(() =>
             </div>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>失焦关闭延迟
+                <strong>
+                  失焦关闭延迟
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -595,10 +681,17 @@ const headerSub = computed(() =>
             </div>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>弹出位置
+                <strong>
+                  弹出位置
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -619,10 +712,17 @@ const headerSub = computed(() =>
             <h3 class="settings-group">语言</h3>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>界面语言
+                <strong>
+                  界面语言
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -649,10 +749,17 @@ const headerSub = computed(() =>
             <h3 class="settings-group">主题</h3>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>颜色模式
+                <strong>
+                  颜色模式
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -661,10 +768,7 @@ const headerSub = computed(() =>
                   </NTooltip>
                 </strong>
               </div>
-              <NRadioGroup
-                :value="settings.state.themeMode"
-                @update:value="value => onThemeChange(value as ThemeMode)"
-              >
+              <NRadioGroup :value="settings.state.themeMode" @update:value="value => onThemeChange(value as ThemeMode)">
                 <NSpace>
                   <NRadio value="light">浅色</NRadio>
                   <NRadio value="dark">深色</NRadio>
@@ -674,10 +778,17 @@ const headerSub = computed(() =>
             </div>
             <div class="settings-row settings-row--disabled">
               <div class="settings-row__meta">
-                <strong>主题强调色
+                <strong>
+                  主题强调色
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -697,10 +808,17 @@ const headerSub = computed(() =>
             <h3 class="settings-group">窗口</h3>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>窗口圆角
+                <strong>
+                  窗口圆角
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -722,10 +840,17 @@ const headerSub = computed(() =>
             <h3 class="settings-group">编辑器</h3>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>编辑器模式
+                <strong>
+                  编辑器模式
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -744,10 +869,17 @@ const headerSub = computed(() =>
             </div>
             <div class="settings-row settings-row--disabled">
               <div class="settings-row__meta">
-                <strong>便签默认底色
+                <strong>
+                  便签默认底色
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -768,10 +900,17 @@ const headerSub = computed(() =>
             <h3 class="settings-group">全局入口</h3>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>主窗口
+                <strong>
+                  主窗口
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -793,10 +932,17 @@ const headerSub = computed(() =>
             </div>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>速记浮窗
+                <strong>
+                  速记浮窗
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -818,10 +964,17 @@ const headerSub = computed(() =>
             </div>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>粘贴板
+                <strong>
+                  粘贴板
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -843,10 +996,17 @@ const headerSub = computed(() =>
             </div>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>搜索
+                <strong>
+                  搜索
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -876,10 +1036,17 @@ const headerSub = computed(() =>
             <h3 class="settings-group">浮窗</h3>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>启用待办浮窗
+                <strong>
+                  启用待办浮窗
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -894,15 +1061,19 @@ const headerSub = computed(() =>
                 @update:value="onTodoEnabledChange"
               />
             </div>
-            <div
-              class="settings-row"
-              :class="{ 'settings-row--disabled': !settings.state.todoQuickPanelEnabled }"
-            >
+            <div class="settings-row" :class="{ 'settings-row--disabled': !settings.state.todoQuickPanelEnabled }">
               <div class="settings-row__meta">
-                <strong>呼出快捷键
+                <strong>
+                  呼出快捷键
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -923,15 +1094,19 @@ const headerSub = computed(() =>
                 {{ todoShortcut || '按下快捷键' }}
               </button>
             </div>
-            <div
-              class="settings-row"
-              :class="{ 'settings-row--disabled': !settings.state.todoQuickPanelEnabled }"
-            >
+            <div class="settings-row" :class="{ 'settings-row--disabled': !settings.state.todoQuickPanelEnabled }">
               <div class="settings-row__meta">
-                <strong>弹出位置
+                <strong>
+                  弹出位置
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -961,12 +1136,7 @@ const headerSub = computed(() =>
             </div>
 
             <div class="settings-section__toolbar">
-              <NButton
-                size="small"
-                type="primary"
-                data-testid="reminder-option-add"
-                @click="addReminderOption"
-              >
+              <NButton size="small" type="primary" data-testid="reminder-option-add" @click="addReminderOption">
                 添加选项
               </NButton>
               <NPopconfirm
@@ -975,9 +1145,7 @@ const headerSub = computed(() =>
                 @positive-click="restoreDefaultReminderOptions"
               >
                 <template #trigger>
-                  <NButton size="small" secondary data-testid="reminder-options-reset">
-                    恢复默认
-                  </NButton>
+                  <NButton size="small" secondary data-testid="reminder-options-reset">恢复默认</NButton>
                 </template>
                 使用默认 6 个提醒选项覆盖当前列表。
               </NPopconfirm>
@@ -1052,9 +1220,7 @@ const headerSub = computed(() =>
                   删除
                 </NButton>
               </div>
-              <NText v-if="settings.state.reminderQuickOptions.length === 0" depth="3">
-                暂无快捷提醒选项。
-              </NText>
+              <NText v-if="settings.state.reminderQuickOptions.length === 0" depth="3">暂无快捷提醒选项。</NText>
             </div>
           </section>
 
@@ -1066,10 +1232,17 @@ const headerSub = computed(() =>
             <h3 class="settings-group">本地保护</h3>
             <div class="settings-row settings-row--disabled">
               <div class="settings-row__meta">
-                <strong>数据库加密
+                <strong>
+                  数据库加密
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -1082,10 +1255,17 @@ const headerSub = computed(() =>
             </div>
             <div class="settings-row settings-row--disabled">
               <div class="settings-row__meta">
-                <strong>敏感内容过滤
+                <strong>
+                  敏感内容过滤
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -1098,10 +1278,17 @@ const headerSub = computed(() =>
             </div>
             <div class="settings-row settings-row--disabled">
               <div class="settings-row__meta">
-                <strong>应用排除名单
+                <strong>
+                  应用排除名单
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -1142,10 +1329,17 @@ const headerSub = computed(() =>
             <h3 class="settings-group">备份</h3>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>累计修改次数触发备份
+                <strong>
+                  累计修改次数触发备份
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -1167,10 +1361,17 @@ const headerSub = computed(() =>
             <h3 class="settings-group">数据清理</h3>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>未保存笔记保留天数
+                <strong>
+                  未保存笔记保留天数
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -1191,10 +1392,17 @@ const headerSub = computed(() =>
             </div>
             <div class="settings-row">
               <div class="settings-row__meta">
-                <strong>粘贴板保留天数
+                <strong>
+                  粘贴板保留天数
                   <NTooltip trigger="hover">
                     <template #trigger>
-                      <svg class="settings-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        class="settings-info-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M12 16v-4M12 8h.01" />
                       </svg>
@@ -1266,9 +1474,7 @@ const headerSub = computed(() =>
           </div>
           <small>最多支持 3 个按键，按 Esc 取消。</small>
           <div class="shortcut-dialog__actions">
-            <button type="button" class="shortcut-dialog__cancel" @click="closeShortcutDialog">
-              取消
-            </button>
+            <button type="button" class="shortcut-dialog__cancel" @click="closeShortcutDialog">取消</button>
           </div>
         </section>
       </div>
@@ -1281,6 +1487,7 @@ const headerSub = computed(() =>
 </template>
 
 <style scoped>
+/* 样式区：限定 Settings View 的布局、主题色和响应式细节。 */
 .settings-shell {
   width: 100vw;
   height: 100vh;
@@ -1289,12 +1496,10 @@ const headerSub = computed(() =>
   padding: 24px;
   background:
     linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(0deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    #15151a;
+    linear-gradient(0deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px), #15151a;
   background-size: 44px 44px;
   color: #ebe7e2;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei",
-    sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 .settings-shell--embedded {
@@ -1412,7 +1617,9 @@ const headerSub = computed(() =>
   background: transparent;
   color: var(--app-muted);
   cursor: pointer;
-  transition: background 120ms, color 120ms;
+  transition:
+    background 120ms,
+    color 120ms;
 }
 
 .settings-close-btn:hover {
@@ -1857,7 +2064,7 @@ const headerSub = computed(() =>
   min-width: 0;
   overflow: hidden;
   color: inherit;
-  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;

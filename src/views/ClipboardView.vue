@@ -1,4 +1,12 @@
+<!--
+  @file 前端视图 - Clipboard View
+
+  承载 Clipboard View 的界面结构、响应式状态和用户交互，是 前端视图 模块的可视入口之一。
+  注释重点标明模板结构、脚本状态、事件派发和样式隔离边界。
+-->
+
 <script setup lang="ts">
+// 脚本区：组织 Clipboard View 的响应式状态、计算属性、事件处理和外部模块协作。
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useMessage } from 'naive-ui';
 
@@ -7,12 +15,18 @@ import { useWindow } from '@/composables/useWindow';
 import ClipboardImageEditor from '@/components/clipboard/ClipboardImageEditor.vue';
 import type { ClipboardContentType, ClipboardEntry } from '@/types/steno';
 
+// 局部常量 store：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const store = useClipboardStore();
+// 局部常量 win：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const win = useWindow();
+// 局部常量 message：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const message = useMessage();
+// 局部常量 pendingDeleteId：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const pendingDeleteId = ref<string | null>(null);
+// 局部常量 previewImage：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const previewImage = ref<ClipboardEntry | null>(null);
 
+// 局部常量 PAGE_SIZE_OPTIONS：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 const filters: Array<{ label: string; value: ClipboardContentType | null; testid: string }> = [
@@ -22,12 +36,11 @@ const filters: Array<{ label: string; value: ClipboardContentType | null; testid
   { label: '代码', value: 'code', testid: 'code' },
   { label: '图片', value: 'image', testid: 'image' },
   { label: '文件', value: 'file', testid: 'file' },
-  { label: '富文本', value: 'rich_text', testid: 'rich_text' },
+  { label: '富文本', value: 'rich_text', testid: 'rich_text' }
 ];
 
-const countLabel = computed(
-  () => `共 ${store.filteredEntries.length} 条`,
-);
+// 局部常量 countLabel：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+const countLabel = computed(() => `共 ${store.filteredEntries.length} 条`);
 
 onMounted(() => {
   void store.startEventListeners();
@@ -38,74 +51,102 @@ onBeforeUnmount(() => {
   store.stopEventListeners();
 });
 
+// 函数 typeLabel：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function typeLabel(type: ClipboardContentType) {
   switch (type) {
-    case 'url': return '链接';
-    case 'code': return '代码';
-    case 'image': return '图片';
-    case 'file': return '文件';
-    case 'rich_text': return '富文本';
-    case 'text': return '文本';
+    case 'url':
+      return '链接';
+    case 'code':
+      return '代码';
+    case 'image':
+      return '图片';
+    case 'file':
+      return '文件';
+    case 'rich_text':
+      return '富文本';
+    case 'text':
+      return '文本';
   }
 }
 
+// 函数 contentSource：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function contentSource(entry: ClipboardEntry): string {
   switch (entry.contentType) {
-    case 'url': return '网页';
-    case 'code': return '代码编辑器';
-    case 'image': return '截图/图片';
-    case 'file': return '文件管理器';
-    case 'rich_text': return '富文本';
-    case 'text': return '文本';
+    case 'url':
+      return '网页';
+    case 'code':
+      return '代码编辑器';
+    case 'image':
+      return '截图/图片';
+    case 'file':
+      return '文件管理器';
+    case 'rich_text':
+      return '富文本';
+    case 'text':
+      return '文本';
   }
 }
 
+// 函数 formatTime：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function formatTime(value: string) {
+  // 局部常量 date：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString('zh-CN', {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
-    minute: '2-digit',
+    minute: '2-digit'
   });
 }
 
+// 函数 isModified：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function isModified(entry: ClipboardEntry): boolean {
   return entry.createdAt !== entry.updatedAt;
 }
 
+// 函数 isPinned：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function isPinned(entry: ClipboardEntry): boolean {
   return !!entry.pinnedAt;
 }
 
+// 函数 previewText：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function previewText(entry: ClipboardEntry): string {
   return entry.preview || entry.content;
 }
 
+// 函数 fileName：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function fileName(entry: ClipboardEntry): string {
+  // 局部常量 path：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const path = entry.content;
+  // 局部常量 sep：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const sep = path.lastIndexOf('/');
+  // 局部常量 sep2：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const sep2 = path.lastIndexOf('\\');
   return path.slice(Math.max(sep, sep2) + 1);
 }
 
+// 函数 setFilter：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function setFilter(value: ClipboardContentType | null) {
   store.typeFilter = value;
 }
 
+// 函数 requestDelete：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function requestDelete(id: string) {
   pendingDeleteId.value = id;
 }
 
+// 函数 cancelDelete：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function cancelDelete() {
   pendingDeleteId.value = null;
 }
 
+// 函数 closeImagePreview：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function closeImagePreview() {
   previewImage.value = null;
 }
 
+// 函数 confirmDelete：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function confirmDelete(id: string) {
   try {
     await store.deleteEntry(id);
@@ -118,13 +159,19 @@ async function confirmDelete(id: string) {
   }
 }
 
+// 函数 handleOpen：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function handleOpen(entry: ClipboardEntry) {
   try {
     switch (entry.contentType) {
       case 'text':
       case 'rich_text':
       case 'code':
-        await win.openQuicknote({ fresh: true, initialContent: entry.content, clipboardContext: true, clipboardEntryId: entry.id });
+        await win.openQuicknote({
+          fresh: true,
+          initialContent: entry.content,
+          clipboardContext: true,
+          clipboardEntryId: entry.id
+        });
         message.success('已在浮窗中打开');
         break;
       case 'url':
@@ -145,6 +192,7 @@ async function handleOpen(entry: ClipboardEntry) {
   }
 }
 
+// 函数 handlePin：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function handlePin(entry: ClipboardEntry) {
   try {
     if (isPinned(entry)) {
@@ -159,6 +207,7 @@ async function handlePin(entry: ClipboardEntry) {
   }
 }
 
+// 函数 handleCopy：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function handleCopy(entry: ClipboardEntry) {
   try {
     await store.copyEntry(entry.id);
@@ -168,6 +217,7 @@ async function handleCopy(entry: ClipboardEntry) {
   }
 }
 
+// 函数 handleDoubleClick：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function handleDoubleClick(entry: ClipboardEntry) {
   // 双击 = 粘贴到上一个聚焦应用的光标处。
   //
@@ -186,6 +236,7 @@ async function handleDoubleClick(entry: ClipboardEntry) {
 </script>
 
 <template>
+  <!-- 模板区：描述 Clipboard View 的 DOM 层级、可交互区域和条件渲染边界。 -->
   <section class="clipboard-view">
     <header class="clipboard-toolbar">
       <div class="clipboard-title">
@@ -194,12 +245,7 @@ async function handleDoubleClick(entry: ClipboardEntry) {
       </div>
       <label class="clipboard-search">
         <span>搜索</span>
-        <input
-          v-model="store.query"
-          data-testid="clipboard-search"
-          type="search"
-          placeholder="搜索剪贴板内容"
-        >
+        <input v-model="store.query" data-testid="clipboard-search" type="search" placeholder="搜索剪贴板内容" />
       </label>
     </header>
 
@@ -295,15 +341,18 @@ async function handleDoubleClick(entry: ClipboardEntry) {
           @dblclick.stop="handleDoubleClick(entry)"
         >
           <template v-if="entry.contentType === 'image'">
-            <img
-              class="clipboard-image"
-              :src="entry.content"
-              alt="剪贴板图片预览"
-            >
+            <img class="clipboard-image" :src="entry.content" alt="剪贴板图片预览" />
           </template>
           <template v-else-if="entry.contentType === 'file'">
             <div class="clipboard-file">
-              <svg class="clipboard-file__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <svg
+                class="clipboard-file__icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                 <polyline points="14 2 14 8 20 8" />
               </svg>
@@ -311,10 +360,9 @@ async function handleDoubleClick(entry: ClipboardEntry) {
             </div>
           </template>
           <template v-else>
-            <pre
-              class="clipboard-preview"
-              :class="{ 'clipboard-preview--code': entry.contentType === 'code' }"
-            >{{ previewText(entry) }}</pre>
+            <pre class="clipboard-preview" :class="{ 'clipboard-preview--code': entry.contentType === 'code' }">{{
+              previewText(entry)
+            }}</pre>
           </template>
         </div>
 
@@ -325,10 +373,7 @@ async function handleDoubleClick(entry: ClipboardEntry) {
             <span v-if="isPinned(entry)" class="clipboard-pinned">已置顶</span>
             <span v-if="isModified(entry)" class="clipboard-modified">已修改</span>
           </div>
-          <div
-            class="clipboard-card__footer-actions"
-            :data-testid="`clipboard-card-footer-actions-${entry.id}`"
-          >
+          <div class="clipboard-card__footer-actions" :data-testid="`clipboard-card-footer-actions-${entry.id}`">
             <button
               class="clipboard-icon-button"
               type="button"
@@ -420,15 +465,12 @@ async function handleDoubleClick(entry: ClipboardEntry) {
       </div>
     </footer>
 
-    <ClipboardImageEditor
-      v-if="previewImage"
-      :entry="previewImage"
-      @close="closeImagePreview"
-    />
+    <ClipboardImageEditor v-if="previewImage" :entry="previewImage" @close="closeImagePreview" />
   </section>
 </template>
 
 <style scoped>
+/* 样式区：限定 Clipboard View 的布局、主题色和响应式细节。 */
 .clipboard-view {
   min-height: 100%;
   display: flex;
@@ -602,7 +644,13 @@ async function handleDoubleClick(entry: ClipboardEntry) {
   padding: 4px 0;
   overflow: hidden;
   color: var(--app-fg);
-  font: 13px/1.5 ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+  font:
+    13px/1.5 ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    'Liberation Mono',
+    Menlo,
+    monospace;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -702,7 +750,9 @@ async function handleDoubleClick(entry: ClipboardEntry) {
   background: var(--app-bg);
   color: var(--app-muted);
   cursor: pointer;
-  transition: border-color 120ms, color 120ms;
+  transition:
+    border-color 120ms,
+    color 120ms;
 }
 
 .clipboard-icon-button:hover,

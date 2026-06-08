@@ -1,4 +1,12 @@
+<!--
+  @file 前端视图 - Zen Mode
+
+  承载 Zen Mode 的界面结构、响应式状态和用户交互，是 前端视图 模块的可视入口之一。
+  注释重点标明模板结构、脚本状态、事件派发和样式隔离边界。
+-->
+
 <script setup lang="ts">
+// 脚本区：组织 Zen Mode 的响应式状态、计算属性、事件处理和外部模块协作。
 /**
  * @component ZenMode
  * @description Zen 写作窗口顶层视图（`mode === 'zen'`）。
@@ -29,38 +37,53 @@ import { useMarkdownOutline } from '@/composables/useMarkdownOutline';
 import { useWritingSession } from '@/composables/useWritingSession';
 import { useUiStore } from '@/stores/ui';
 
+// 局部常量 db：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const db = useDb();
+// 局部常量 ui：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const ui = useUiStore();
 const { countWords } = useMarkdown();
 const { buildOutline } = useMarkdownOutline();
+// 局部常量 message：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const message = useMessage();
+// 局部常量 session：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const session = useWritingSession(ref(ui.noteId ?? readIdFromUrl()));
 
 // 标题/正文/标签直接复用 writing session 的响应式状态（与 NoteEditorView 一致），
 // 这样进入 Zen 时能回显当前笔记内容，且编辑会写回同一笔记。
 const title = session.title;
+// 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const content = session.content;
+// 局部常量 tags：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const tags = session.tags;
 
+// 局部常量 titleEditing：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const titleEditing = ref(false);
+// 局部常量 titleInputRef：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const titleInputRef = ref<{ focus: () => void } | null>(null);
+// 局部常量 outlineOpen：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const outlineOpen = ref(false);
 
+// 局部常量 wordCount：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const wordCount = computed(() => countWords(content.value));
+// 局部常量 isEmpty：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const isEmpty = computed(
-    () => !session.title.value.trim() && !session.content.value.trim() && session.tags.value.length === 0,
+  () => !session.title.value.trim() && !session.content.value.trim() && session.tags.value.length === 0
 );
+// 局部常量 outlineNodes：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const outlineNodes = computed(() => buildOutline(content.value));
+// 局部常量 displayTitle：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const displayTitle = computed(() => title.value.trim() || '无标题');
 
 // ----- 启动加载 -------------------------------------------------------
 
 function readIdFromUrl(): string | null {
   if (typeof window === 'undefined') return null;
+  // 局部常量 params：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const params = new URLSearchParams(window.location.search.replace(/^\?/, ''));
   return params.get('id');
 }
 
+// 局部常量 statusText：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const statusText = computed(() => {
   switch (session.status.value) {
     case 'idle':
@@ -71,8 +94,8 @@ const statusText = computed(() => {
       return '保存中…';
     case 'saved':
       return session.savedAt.value
-          ? `已保存 ${session.savedAt.value.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
-          : '已保存';
+        ? `已保存 ${session.savedAt.value.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
+        : '已保存';
     case 'error':
       return `保存失败：${String(session.error.value).slice(0, 40)}`;
     default:
@@ -88,6 +111,7 @@ async function onStartTitleEdit() {
   titleInputRef.value?.focus();
 }
 
+// 函数 onFinishTitleEdit：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onFinishTitleEdit() {
   titleEditing.value = false;
 }
@@ -102,6 +126,7 @@ async function exitZen() {
   ui.exitZen();
 }
 
+// 函数 onKeydown：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') {
     e.preventDefault();
@@ -109,11 +134,12 @@ function onKeydown(e: KeyboardEvent) {
   }
 }
 
+// 函数 onSelectOutline：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function onSelectOutline(node: { id: string }) {
   requestAnimationFrame(() => {
     document.getElementById(node.id)?.scrollIntoView({
       block: 'center',
-      behavior: 'smooth',
+      behavior: 'smooth'
     });
   });
 }
@@ -122,9 +148,10 @@ function onSelectOutline(node: { id: string }) {
 
 const exportOptions = [
   { key: 'markdown', label: '导出为 Markdown' },
-  { key: 'pdf', label: '导出为 PDF' },
+  { key: 'pdf', label: '导出为 PDF' }
 ];
 
+// 函数 onExport：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function onExport(key: string) {
   if (!session.currentNoteId.value) {
     message.warning('请先输入内容（保存后才能导出）');
@@ -137,9 +164,11 @@ async function onExport(key: string) {
   }
   try {
     if (key === 'markdown') {
+      // 局部常量 path：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const path = await db.exportNoteMarkdown(session.currentNoteId.value);
       message.success(`已导出：${path}`);
     } else {
+      // 局部常量 path：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
       const path = await db.exportNotePdf(session.currentNoteId.value);
       message.success(`已导出：${path}`);
     }
@@ -158,6 +187,7 @@ onUnmounted(() => {
 </script>
 
 <template>
+  <!-- 模板区：描述 Zen Mode 的 DOM 层级、可交互区域和条件渲染边界。 -->
   <div class="zen-root">
     <header class="zen-header" data-tauri-drag-region="true">
       <div class="zen-title-area" data-tauri-drag-region="true">
@@ -175,12 +205,9 @@ onUnmounted(() => {
           @keydown.enter="onFinishTitleEdit"
         />
         <template v-else>
-          <span
-            class="zen-title-text"
-            data-testid="zen-title-text"
-            data-tauri-drag-region="true"
-            :title="displayTitle"
-          >{{ displayTitle }}</span>
+          <span class="zen-title-text" data-testid="zen-title-text" data-tauri-drag-region="true" :title="displayTitle">
+            {{ displayTitle }}
+          </span>
         </template>
         <button
           type="button"
@@ -223,32 +250,17 @@ onUnmounted(() => {
         </button>
       </div>
       <div class="zen-actions" data-tauri-drag-region="false">
-        <NDropdown
-          :options="exportOptions"
-          trigger="click"
-          @select="onExport"
-        >
+        <NDropdown :options="exportOptions" trigger="click" @select="onExport">
           <button class="zen-export" title="导出" data-tauri-drag-region="false">↓</button>
         </NDropdown>
-        <button
-          class="zen-exit"
-          title="返回主界面 (Esc)"
-          data-tauri-drag-region="false"
-          @click="exitZen"
-        >
-          ✕
-        </button>
+        <button class="zen-exit" title="返回主界面 (Esc)" data-tauri-drag-region="false" @click="exitZen">✕</button>
       </div>
     </header>
 
     <div class="zen-stage">
       <div class="zen-paper">
         <div class="zen-body">
-          <MarkdownEditor
-            v-model="content"
-            autofocus
-            placeholder="开始写作… 按 Esc 返回主界面"
-          />
+          <MarkdownEditor v-model="content" autofocus placeholder="开始写作… 按 Esc 返回主界面" />
         </div>
       </div>
 
@@ -281,42 +293,22 @@ onUnmounted(() => {
         </svg>
       </button>
 
-      <aside
-        v-if="outlineOpen"
-        class="zen-outline-panel"
-        data-testid="zen-outline-panel"
-      >
+      <aside v-if="outlineOpen" class="zen-outline-panel" data-testid="zen-outline-panel">
         <header class="zen-outline-panel__header">大纲</header>
-        <DocumentOutlineTree
-          :nodes="outlineNodes"
-          @select="onSelectOutline"
-        />
+        <DocumentOutlineTree :nodes="outlineNodes" @select="onSelectOutline" />
       </aside>
     </div>
 
     <footer class="zen-footer">
       <div class="zen-footer-tags" aria-label="标签">
-        <span
-          v-if="tags.length === 0"
-          class="zen-tag-empty"
-          data-testid="zen-tag-empty"
-        >无标签</span>
+        <span v-if="tags.length === 0" class="zen-tag-empty" data-testid="zen-tag-empty">无标签</span>
         <template v-else>
-          <span
-            v-for="tag in tags"
-            :key="tag"
-            class="zen-tag"
-            :title="`#${tag}`"
-          >#{{ tag }}</span>
+          <span v-for="tag in tags" :key="tag" class="zen-tag" :title="`#${tag}`">#{{ tag }}</span>
         </template>
       </div>
       <div class="zen-footer-meta">
         <NText depth="3" class="zen-meta-item">{{ wordCount }} 字</NText>
-        <NText
-          depth="3"
-          class="zen-meta-item"
-          :class="{ 'zen-meta-error': session.status.value === 'error' }"
-        >
+        <NText depth="3" class="zen-meta-item" :class="{ 'zen-meta-error': session.status.value === 'error' }">
           {{ statusText }}
         </NText>
       </div>
@@ -325,6 +317,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* 样式区：限定 Zen Mode 的布局、主题色和响应式细节。 */
 .zen-root {
   display: flex;
   flex-direction: column;
@@ -332,7 +325,7 @@ onUnmounted(() => {
   width: 100vw;
   background: #14141a;
   color: #e8e8ea;
-  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 .zen-header {
@@ -395,7 +388,9 @@ onUnmounted(() => {
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  transition: color 0.12s, background 0.12s;
+  transition:
+    color 0.12s,
+    background 0.12s;
 }
 .zen-title-edit:hover {
   color: #f0f0f2;
@@ -418,7 +413,9 @@ onUnmounted(() => {
   border-radius: 3px;
   cursor: pointer;
   font-size: 14px;
-  transition: color 0.12s, background 0.12s;
+  transition:
+    color 0.12s,
+    background 0.12s;
 }
 .zen-export:hover,
 .zen-exit:hover {
@@ -483,7 +480,10 @@ onUnmounted(() => {
   border-radius: 999px;
   cursor: pointer;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
-  transition: color 0.15s, background 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s,
+    border-color 0.15s;
 }
 .zen-outline-fab:hover,
 .zen-outline-fab:focus-visible {
@@ -491,7 +491,7 @@ onUnmounted(() => {
   background: rgba(50, 50, 60, 0.96);
   border-color: rgba(255, 255, 255, 0.16);
 }
-.zen-outline-fab[aria-pressed="true"] {
+.zen-outline-fab[aria-pressed='true'] {
   color: #f5f5f8;
   background: rgba(60, 60, 72, 0.98);
   border-color: rgba(255, 255, 255, 0.22);

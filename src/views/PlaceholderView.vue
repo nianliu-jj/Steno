@@ -1,4 +1,12 @@
+<!--
+  @file 前端视图 - Placeholder View
+
+  承载 Placeholder View 的界面结构、响应式状态和用户交互，是 前端视图 模块的可视入口之一。
+  注释重点标明模板结构、脚本状态、事件派发和样式隔离边界。
+-->
+
 <script setup lang="ts">
+// 脚本区：组织 Placeholder View 的响应式状态、计算属性、事件处理和外部模块协作。
 /**
  * @component PlaceholderView
  * @description 未实现功能的占位页面 — 展示"即将推出"提示。
@@ -18,6 +26,7 @@ defineProps<{
 </script>
 
 <template>
+  <!-- 模板区：描述 Placeholder View 的 DOM 层级、可交互区域和条件渲染边界。 -->
   <section class="placeholder-root">
     <div class="placeholder-card">
       <p class="placeholder-eyebrow">即将推出</p>
@@ -29,6 +38,7 @@ defineProps<{
 </template>
 
 <style scoped>
+/* 样式区：限定 Placeholder View 的布局、主题色和响应式细节。 */
 .placeholder-root {
   min-height: 100%;
   display: grid;

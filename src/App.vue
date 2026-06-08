@@ -1,4 +1,12 @@
+<!--
+  @file 前端应用入口 - App
+
+  承载 App 的界面结构、响应式状态和用户交互，是 前端应用入口 模块的可视入口之一。
+  注释重点标明模板结构、脚本状态、事件派发和样式隔离边界。
+-->
+
 <script setup lang="ts">
+// 脚本区：组织 App 的响应式状态、计算属性、事件处理和外部模块协作。
 // 根组件按 ui store 解析出的 WindowMode 渲染对应顶层视图。
 //
 // Plan Task 8 完成后所有 mode 都接入实际视图（main / floating / sticky /
@@ -30,48 +38,46 @@ import ZenMode from '@/views/ZenMode.vue';
 import type { WindowMode } from '@/types/steno';
 import type { ThemeMode } from '@/stores/settings';
 
+// 局部常量 ui：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const ui = useUiStore();
+// 局部常量 settings：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const settings = useSettingsStore();
+// 局部常量 todos：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const todos = useTodosStore();
 const { listenThemeModeChanged } = useAppEvents();
-const StatsView = defineAsyncComponent(() =>
-  import('@/views/StatsView.vue').then(module => module.default),
-);
+// 局部常量 StatsView：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+const StatsView = defineAsyncComponent(() => import('@/views/StatsView.vue').then(module => module.default));
 
 // i18n
 const i18n = createI18n('zh-CN');
 const { t, state: i18nState } = i18n;
 provide(I18N_KEY, i18n);
 
+// 局部常量 isDark：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const isDark = useDark();
 
+// 局部常量 naiveTheme：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const naiveTheme = computed(() => (isDark.value ? darkTheme : null));
+// 局部常量 appThemeVars：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const appThemeVars = computed(() => ({
   ...getAppThemeVars(isDark.value),
-  '--app-window-radius': `${settings.state.windowBorderRadius}px`,
+  '--app-window-radius': `${settings.state.windowBorderRadius}px`
 }));
 let unlistenThemeModeChanged: (() => void) | null = null;
 let disposed = false;
 let settingsLoadPending = true;
 let themeModeDuringLoad: ThemeMode | null = null;
 
-const shellNavItems = computed<
-  { key: WindowMode; label: string; active: boolean }[]
->(() => [
+// 局部常量 shellNavItems：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+const shellNavItems = computed<{ key: WindowMode; label: string; active: boolean }[]>(() => [
   { key: 'main', label: t('nav.notes'), active: ui.mode === 'main' },
   { key: 'canvas', label: t('nav.canvas'), active: ui.mode === 'canvas' },
   { key: 'clipboard', label: t('nav.clipboard'), active: ui.mode === 'clipboard' },
-  { key: 'todo', label: t('nav.todo'), active: ui.mode === 'todo' },
+  { key: 'todo', label: t('nav.todo'), active: ui.mode === 'todo' }
 ]);
 
-const shellModes = new Set<WindowMode>([
-  'main',
-  'note-editor',
-  'canvas',
-  'clipboard',
-  'todo',
-  'stats',
-]);
+// 局部常量 shellModes：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+const shellModes = new Set<WindowMode>(['main', 'note-editor', 'canvas', 'clipboard', 'todo', 'stats']);
 
 // 启动加载 settings（Pinia store 自行缓存）。失败不阻塞 UI，错误会进 store.error。
 onMounted(() => {
@@ -129,11 +135,12 @@ watch(
       isDark.value = true;
     }
     // system 留给 useDark 自己跟随系统
-  },
+  }
 );
 </script>
 
 <template>
+  <!-- 模板区：描述 App 的 DOM 层级、可交互区域和条件渲染边界。 -->
   <NConfigProvider :theme="naiveTheme">
     <div class="app-theme-root" :class="{ dark: isDark }" :style="appThemeVars">
       <NMessageProvider>
@@ -158,23 +165,19 @@ watch(
         </template>
         <FloatingEditor v-else-if="ui.mode === 'floating'" />
         <TodoQuickPanel v-else-if="ui.mode === 'todo-panel'" />
-        <FloatingEditor
-          v-else-if="ui.mode === 'sticky' && ui.noteId"
-          :key="ui.noteId"
-          :note-id="ui.noteId"
-        />
+        <FloatingEditor v-else-if="ui.mode === 'sticky' && ui.noteId" :key="ui.noteId" :note-id="ui.noteId" />
         <SettingsView v-else-if="ui.mode === 'settings'" />
         <ZenMode v-else-if="ui.mode === 'zen'" />
-        <PrintView
-          v-else-if="ui.mode === 'print' && ui.noteId"
-          :key="ui.noteId"
-          :note-id="ui.noteId"
-        />
+        <PrintView v-else-if="ui.mode === 'print' && ui.noteId" :key="ui.noteId" :note-id="ui.noteId" />
         <section v-else class="mode-fallback">
           <h1>Steno · {{ ui.mode }}</h1>
           <p>
-            当前窗口模式：<code>{{ ui.mode }}</code>
-            <template v-if="ui.noteId">&nbsp;· note id = <code>{{ ui.noteId }}</code></template>
+            当前窗口模式：
+            <code>{{ ui.mode }}</code>
+            <template v-if="ui.noteId">
+              &nbsp;· note id =
+              <code>{{ ui.noteId }}</code>
+            </template>
           </p>
         </section>
       </NMessageProvider>
@@ -183,6 +186,7 @@ watch(
 </template>
 
 <style scoped>
+/* 样式区：限定 App 的布局、主题色和响应式细节。 */
 .app-theme-root {
   min-height: 100vh;
   min-width: 100vw;
@@ -211,7 +215,7 @@ watch(
   padding: 32px;
   background: #1f1f24;
   color: #e8e8ea;
-  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 .mode-fallback h1 {
   font-size: 18px;

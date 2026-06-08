@@ -1,4 +1,12 @@
+<!--
+  @file 前端视图 - Todo Quick Panel
+
+  承载 Todo Quick Panel 的界面结构、响应式状态和用户交互，是 前端视图 模块的可视入口之一。
+  注释重点标明模板结构、脚本状态、事件派发和样式隔离边界。
+-->
+
 <script setup lang="ts">
+// 脚本区：组织 Todo Quick Panel 的响应式状态、计算属性、事件处理和外部模块协作。
 /**
  * 待办浮窗（todo-panel）— 全局快捷键唤起的"今日"快速面板。
  *
@@ -21,52 +29,69 @@ import { useClipboardStore } from '@/stores/clipboard';
 import { useTodosStore } from '@/stores/todos';
 import type { ClipboardEntry, Todo } from '@/types/steno';
 
+// 局部常量 TODO_CONTENT_LIMIT：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const TODO_CONTENT_LIMIT = 500;
 
+// 局部常量 todos：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const todos = useTodosStore();
+// 局部常量 clipboard：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const clipboard = useClipboardStore();
+// 局部常量 db：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const db = useDb();
+// 局部常量 events：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const events = useAppEvents();
+// 局部常量 message：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const message = useMessage();
 
+// 局部常量 inputRef：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const inputRef = ref<HTMLInputElement | null>(null);
+// 局部常量 draft：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const draft = ref('');
+// 局部常量 includeCompleted：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const includeCompleted = ref(true);
+// 局部常量 submitting：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const submitting = ref(false);
+// 局部常量 activeTab：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const activeTab = ref<'todos' | 'clipboard'>('todos');
+// 局部常量 isPinned：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const isPinned = ref(false);
 // 头部栏拖动期间会短暂失焦，dragUntil 期间忽略失焦关闭（见 onFocusChanged）。
 const dragUntil = ref(0);
 
+// 局部常量 today：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const today = new Date();
+// 局部常量 todayLabel：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const todayLabel = computed(() => {
+  // 局部常量 weekdays：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
   return `${today.getMonth() + 1}月${today.getDate()}日 · 星期${weekdays[today.getDay()]}`;
 });
 
 /** 浮窗内"今天"数据源：取 store 的派生 + 可选含已完成。 */
 const visibleEntries = computed<Todo[]>(() => {
+  // 局部常量 todayList：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const todayList = todos.todayEntries;
   if (!includeCompleted.value) return todayList;
   // 包含当天已完成：从全量缓存里筛"今天完成"的（store 缓存里已有）。
   const completedToday = todos.entries.filter(item => {
     if (item.status !== 'done' || !item.completedAt) return false;
+    // 局部常量 ts：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const ts = new Date(item.completedAt);
     return (
-      ts.getFullYear() === today.getFullYear() &&
-      ts.getMonth() === today.getMonth() &&
-      ts.getDate() === today.getDate()
+      ts.getFullYear() === today.getFullYear() && ts.getMonth() === today.getMonth() && ts.getDate() === today.getDate()
     );
   });
   return [...todayList, ...completedToday];
 });
 
-const pendingCount = computed(
-  () => visibleEntries.value.filter(item => item.status !== 'done').length,
-);
+// 局部常量 pendingCount：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
+const pendingCount = computed(() => visibleEntries.value.filter(item => item.status !== 'done').length);
 
+// 局部常量 isEmpty：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const isEmpty = computed(() => pendingCount.value === 0);
+// 局部常量 remaining：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const remaining = computed(() => TODO_CONTENT_LIMIT - draft.value.trim().length);
+// 局部常量 clipboardEntries：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
 const clipboardEntries = computed(() => clipboard.entries.slice(0, 30));
 
 let unlistenToggle: (() => void) | null = null;
@@ -76,7 +101,9 @@ let unlistenFocus: (() => void) | null = null;
 async function persistLastPosition() {
   if (!isTauri()) return;
   try {
+    // 局部常量 win：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const win = getCurrentWindow();
+    // 局部常量 pos：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const pos = await win.outerPosition();
     await db.setSetting('todoQuickPanelLastPos', `${pos.x},${pos.y}`);
   } catch {
@@ -100,6 +127,7 @@ onMounted(async () => {
     }
   });
   try {
+    // 局部常量 win：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
     const win = getCurrentWindow();
     await win.setAlwaysOnTop(false);
     unlistenFocus = await win.onFocusChanged(({ payload }) => {
@@ -126,7 +154,9 @@ onBeforeUnmount(() => {
   void persistLastPosition();
 });
 
+// 函数 submitDraft：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function submitDraft() {
+  // 局部常量 content：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const content = draft.value.trim();
   if (!content) return;
   if (content.length > TODO_CONTENT_LIMIT) {
@@ -145,6 +175,7 @@ async function submitDraft() {
   }
 }
 
+// 函数 toggleDone：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function toggleDone(item: Todo) {
   try {
     if (item.status === 'done') {
@@ -157,6 +188,7 @@ async function toggleDone(item: Todo) {
   }
 }
 
+// 函数 removeItem：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function removeItem(id: string) {
   try {
     await todos.deleteTodo(id);
@@ -165,6 +197,7 @@ async function removeItem(id: string) {
   }
 }
 
+// 函数 closePanel：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function closePanel() {
   try {
     await db.hideTodoPanel();
@@ -173,7 +206,9 @@ async function closePanel() {
   }
 }
 
+// 函数 togglePinned：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function togglePinned() {
+  // 局部常量 next：缓存当前流程的中间结果，避免后续逻辑重复计算或重复读取状态。
   const next = !isPinned.value;
   try {
     await getCurrentWindow().setAlwaysOnTop(next);
@@ -201,6 +236,7 @@ async function onHeaderPointerdown(e: PointerEvent) {
   }
 }
 
+// 函数 clipboardTypeLabel：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function clipboardTypeLabel(entry: ClipboardEntry) {
   switch (entry.contentType) {
     case 'url':
@@ -218,6 +254,7 @@ function clipboardTypeLabel(entry: ClipboardEntry) {
   }
 }
 
+// 函数 clipboardPreview：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 function clipboardPreview(entry: ClipboardEntry) {
   // 图片项不返回 base64（否则会作为超长字符串显示/进 title），改用预览文案；
   // 模板里图片走 <img> 缩略图分支。
@@ -227,6 +264,7 @@ function clipboardPreview(entry: ClipboardEntry) {
   return entry.content || entry.preview;
 }
 
+// 函数 pasteClipboardEntry：封装可复用流程，集中处理输入校验、状态转换或外部模块调用。
 async function pasteClipboardEntry(entry: ClipboardEntry) {
   try {
     if (!isPinned.value) {
@@ -240,6 +278,7 @@ async function pasteClipboardEntry(entry: ClipboardEntry) {
 </script>
 
 <template>
+  <!-- 模板区：描述 Todo Quick Panel 的 DOM 层级、可交互区域和条件渲染边界。 -->
   <div class="todo-panel-root">
     <!-- 顶部拖拽 + 日期 + 计数 + 关闭 -->
     <header class="todo-panel-header" @pointerdown="onHeaderPointerdown">
@@ -376,9 +415,7 @@ async function pasteClipboardEntry(entry: ClipboardEntry) {
             >
               <NIcon size="14">
                 <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path
-                    d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
-                  />
+                  <path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
                 </svg>
               </NIcon>
             </button>
@@ -402,11 +439,7 @@ async function pasteClipboardEntry(entry: ClipboardEntry) {
     <div v-else class="todo-panel-body todo-panel-body--clipboard">
       <NScrollbar v-if="clipboardEntries.length > 0" class="todo-panel-scroll">
         <ul class="todo-panel-clipboard-list" data-testid="todo-panel-clipboard-list">
-          <li
-            v-for="entry in clipboardEntries"
-            :key="entry.id"
-            class="todo-panel-clipboard-item"
-          >
+          <li v-for="entry in clipboardEntries" :key="entry.id" class="todo-panel-clipboard-item">
             <span class="todo-panel-clipboard-type">{{ clipboardTypeLabel(entry) }}</span>
             <button
               type="button"
@@ -421,7 +454,7 @@ async function pasteClipboardEntry(entry: ClipboardEntry) {
                 class="todo-panel-clipboard-thumb"
                 :src="entry.content"
                 alt="剪贴板图片预览"
-              >
+              />
               <span v-else>{{ clipboardPreview(entry) }}</span>
             </button>
           </li>
@@ -444,6 +477,7 @@ async function pasteClipboardEntry(entry: ClipboardEntry) {
 </template>
 
 <style scoped>
+/* 样式区：限定 Todo Quick Panel 的布局、主题色和响应式细节。 */
 .todo-panel-root {
   width: 100vw;
   height: 100vh;
@@ -507,7 +541,9 @@ async function pasteClipboardEntry(entry: ClipboardEntry) {
   border-radius: 6px;
   display: inline-grid;
   place-items: center;
-  transition: background 120ms, color 120ms;
+  transition:
+    background 120ms,
+    color 120ms;
 }
 
 .todo-panel-icon-button:hover,
@@ -537,7 +573,10 @@ async function pasteClipboardEntry(entry: ClipboardEntry) {
   cursor: pointer;
   font: inherit;
   font-size: 12px;
-  transition: background 120ms, border-color 120ms, color 120ms;
+  transition:
+    background 120ms,
+    border-color 120ms,
+    color 120ms;
 }
 
 .todo-panel-tab:hover,
@@ -563,7 +602,9 @@ async function pasteClipboardEntry(entry: ClipboardEntry) {
   border-radius: 8px;
   font-size: 13px;
   outline: none;
-  transition: border 120ms, background 120ms;
+  transition:
+    border 120ms,
+    background 120ms;
 }
 
 .todo-panel-input:focus {
@@ -663,7 +704,10 @@ async function pasteClipboardEntry(entry: ClipboardEntry) {
   border: 1.5px solid rgba(251, 250, 248, 0.4);
   border-radius: 50%;
   color: transparent;
-  transition: background 120ms, border-color 120ms, color 120ms;
+  transition:
+    background 120ms,
+    border-color 120ms,
+    color 120ms;
 }
 
 .todo-panel-item.done .checkbox-indicator {
@@ -711,7 +755,13 @@ async function pasteClipboardEntry(entry: ClipboardEntry) {
   background: transparent;
   color: rgba(251, 250, 248, 0.86);
   cursor: text;
-  font: 12.5px/1.45 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  font:
+    12.5px/1.45 ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    'Liberation Mono',
+    Menlo,
+    monospace;
   overflow: hidden;
   text-align: left;
   text-overflow: ellipsis;
@@ -746,7 +796,10 @@ async function pasteClipboardEntry(entry: ClipboardEntry) {
   border-radius: 6px;
   display: inline-flex;
   opacity: 0;
-  transition: opacity 120ms, background 120ms, color 120ms;
+  transition:
+    opacity 120ms,
+    background 120ms,
+    color 120ms;
 }
 
 .todo-panel-item:hover .todo-panel-delete {
