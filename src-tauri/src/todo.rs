@@ -34,7 +34,9 @@ pub enum TodoStatus {
     Done,
 }
 
+/// 为 TodoStatus 实现核心行为，使数据结构和业务操作保持在同一语义区域。
 impl TodoStatus {
+    /// 执行 as_str 流程，集中处理 todo 相关的输入、错误和返回值。
     pub fn as_str(&self) -> &'static str {
         match self {
             TodoStatus::Todo => "todo",
@@ -44,6 +46,7 @@ impl TodoStatus {
         }
     }
 
+    /// 执行 parse 流程，集中处理 todo 相关的输入、错误和返回值。
     pub fn parse(value: &str) -> Option<Self> {
         match value {
             "todo" => Some(TodoStatus::Todo),

@@ -18,12 +18,16 @@ use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWi
 use crate::db::Db;
 use crate::todo;
 
+/// 固定 MAIN_LABEL 常量，避免路径、键名或默认值在调用点分散。
 pub const MAIN_LABEL: &str = "main";
+/// 固定 TODO_PANEL_LABEL 常量，避免路径、键名或默认值在调用点分散。
 pub const TODO_PANEL_LABEL: &str = "todo-panel";
+/// 固定 NAVIGATE_EVENT 常量，避免路径、键名或默认值在调用点分散。
 const NAVIGATE_EVENT: &str = "steno:navigate";
 
 /// 待办浮窗与屏幕右下角的边距（包含 Windows 任务栏避让）。
 const TODO_PANEL_MARGIN_X: i32 = 16;
+/// 固定 TODO_PANEL_MARGIN_BOTTOM 常量，避免路径、键名或默认值在调用点分散。
 const TODO_PANEL_MARGIN_BOTTOM: i32 = 56;
 
 #[derive(Clone, Serialize)]
@@ -50,6 +54,7 @@ pub fn hide_main(app: &AppHandle) {
     }
 }
 
+/// 执行 toggle_main 流程，集中处理 window manager 相关的输入、错误和返回值。
 pub fn toggle_main(app: &AppHandle) {
     let Some(w) = app.get_webview_window(MAIN_LABEL) else {
         return;
@@ -68,6 +73,7 @@ fn sticky_label(note_id: &str) -> String {
     format!("sticky-{note_id}")
 }
 
+/// 执行 open_sticky_note 流程，集中处理 window manager 相关的输入、错误和返回值。
 pub fn open_sticky_note(app: &AppHandle, note_id: &str) -> tauri::Result<()> {
     let label = sticky_label(note_id);
     if let Some(w) = app.get_webview_window(&label) {
@@ -89,6 +95,7 @@ pub fn open_sticky_note(app: &AppHandle, note_id: &str) -> tauri::Result<()> {
     Ok(())
 }
 
+/// 执行 close_sticky_note 流程，集中处理 window manager 相关的输入、错误和返回值。
 pub fn close_sticky_note(app: &AppHandle, note_id: &str) -> tauri::Result<()> {
     if let Some(w) = app.get_webview_window(&sticky_label(note_id)) {
         let _ = w.close();
@@ -115,6 +122,7 @@ fn encode_query_value(value: &str) -> String {
     encoded
 }
 
+/// 执行 main_route_url 流程，集中处理 window manager 相关的输入、错误和返回值。
 fn main_route_url(mode: &str, note_id: Option<&str>) -> String {
     match note_id {
         Some(id) => format!("index.html#{mode}?id={}", encode_query_value(id)),
@@ -151,14 +159,17 @@ fn navigate_main(app: &AppHandle, mode: &str, note_id: Option<&str>) -> tauri::R
     Ok(())
 }
 
+/// 执行 open_canvas 流程，集中处理 window manager 相关的输入、错误和返回值。
 pub fn open_canvas(app: &AppHandle) -> tauri::Result<()> {
     navigate_main(app, "canvas", None)
 }
 
+/// 执行 open_settings 流程，集中处理 window manager 相关的输入、错误和返回值。
 pub fn open_settings(app: &AppHandle) -> tauri::Result<()> {
     navigate_main(app, "settings", None)
 }
 
+/// 执行 open_clipboard 流程，集中处理 window manager 相关的输入、错误和返回值。
 pub fn open_clipboard(app: &AppHandle) -> tauri::Result<()> {
     navigate_main(app, "clipboard", None)
 }
@@ -204,7 +215,9 @@ pub enum TodoPanelPosition {
     Last,
 }
 
+/// 为 TodoPanelPosition 实现核心行为，使数据结构和业务操作保持在同一语义区域。
 impl TodoPanelPosition {
+    /// 执行 parse 流程，集中处理 window manager 相关的输入、错误和返回值。
     pub fn parse(value: &str) -> Self {
         match value.trim().to_ascii_lowercase().as_str() {
             "cursor" => TodoPanelPosition::Cursor,
@@ -281,6 +294,7 @@ pub fn format_last_position(pos: (i32, i32)) -> String {
     format!("{},{}", pos.0, pos.1)
 }
 
+/// 执行 apply_position_to_panel 流程，集中处理 window manager 相关的输入、错误和返回值。
 fn apply_position_to_panel(
     app: &AppHandle,
     db: &Db,
@@ -314,6 +328,7 @@ fn apply_position_to_panel(
     Ok(())
 }
 
+/// 执行 show_todo_panel 流程，集中处理 window manager 相关的输入、错误和返回值。
 pub fn show_todo_panel(
     app: &AppHandle,
     db: &Db,
@@ -329,6 +344,7 @@ pub fn show_todo_panel(
     Ok(())
 }
 
+/// 执行 hide_todo_panel 流程，集中处理 window manager 相关的输入、错误和返回值。
 pub fn hide_todo_panel(app: &AppHandle) -> tauri::Result<()> {
     if let Some(panel) = app.get_webview_window(TODO_PANEL_LABEL) {
         panel.hide()?;

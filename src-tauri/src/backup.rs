@@ -15,8 +15,10 @@
 
 use std::path::Path;
 
+/// 保存 BackupService 的数据结构，明确后端状态在模块边界上的字段含义。
 pub struct BackupService;
 
+/// 为 BackupService 实现核心行为，使数据结构和业务操作保持在同一语义区域。
 impl BackupService {
     /// `change_count` 是自进程启动以来累计的"修改次数"（save/delete/pin
     /// 等），由调用方维护。每 10 次落一次备份。

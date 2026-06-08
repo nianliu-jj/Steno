@@ -61,6 +61,7 @@ enum Action {
 static REGISTRY: LazyLock<Mutex<Vec<(Shortcut, Action)>>> =
     LazyLock::new(|| Mutex::new(Vec::new()));
 
+/// 执行 lookup_action 流程，集中处理 shortcut 相关的输入、错误和返回值。
 fn lookup_action(s: &Shortcut) -> Option<Action> {
     REGISTRY
         .lock()
@@ -68,6 +69,7 @@ fn lookup_action(s: &Shortcut) -> Option<Action> {
         .and_then(|r| r.iter().find(|(sc, _)| sc == s).map(|(_, a)| *a))
 }
 
+/// 执行 set_registry 流程，集中处理 shortcut 相关的输入、错误和返回值。
 fn set_registry(entries: Vec<(Shortcut, Action)>) -> Result<(), ShortcutError> {
     let mut reg = REGISTRY.lock().map_err(|_| ShortcutError::Poisoned)?;
     *reg = entries;
@@ -119,6 +121,7 @@ fn parse_code(s: &str) -> Option<Code> {
         return None;
     }
     let idx = (c as u8 - b'A') as usize;
+    /// 固定 CODES 常量，避免路径、键名或默认值在调用点分散。
     const CODES: [Code; 26] = [
         Code::KeyA,
         Code::KeyB,

@@ -1,3 +1,8 @@
+//! Tauri 后端 - clipboard。
+//!
+//! 实现 clipboard 相关的后端能力，连接 Tauri 命令、系统资源和本地数据持久化。
+//! 注释重点标明命令入口、数据持久化边界、线程/锁使用和与前端交互的风险点。
+
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::io::Cursor;
@@ -14,8 +19,11 @@ use tauri::{AppHandle, Emitter};
 
 use crate::db::Db;
 
+/// 固定 CLIPBOARD_UPDATED_EVENT 常量，避免路径、键名或默认值在调用点分散。
 pub const CLIPBOARD_UPDATED_EVENT: &str = "steno:clipboard-updated";
+/// 固定 CLIPBOARD_REMOVED_EVENT 常量，避免路径、键名或默认值在调用点分散。
 pub const CLIPBOARD_REMOVED_EVENT: &str = "steno:clipboard-removed";
+/// 固定 CLIPBOARD_CLEARED_EVENT 常量，避免路径、键名或默认值在调用点分散。
 pub const CLIPBOARD_CLEARED_EVENT: &str = "steno:clipboard-cleared";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -48,6 +56,7 @@ pub struct NewClipboardEntry {
     pub size_bytes: i64,
 }
 
+/// 执行 classify_text 流程，集中处理 clipboard 相关的输入、错误和返回值。
 pub fn classify_text(raw: &str) -> Option<NewClipboardEntry> {
     let content = normalize_text(raw);
     if content.trim().is_empty() {
@@ -69,6 +78,7 @@ pub fn classify_text(raw: &str) -> Option<NewClipboardEntry> {
     })
 }
 
+/// 执行 image_entry_from_data_url 流程，集中处理 clipboard 相关的输入、错误和返回值。
 pub fn image_entry_from_data_url(data_url: String) -> Option<NewClipboardEntry> {
     if !data_url.starts_with("data:image/") {
         return None;
@@ -84,6 +94,7 @@ pub fn image_entry_from_data_url(data_url: String) -> Option<NewClipboardEntry> 
     })
 }
 
+/// 执行 build_preview 流程，集中处理 clipboard 相关的输入、错误和返回值。
 pub fn build_preview(content_type: &str, content: &str, html_content: Option<&str>) -> String {
     let source = match content_type {
         "image" => "图片内容".to_string(),
@@ -98,6 +109,7 @@ pub fn build_preview(content_type: &str, content: &str, html_content: Option<&st
     truncate_chars(&collapse_preview_whitespace(&source), 160)
 }
 
+/// 执行 build_content_hash 流程，集中处理 clipboard 相关的输入、错误和返回值。
 pub fn build_content_hash(content_type: &str, content: &str, html_content: Option<&str>) -> String {
     let mut hasher = DefaultHasher::new();
     content_type.hash(&mut hasher);
@@ -106,6 +118,7 @@ pub fn build_content_hash(content_type: &str, content: &str, html_content: Optio
     format!("{content_type}:{:016x}", hasher.finish())
 }
 
+/// 执行 entry_from_system_clipboard 流程，集中处理 clipboard 相关的输入、错误和返回值。
 pub fn entry_from_system_clipboard() -> Option<NewClipboardEntry> {
     let mut clipboard = Clipboard::new().ok()?;
     if let Ok(text) = clipboard.get_text() {
@@ -121,6 +134,7 @@ pub fn entry_from_system_clipboard() -> Option<NewClipboardEntry> {
     None
 }
 
+/// 执行 write_entry_to_system_clipboard 流程，集中处理 clipboard 相关的输入、错误和返回值。
 pub fn write_entry_to_system_clipboard(
     entry: &ClipboardEntry,
     echo: &ClipboardEcho,
@@ -142,12 +156,14 @@ pub fn write_entry_to_system_clipboard(
     Ok(())
 }
 
+/// 执行 write_image_data_url_to_system_clipboard 流程，集中处理 clipboard 相关的输入、错误和返回值。
 pub fn write_image_data_url_to_system_clipboard(data_url: &str) -> Result<(), String> {
     let mut clipboard = Clipboard::new().map_err(|e| e.to_string())?;
     let image = image_data_url_to_arboard(data_url)?;
     clipboard.set_image(image).map_err(|e| e.to_string())
 }
 
+/// 执行 paste_entry_to_active_cursor 流程，集中处理 clipboard 相关的输入、错误和返回值。
 pub fn paste_entry_to_active_cursor(
     entry: &ClipboardEntry,
     echo: &ClipboardEcho,
@@ -199,6 +215,7 @@ fn trigger_system_paste() -> Result<(), String> {
     }
 }
 
+/// 执行 should_process_hash 流程，集中处理 clipboard 相关的输入、错误和返回值。
 pub fn should_process_hash(last_hash: Option<&str>, next_hash: &str) -> bool {
     last_hash != Some(next_hash)
 }
@@ -214,11 +231,13 @@ pub struct ClipboardEcho {
     inner: Arc<Mutex<Option<EchoMark>>>,
 }
 
+/// 保存 EchoMark 的数据结构，明确后端状态在模块边界上的字段含义。
 struct EchoMark {
     hash: String,
     at: Instant,
 }
 
+/// 为 ClipboardEcho 实现核心行为，使数据结构和业务操作保持在同一语义区域。
 impl ClipboardEcho {
     /// 回显标记有效期：监视器轮询间隔为 600ms，2s 足够覆盖一次自身写入的回显，
     /// 同时足够短以避免长期残留误伤后续复制。
@@ -261,6 +280,7 @@ impl ClipboardEcho {
     }
 }
 
+/// 执行 start_monitor 流程，集中处理 clipboard 相关的输入、错误和返回值。
 pub fn start_monitor(app: AppHandle, db: Db, echo: ClipboardEcho) {
     thread::spawn(move || {
         let mut last_hash = entry_from_system_clipboard().map(|entry| entry.content_hash);
@@ -290,6 +310,7 @@ pub fn start_monitor(app: AppHandle, db: Db, echo: ClipboardEcho) {
     });
 }
 
+/// 执行 normalize_text 流程，集中处理 clipboard 相关的输入、错误和返回值。
 fn normalize_text(raw: &str) -> String {
     raw.replace("\r\n", "\n")
         .replace('\r', "\n")
@@ -297,6 +318,7 @@ fn normalize_text(raw: &str) -> String {
         .to_string()
 }
 
+/// 执行 detect_text_type 流程，集中处理 clipboard 相关的输入、错误和返回值。
 fn detect_text_type(content: &str) -> String {
     if is_existing_path_list(content) {
         return "file".to_string();
@@ -310,6 +332,7 @@ fn detect_text_type(content: &str) -> String {
     "text".to_string()
 }
 
+/// 执行 is_url 流程，集中处理 clipboard 相关的输入、错误和返回值。
 fn is_url(content: &str) -> bool {
     let value = content.trim();
     if value.contains(char::is_whitespace) {
@@ -323,6 +346,7 @@ fn is_url(content: &str) -> bool {
         || lower.starts_with("www.")
 }
 
+/// 执行 looks_like_code 流程，集中处理 clipboard 相关的输入、错误和返回值。
 fn looks_like_code(content: &str) -> bool {
     let lower = content.to_ascii_lowercase();
     let code_signals = [
@@ -342,6 +366,7 @@ fn looks_like_code(content: &str) -> bool {
     content.lines().count() >= 2 && code_signals.iter().any(|signal| lower.contains(signal))
 }
 
+/// 执行 is_existing_path_list 流程，集中处理 clipboard 相关的输入、错误和返回值。
 fn is_existing_path_list(content: &str) -> bool {
     let paths: Vec<&str> = content
         .lines()
@@ -351,14 +376,17 @@ fn is_existing_path_list(content: &str) -> bool {
     !paths.is_empty() && paths.iter().all(|path| Path::new(path).exists())
 }
 
+/// 执行 collapse_preview_whitespace 流程，集中处理 clipboard 相关的输入、错误和返回值。
 fn collapse_preview_whitespace(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+/// 执行 truncate_chars 流程，集中处理 clipboard 相关的输入、错误和返回值。
 fn truncate_chars(text: &str, max_chars: usize) -> String {
     text.chars().take(max_chars).collect()
 }
 
+/// 执行 strip_html_tags 流程，集中处理 clipboard 相关的输入、错误和返回值。
 fn strip_html_tags(html: &str) -> String {
     let mut output = String::with_capacity(html.len());
     let mut inside_tag = false;
@@ -373,6 +401,7 @@ fn strip_html_tags(html: &str) -> String {
     output
 }
 
+/// 执行 image_data_url 流程，集中处理 clipboard 相关的输入、错误和返回值。
 fn image_data_url(image: ImageData<'_>) -> Option<String> {
     let width = image.width as u32;
     let height = image.height as u32;
@@ -386,6 +415,7 @@ fn image_data_url(image: ImageData<'_>) -> Option<String> {
     Some(format!("data:image/png;base64,{encoded}"))
 }
 
+/// 执行 image_data_url_to_arboard 流程，集中处理 clipboard 相关的输入、错误和返回值。
 fn image_data_url_to_arboard(data_url: &str) -> Result<ImageData<'static>, String> {
     let (_, encoded) = data_url
         .split_once(',')

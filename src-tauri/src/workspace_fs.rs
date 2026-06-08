@@ -1,3 +1,8 @@
+//! Tauri 后端 - workspace fs。
+//!
+//! 实现 workspace fs 相关的后端能力，连接 Tauri 命令、系统资源和本地数据持久化。
+//! 注释重点标明命令入口、数据持久化边界、线程/锁使用和与前端交互的风险点。
+
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
@@ -20,6 +25,7 @@ pub struct WorkspaceFsEntry {
     pub modified_at: Option<SystemTime>,
 }
 
+/// 执行 build_document_path 流程，集中处理 workspace fs 相关的输入、错误和返回值。
 pub fn build_document_path(root: &Path, title: &str) -> PathBuf {
     let trimmed = title.trim();
     let stem = if trimmed.is_empty() {
@@ -31,6 +37,7 @@ pub fn build_document_path(root: &Path, title: &str) -> PathBuf {
     root.join(format!("{sanitized}.md"))
 }
 
+/// 执行 write_markdown_file 流程，集中处理 workspace fs 相关的输入、错误和返回值。
 pub fn write_markdown_file(path: &Path, content: &str) -> Result<(), std::io::Error> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -38,6 +45,7 @@ pub fn write_markdown_file(path: &Path, content: &str) -> Result<(), std::io::Er
     std::fs::write(path, content)
 }
 
+/// 执行 scan_workspace 流程，集中处理 workspace fs 相关的输入、错误和返回值。
 pub fn scan_workspace(root: &Path) -> Result<Vec<WorkspaceFsEntry>, std::io::Error> {
     let root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
     let mut entries = Vec::new();
@@ -90,6 +98,7 @@ pub fn scan_workspace(root: &Path) -> Result<Vec<WorkspaceFsEntry>, std::io::Err
     Ok(entries)
 }
 
+/// 执行 is_document_path 流程，集中处理 workspace fs 相关的输入、错误和返回值。
 fn is_document_path(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
@@ -102,6 +111,7 @@ fn is_document_path(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+/// 执行 path_title 流程，集中处理 workspace fs 相关的输入、错误和返回值。
 fn path_title(path: &Path, prefer_stem: bool) -> String {
     let candidate = if prefer_stem {
         path.file_stem().or_else(|| path.file_name())

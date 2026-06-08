@@ -30,6 +30,7 @@ use crate::todo::{
 };
 use crate::{quicknote, shortcut, window_manager};
 
+/// 固定 STENO_ASSET_PREFIX 常量，避免路径、键名或默认值在调用点分散。
 const STENO_ASSET_PREFIX: &str = "steno-asset:";
 
 /// 把任意 Error-like 转成 String，匹配 tauri::command 的 Result<T, String> 约定。
@@ -51,6 +52,7 @@ pub struct SavedPastedImage {
     pub absolute_path: String,
 }
 
+/// 执行 extension_for_image_mime 流程，集中处理 commands 相关的输入、错误和返回值。
 fn extension_for_image_mime(mime: &str) -> Result<&'static str, String> {
     match mime {
         "image/png" => Ok("png"),
@@ -62,6 +64,7 @@ fn extension_for_image_mime(mime: &str) -> Result<&'static str, String> {
     }
 }
 
+/// 执行 parse_image_data_url 流程，集中处理 commands 相关的输入、错误和返回值。
 fn parse_image_data_url(data_url: &str) -> Result<(&str, &[u8]), String> {
     let (metadata, encoded) = data_url
         .split_once(',')
@@ -76,6 +79,7 @@ fn parse_image_data_url(data_url: &str) -> Result<(&str, &[u8]), String> {
     Ok((mime, encoded.as_bytes()))
 }
 
+/// 执行 safe_asset_url 流程，集中处理 commands 相关的输入、错误和返回值。
 fn safe_asset_url(relative_path: &Path) -> String {
     let path = relative_path
         .components()
@@ -615,6 +619,7 @@ pub async fn open_path_in_file_manager(path: String) -> Result<(), String> {
         .map_err(to_msg)?
 }
 
+/// 执行 open_path_in_file_manager_sync 流程，集中处理 commands 相关的输入、错误和返回值。
 fn open_path_in_file_manager_sync(path: &str) -> Result<(), String> {
     let target = PathBuf::from(path);
     if target.as_os_str().is_empty() {
@@ -635,6 +640,7 @@ fn open_path_in_file_manager_sync(path: &str) -> Result<(), String> {
     ))
 }
 
+/// 执行 platform_open_command 流程，集中处理 commands 相关的输入、错误和返回值。
 fn platform_open_command(path: &PathBuf) -> Command {
     #[cfg(target_os = "macos")]
     {
@@ -995,6 +1001,7 @@ pub fn is_launch_at_startup_enabled() -> Result<bool, String> {
 
 #[cfg(target_os = "windows")]
 fn set_launch_at_startup_impl(enabled: bool) -> Result<(), String> {
+    /// 固定 RUN_KEY 常量，避免路径、键名或默认值在调用点分散。
     const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
     if enabled {
         let exe = std::env::current_exe().map_err(to_msg)?;
@@ -1033,6 +1040,7 @@ fn set_launch_at_startup_impl(enabled: bool) -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 fn is_launch_at_startup_enabled_impl() -> Result<bool, String> {
+    /// 固定 RUN_KEY 常量，避免路径、键名或默认值在调用点分散。
     const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
     let status = Command::new("reg")
         .args(["query", RUN_KEY, "/v", AUTOSTART_APP_NAME])

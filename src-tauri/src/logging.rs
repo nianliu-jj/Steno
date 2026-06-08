@@ -65,12 +65,14 @@ pub fn prune_old_dirs(root: &Path, today: &str, retention_days: i64) {
     }
 }
 
+/// 保存 FileLogger 的数据结构，明确后端状态在模块边界上的字段含义。
 struct FileLogger {
     root: PathBuf,
     /// (当前日期, 当前文件句柄)
     state: Mutex<Option<(String, File)>>,
 }
 
+/// 为 FileLogger 实现核心行为，使数据结构和业务操作保持在同一语义区域。
 impl FileLogger {
     /// 确保锁内持有的句柄指向"今天"的文件；跨天时先清理过期目录再开新文件。
     fn ensure_today<'a>(
@@ -94,11 +96,14 @@ impl FileLogger {
     }
 }
 
+/// 为 log 实现核心行为，使数据结构和业务操作保持在同一语义区域。
 impl log::Log for FileLogger {
+    /// 执行 enabled 流程，集中处理 logging 相关的输入、错误和返回值。
     fn enabled(&self, metadata: &Metadata) -> bool {
         metadata.level() <= Level::Info
     }
 
+    /// 执行 log 流程，集中处理 logging 相关的输入、错误和返回值。
     fn log(&self, record: &Record) {
         if !self.enabled(record.metadata()) {
             return;
@@ -129,6 +134,7 @@ impl log::Log for FileLogger {
         }
     }
 
+    /// 执行 flush 流程，集中处理 logging 相关的输入、错误和返回值。
     fn flush(&self) {
         if let Ok(mut guard) = self.state.lock() {
             if let Some((_, file)) = guard.as_mut() {
@@ -158,6 +164,7 @@ mod tests {
     use super::*;
     use std::fs;
 
+    /// 执行 unique_root 流程，集中处理 logging 相关的输入、错误和返回值。
     fn unique_root(tag: &str) -> PathBuf {
         std::env::temp_dir().join(format!("steno-log-{tag}-{}", uuid::Uuid::new_v4()))
     }

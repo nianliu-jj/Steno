@@ -16,6 +16,7 @@ use tauri::{
 
 use crate::{db::Db, quicknote, window_manager};
 
+/// 执行 setup 流程，集中处理 tray 相关的输入、错误和返回值。
 pub fn setup(app: &App) -> tauri::Result<()> {
     let new_note = MenuItem::with_id(app, "new_note", "新建速记", true, None::<&str>)?;
     let show = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;

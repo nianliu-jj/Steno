@@ -14,7 +14,9 @@ pub trait SyncService: Send + Sync {
 #[allow(dead_code)]
 pub struct LocalOnlySync;
 
+/// 为 SyncService 实现核心行为，使数据结构和业务操作保持在同一语义区域。
 impl SyncService for LocalOnlySync {
+    /// 执行 enqueue_note_changed 流程，集中处理 sync 相关的输入、错误和返回值。
     fn enqueue_note_changed(&self, _note_id: &str) {
         // 本地存储模式 — 永远不出口数据。
     }

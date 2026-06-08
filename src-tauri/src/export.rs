@@ -31,6 +31,7 @@ pub enum ExportError {
     PdfUnavailable,
 }
 
+/// 执行 export_markdown 流程，集中处理 export 相关的输入、错误和返回值。
 pub fn export_markdown(note: &Note, output_path: &Path) -> Result<(), ExportError> {
     let body = render_markdown(note);
     if let Some(parent) = output_path.parent() {
@@ -240,6 +241,7 @@ fn parse_image_url_span(bytes: &[u8], excl_start: usize) -> Option<(usize, usize
     Some((url_start, k))
 }
 
+/// 执行 export_html 流程，集中处理 export 相关的输入、错误和返回值。
 pub fn export_html(note: &Note, data_dir: &Path, output_path: &Path) -> Result<(), ExportError> {
     let body = render_html(note, data_dir);
     if let Some(parent) = output_path.parent() {
@@ -267,6 +269,7 @@ pub fn default_filename(note: &Note) -> String {
     format!("{base}-{short_id}")
 }
 
+/// 执行 sanitize_title 流程，集中处理 export 相关的输入、错误和返回值。
 fn sanitize_title(title: &str) -> String {
     // Windows 保留字符：< > : " / \ | ? *
     // 同时去掉控制字符；连续空白折叠为 _，避免 shell 不友好。
@@ -324,6 +327,7 @@ fn render_markdown_with(note: &Note, content: &str) -> String {
     buf
 }
 
+/// 执行 render_html 流程，集中处理 export 相关的输入、错误和返回值。
 fn render_html(note: &Note, data_dir: &Path) -> String {
     let title = html_escape(&note.title);
     let body = inline_html_images(&note.html_content, data_dir);
@@ -347,6 +351,7 @@ fn inline_local_image(url: &str, data_dir: &Path) -> Option<String> {
     Some(format!("data:{mime};base64,{encoded}"))
 }
 
+/// 执行 image_mime_from_path 流程，集中处理 export 相关的输入、错误和返回值。
 fn image_mime_from_path(path: &Path) -> &'static str {
     match path
         .extension()
@@ -368,6 +373,7 @@ fn image_mime_from_path(path: &Path) -> &'static str {
 /// 仅按 ASCII 字节扫描 —— HTML 属性值里的 `"` 已被实体转义、不会裸现，且 UTF-8
 /// 多字节字符不与这些 ASCII 标记冲突，故对中文文件名安全。
 fn rewrite_html_img_src(html: &str, mut map: impl FnMut(&str) -> Option<String>) -> String {
+    /// 固定 NEEDLE 常量，避免路径、键名或默认值在调用点分散。
     const NEEDLE: &[u8] = b"src=\"";
     let bytes = html.as_bytes();
     let n = bytes.len();
@@ -394,6 +400,7 @@ fn rewrite_html_img_src(html: &str, mut map: impl FnMut(&str) -> Option<String>)
     out
 }
 
+/// 执行 find_byte 流程，集中处理 export 相关的输入、错误和返回值。
 fn find_byte(bytes: &[u8], from: usize, target: u8) -> Option<usize> {
     bytes[from..]
         .iter()
@@ -401,6 +408,7 @@ fn find_byte(bytes: &[u8], from: usize, target: u8) -> Option<usize> {
         .map(|pos| from + pos)
 }
 
+/// 执行 html_escape 流程，集中处理 export 相关的输入、错误和返回值。
 fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -425,6 +433,7 @@ mod tests {
     use super::*;
     use crate::models::Note;
 
+    /// 执行 make_note 流程，集中处理 export 相关的输入、错误和返回值。
     fn make_note() -> Note {
         Note {
             id: "abcdef1234567890".into(),

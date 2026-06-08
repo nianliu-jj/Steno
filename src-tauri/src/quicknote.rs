@@ -10,7 +10,9 @@
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
+/// 固定 QUICKNOTE_LABEL 常量，避免路径、键名或默认值在调用点分散。
 pub const QUICKNOTE_LABEL: &str = "quicknote";
+/// 固定 QUICKNOTE_OPEN_EVENT 常量，避免路径、键名或默认值在调用点分散。
 pub const QUICKNOTE_OPEN_EVENT: &str = "quicknote:open";
 
 #[derive(Debug, Clone, Serialize)]
@@ -31,6 +33,7 @@ pub struct QuicknoteOpenPayload {
     pub clipboard_entry_id: Option<String>,
 }
 
+/// 执行 show 流程，集中处理 quicknote 相关的输入、错误和返回值。
 pub fn show(
     app: &AppHandle,
     fresh: bool,
@@ -63,6 +66,7 @@ pub fn hide(app: &AppHandle) {
     }
 }
 
+/// 执行 toggle 流程，集中处理 quicknote 相关的输入、错误和返回值。
 pub fn toggle(app: &AppHandle) {
     let Some(w) = app.get_webview_window(QUICKNOTE_LABEL) else {
         return;

@@ -136,6 +136,7 @@ pub async fn maybe_request_permission(app: &AppHandle) {
     let _ = app.notification().request_permission();
 }
 
+/// 执行 truncate_chars 流程，集中处理 reminder scheduler 相关的输入、错误和返回值。
 fn truncate_chars(s: &str, max: usize) -> String {
     let mut out = String::new();
     for (i, c) in s.chars().enumerate() {
@@ -148,6 +149,7 @@ fn truncate_chars(s: &str, max: usize) -> String {
     out
 }
 
+/// 执行 format_local 流程，集中处理 reminder scheduler 相关的输入、错误和返回值。
 fn format_local(rfc3339: &Option<String>) -> String {
     let Some(s) = rfc3339 else {
         return "—".to_string();
@@ -166,10 +168,12 @@ mod tests {
     use crate::db::Db;
     use crate::todo::{CreateTodoRequest, UpdateTodoRequest, TodoStatus};
 
+    /// 执行 fresh_db 流程，集中处理 reminder scheduler 相关的输入、错误和返回值。
     fn fresh_db() -> Db {
         Db::open_in_memory_for_tests()
     }
 
+    /// 执行 rfc3339_offset 流程，集中处理 reminder scheduler 相关的输入、错误和返回值。
     fn rfc3339_offset(seconds: i64) -> String {
         (chrono::Utc::now() + chrono::Duration::seconds(seconds)).to_rfc3339()
     }

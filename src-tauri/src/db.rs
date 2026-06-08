@@ -31,6 +31,7 @@ use crate::todo::{
 };
 use crate::workspace_fs::{self, WorkspaceFsEntryKind};
 
+/// 固定 INBOX_GROUP_ID 常量，避免路径、键名或默认值在调用点分散。
 const INBOX_GROUP_ID: &str = "group-inbox";
 
 #[derive(Debug, thiserror::Error)]
@@ -51,12 +52,15 @@ pub enum DbError {
     Validation(String),
 }
 
+/// 保存 Db 的数据结构，明确后端状态在模块边界上的字段含义。
 pub struct Db {
     conn: Arc<Mutex<Connection>>,
     db_path: PathBuf,
 }
 
+/// 为 Clone 实现核心行为，使数据结构和业务操作保持在同一语义区域。
 impl Clone for Db {
+    /// 执行 clone 流程，集中处理 db 相关的输入、错误和返回值。
     fn clone(&self) -> Self {
         Self {
             conn: Arc::clone(&self.conn),
@@ -65,6 +69,7 @@ impl Clone for Db {
     }
 }
 
+/// 为 Db 实现核心行为，使数据结构和业务操作保持在同一语义区域。
 impl Db {
     /// 内存数据库 + 完整迁移的测试 helper，供跨模块单测用（如 reminder_scheduler）。
     /// 不走 ensure_default_settings / ensure_default_group，调用方按需触发。
@@ -78,6 +83,7 @@ impl Db {
         }
     }
 
+    /// 执行 data_dir 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn data_dir() -> Result<PathBuf, DbError> {
         let home = dirs::home_dir().ok_or(DbError::NoHomeDir)?;
         let dir = home.join(".steno");
@@ -85,10 +91,12 @@ impl Db {
         Ok(dir)
     }
 
+    /// 执行 db_path_for 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn db_path_for(dir: &Path) -> PathBuf {
         dir.join("data.db")
     }
 
+    /// 执行 init 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn init() -> Result<Self, DbError> {
         let dir = Self::data_dir()?;
         let db_path = Self::db_path_for(&dir);
@@ -129,10 +137,12 @@ impl Db {
         (data_dir, self.db_path.clone(), self.backup_dir())
     }
 
+    /// 执行 lock 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn lock(&self) -> Result<std::sync::MutexGuard<'_, Connection>, DbError> {
         self.conn.lock().map_err(|_| DbError::Poisoned)
     }
 
+    /// 执行 migrate 流程，集中处理 db 相关的输入、错误和返回值。
     fn migrate(conn: &mut Connection) -> Result<(), DbError> {
         let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
         if version < 1 {
@@ -347,6 +357,7 @@ impl Db {
         Ok(())
     }
 
+    /// 执行 notes_has_is_draft_column 流程，集中处理 db 相关的输入、错误和返回值。
     fn notes_has_is_draft_column(conn: &Connection) -> Result<bool, DbError> {
         let mut stmt = conn.prepare("PRAGMA table_info(notes)")?;
         let exists = stmt
@@ -366,6 +377,7 @@ impl Db {
         Ok(exists)
     }
 
+    /// 执行 clipboard_has_column 流程，集中处理 db 相关的输入、错误和返回值。
     fn clipboard_has_column(conn: &Connection, column: &str) -> Result<bool, DbError> {
         let mut stmt = conn.prepare("PRAGMA table_info(clipboard_history)")?;
         let exists = stmt
@@ -375,6 +387,7 @@ impl Db {
         Ok(exists)
     }
 
+    /// 执行 ensure_is_draft_column 流程，集中处理 db 相关的输入、错误和返回值。
     fn ensure_is_draft_column(conn: &Connection) -> Result<(), DbError> {
         if Self::notes_has_is_draft_column(conn)? {
             return Ok(());
@@ -561,6 +574,7 @@ impl Db {
         Ok(())
     }
 
+    /// 执行 ensure_default_group 流程，集中处理 db 相关的输入、错误和返回值。
     fn ensure_default_group(conn: &Connection) -> Result<(), DbError> {
         let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
@@ -646,6 +660,7 @@ impl Db {
         Self::find_note(&conn, &id).map(Some)
     }
 
+    /// 执行 get_note 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn get_note(&self, id: &str) -> Result<Option<Note>, DbError> {
         let conn = self.lock()?;
         match Self::find_note(&conn, id) {
@@ -655,6 +670,7 @@ impl Db {
         }
     }
 
+    /// 执行 list_notes 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn list_notes(&self, limit: i64) -> Result<Vec<Note>, DbError> {
         let conn = self.lock()?;
         let mut stmt = conn.prepare(
@@ -669,6 +685,7 @@ impl Db {
         Ok(notes?)
     }
 
+    /// 执行 search_notes 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn search_notes(&self, input: SearchNotesRequest) -> Result<Vec<Note>, DbError> {
         let conn = self.lock()?;
         let like = format!("%{}%", input.query.trim());
@@ -694,12 +711,14 @@ impl Db {
         Ok(notes)
     }
 
+    /// 执行 delete_note 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn delete_note(&self, id: &str) -> Result<(), DbError> {
         let conn = self.lock()?;
         conn.execute("DELETE FROM notes WHERE id = ?1", rusqlite::params![id])?;
         Ok(())
     }
 
+    /// 执行 set_pinned 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn set_pinned(&self, id: &str, is_pinned: bool) -> Result<Note, DbError> {
         let conn = self.lock()?;
         let now = chrono::Utc::now().to_rfc3339();
@@ -754,6 +773,7 @@ impl Db {
         Self::find_note(&conn, id)
     }
 
+    /// 执行 list_pinned 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn list_pinned(&self) -> Result<Vec<Note>, DbError> {
         let conn = self.lock()?;
         let mut stmt = conn.prepare(
@@ -807,6 +827,7 @@ impl Db {
         })
     }
 
+    /// 执行 list_workspaces 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn list_workspaces(&self) -> Result<Vec<Workspace>, DbError> {
         let conn = self.lock()?;
         let mut stmt = conn.prepare(
@@ -818,6 +839,7 @@ impl Db {
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
+    /// 执行 list_library_entries 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn list_library_entries(
         &self,
         context: MainListContext,
@@ -881,6 +903,7 @@ impl Db {
         Ok(items)
     }
 
+    /// 执行 list_workspace_tree 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn list_workspace_tree(&self, workspace_id: &str) -> Result<Vec<LibraryEntry>, DbError> {
         self.sync_workspace_entries(workspace_id)?;
 
@@ -896,6 +919,7 @@ impl Db {
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
+    /// 执行 sync_workspace_entries 流程，集中处理 db 相关的输入、错误和返回值。
     fn sync_workspace_entries(&self, workspace_id: &str) -> Result<(), DbError> {
         let workspace = {
             let conn = self.lock()?;
@@ -987,6 +1011,7 @@ impl Db {
         Ok(())
     }
 
+    /// 执行 save_text_entry 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn save_text_entry(&self, input: SaveTextEntryRequest) -> Result<LibraryEntry, DbError> {
         let byte_size = ensure_text_size_limit(&input.content)?;
         let title = input
@@ -1041,6 +1066,7 @@ impl Db {
         Self::find_library_entry(&conn, &id)
     }
 
+    /// 执行 save_document_entry 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn save_document_entry(
         &self,
         input: SaveDocumentEntryRequest,
@@ -1118,6 +1144,7 @@ impl Db {
         Self::find_library_entry(&conn, &id)
     }
 
+    /// 执行 get_editor_entry 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn get_editor_entry(&self, id: &str) -> Result<Option<EditorEntry>, DbError> {
         let conn = self.lock()?;
         let entry = conn
@@ -1158,6 +1185,7 @@ impl Db {
         Ok(entry)
     }
 
+    /// 执行 convert_text_to_document 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn convert_text_to_document(
         &self,
         input: ConvertTextToDocumentRequest,
@@ -1338,6 +1366,7 @@ impl Db {
         Self::find_clipboard_entry(&conn, &id)
     }
 
+    /// 执行 list_clipboard_entries 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn list_clipboard_entries(
         &self,
         limit: i64,
@@ -1379,6 +1408,7 @@ impl Db {
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
+    /// 执行 get_clipboard_entry 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn get_clipboard_entry(&self, id: &str) -> Result<Option<ClipboardEntry>, DbError> {
         let conn = self.lock()?;
         match Self::find_clipboard_entry(&conn, id) {
@@ -1388,6 +1418,7 @@ impl Db {
         }
     }
 
+    /// 执行 delete_clipboard_entry 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn delete_clipboard_entry(&self, id: &str) -> Result<(), DbError> {
         let conn = self.lock()?;
         conn.execute(
@@ -1397,6 +1428,7 @@ impl Db {
         Ok(())
     }
 
+    /// 执行 clear_clipboard_entries 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn clear_clipboard_entries(&self) -> Result<(), DbError> {
         let conn = self.lock()?;
         conn.execute("DELETE FROM clipboard_history", [])?;
@@ -1426,6 +1458,7 @@ impl Db {
         Ok(n)
     }
 
+    /// 执行 update_clipboard_entry_content 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn update_clipboard_entry_content(
         &self,
         id: &str,
@@ -1442,6 +1475,7 @@ impl Db {
         Self::find_clipboard_entry(&conn, id)
     }
 
+    /// 执行 pin_clipboard_entry 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn pin_clipboard_entry(&self, id: &str) -> Result<ClipboardEntry, DbError> {
         let conn = self.lock()?;
         let now = chrono::Utc::now().to_rfc3339();
@@ -1452,6 +1486,7 @@ impl Db {
         Self::find_clipboard_entry(&conn, id)
     }
 
+    /// 执行 unpin_clipboard_entry 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn unpin_clipboard_entry(&self, id: &str) -> Result<ClipboardEntry, DbError> {
         let conn = self.lock()?;
         conn.execute(
@@ -1473,6 +1508,7 @@ impl Db {
         Self::find_clipboard_entry(&conn, id)
     }
 
+    /// 执行 count_clipboard_entries 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn count_clipboard_entries(
         &self,
         content_type: Option<String>,
@@ -1520,6 +1556,7 @@ impl Db {
         Ok(v)
     }
 
+    /// 执行 set_setting 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn set_setting(&self, key: &str, value: &str) -> Result<(), DbError> {
         let conn = self.lock()?;
         let now = chrono::Utc::now().to_rfc3339();
@@ -1546,6 +1583,7 @@ impl Db {
         note.ok_or_else(|| DbError::NotFound(id.to_string()))
     }
 
+    /// 执行 find_clipboard_entry 流程，集中处理 db 相关的输入、错误和返回值。
     fn find_clipboard_entry(conn: &Connection, id: &str) -> Result<ClipboardEntry, DbError> {
         let entry = conn
             .query_row(
@@ -1558,6 +1596,7 @@ impl Db {
         entry.ok_or_else(|| DbError::NotFound(id.to_string()))
     }
 
+    /// 执行 find_library_entry 流程，集中处理 db 相关的输入、错误和返回值。
     fn find_library_entry(conn: &Connection, id: &str) -> Result<LibraryEntry, DbError> {
         let entry = conn
             .query_row(
@@ -1570,6 +1609,7 @@ impl Db {
         entry.ok_or_else(|| DbError::NotFound(id.to_string()))
     }
 
+    /// 执行 find_workspace 流程，集中处理 db 相关的输入、错误和返回值。
     fn find_workspace(conn: &Connection, id: &str) -> Result<Workspace, DbError> {
         let workspace = conn
             .query_row(
@@ -1616,6 +1656,7 @@ impl Db {
         Self::find_todo(&conn, &id)
     }
 
+    /// 执行 update_todo 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn update_todo(&self, input: UpdateTodoRequest) -> Result<Todo, DbError> {
         let conn = self.lock()?;
         let existing = Self::find_todo(&conn, &input.id)?;
@@ -1696,6 +1737,7 @@ impl Db {
         Self::find_todo(&conn, &input.id)
     }
 
+    /// 执行 complete_todo 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn complete_todo(&self, id: &str) -> Result<Todo, DbError> {
         let conn = self.lock()?;
         let _ = Self::find_todo(&conn, id)?;
@@ -1711,6 +1753,7 @@ impl Db {
         Self::find_todo(&conn, id)
     }
 
+    /// 执行 delete_todo 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn delete_todo(&self, id: &str) -> Result<(), DbError> {
         let conn = self.lock()?;
         let _ = Self::find_todo(&conn, id)?;
@@ -1725,6 +1768,7 @@ impl Db {
         Ok(())
     }
 
+    /// 执行 list_todos 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn list_todos(&self) -> Result<Vec<Todo>, DbError> {
         let conn = self.lock()?;
         let mut stmt = conn.prepare(
@@ -1766,6 +1810,7 @@ impl Db {
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
+    /// 执行 find_todo 流程，集中处理 db 相关的输入、错误和返回值。
     fn find_todo(conn: &Connection, id: &str) -> Result<Todo, DbError> {
         let todo = conn
             .query_row(
@@ -1827,6 +1872,7 @@ impl Db {
         Ok(affected > 0)
     }
 
+    /// 执行 get_activity 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn get_activity(
         &self,
         start: &str,
@@ -1853,6 +1899,7 @@ impl Db {
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
+    /// 执行 get_daily_trend 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn get_daily_trend(
         &self,
         start: &str,
@@ -1881,6 +1928,7 @@ impl Db {
         Ok(points)
     }
 
+    /// 执行 reset_stats 流程，集中处理 db 相关的输入、错误和返回值。
     pub fn reset_stats(&self) -> Result<usize, DbError> {
         let mut conn = self.lock()?;
         let tx = conn.transaction()?;
@@ -1903,6 +1951,7 @@ impl Db {
         Ok(count > 0)
     }
 
+    /// 执行 validate_stats_range 流程，集中处理 db 相关的输入、错误和返回值。
     fn validate_stats_range(start: &str, end: &str) -> Result<(NaiveDate, NaiveDate), DbError> {
         let start_date = NaiveDate::parse_from_str(start, "%Y-%m-%d")
             .map_err(|_| DbError::Validation("InvalidRange".into()))?;
@@ -1917,6 +1966,7 @@ impl Db {
         Ok((start_date, end_date))
     }
 
+    /// 执行 validate_stats_status_filter 流程，集中处理 db 相关的输入、错误和返回值。
     fn validate_stats_status_filter(
         status_filter: Option<&str>,
     ) -> Result<Option<TodoStatus>, DbError> {
@@ -1928,6 +1978,7 @@ impl Db {
         }
     }
 
+    /// 执行 count_todos_by_day 流程，集中处理 db 相关的输入、错误和返回值。
     fn count_todos_by_day(
         conn: &Connection,
         column: &str,
@@ -1971,6 +2022,7 @@ impl Db {
         Ok(counts)
     }
 
+    /// 执行 validate_todo_content 流程，集中处理 db 相关的输入、错误和返回值。
     fn validate_todo_content(raw: &str) -> Result<String, DbError> {
         let trimmed = raw.trim();
         if trimmed.is_empty() {
@@ -1989,6 +2041,7 @@ impl Db {
     }
 }
 
+/// 执行 row_to_library_entry 流程，集中处理 db 相关的输入、错误和返回值。
 fn row_to_library_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryEntry> {
     let tags_json: String = row.get(4)?;
     Ok(LibraryEntry {
@@ -2008,6 +2061,7 @@ fn row_to_library_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryEntr
     })
 }
 
+/// 执行 row_to_workspace 流程，集中处理 db 相关的输入、错误和返回值。
 fn row_to_workspace(row: &rusqlite::Row<'_>) -> rusqlite::Result<Workspace> {
     Ok(Workspace {
         id: row.get(0)?,
@@ -2018,6 +2072,7 @@ fn row_to_workspace(row: &rusqlite::Row<'_>) -> rusqlite::Result<Workspace> {
     })
 }
 
+/// 执行 row_to_todo 流程，集中处理 db 相关的输入、错误和返回值。
 fn row_to_todo(row: &rusqlite::Row<'_>) -> rusqlite::Result<Todo> {
     let status_raw: String = row.get(2)?;
     let status = TodoStatus::parse(&status_raw).unwrap_or(TodoStatus::Todo);
@@ -2037,6 +2092,7 @@ fn row_to_todo(row: &rusqlite::Row<'_>) -> rusqlite::Result<Todo> {
     })
 }
 
+/// 执行 row_to_note 流程，集中处理 db 相关的输入、错误和返回值。
 fn row_to_note(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
     let tags_json: String = row.get(4)?;
     let pinned_cfg_json: Option<String> = row.get(6)?;
@@ -2063,6 +2119,7 @@ fn row_to_note(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
     })
 }
 
+/// 执行 row_to_clipboard_entry 流程，集中处理 db 相关的输入、错误和返回值。
 fn row_to_clipboard_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<ClipboardEntry> {
     Ok(ClipboardEntry {
         id: row.get(0)?,
@@ -2090,6 +2147,7 @@ fn entry_kind_from_db(value: &str) -> EntryKind {
     }
 }
 
+/// 执行 preview_text 流程，集中处理 db 相关的输入、错误和返回值。
 fn preview_text(content: &str) -> String {
     content
         .trim()
@@ -2099,10 +2157,12 @@ fn preview_text(content: &str) -> String {
         .collect()
 }
 
+/// 执行 markdown_byte_size 流程，集中处理 db 相关的输入、错误和返回值。
 fn markdown_byte_size(content: &str) -> i64 {
     content.as_bytes().len() as i64
 }
 
+/// 执行 ensure_text_size_limit 流程，集中处理 db 相关的输入、错误和返回值。
 fn ensure_text_size_limit(content: &str) -> Result<i64, DbError> {
     let size = markdown_byte_size(content);
     if size > 10 * 1024 {
@@ -2170,6 +2230,7 @@ pub fn word_count(content: &str) -> i64 {
     content.split_whitespace().count() as i64
 }
 
+/// 执行 normalize_workspace_root 流程，集中处理 db 相关的输入、错误和返回值。
 fn normalize_workspace_root(path: &Path) -> Result<PathBuf, DbError> {
     match path.canonicalize() {
         Ok(canonical) => Ok(canonical),
@@ -2187,11 +2248,13 @@ pub fn render_markdown(content: &str) -> String {
     output
 }
 
+/// 保存 ExistingWorkspaceEntry 的数据结构，明确后端状态在模块边界上的字段含义。
 struct ExistingWorkspaceEntry {
     id: String,
     created_at: String,
 }
 
+/// 执行 workspace_entries_by_path 流程，集中处理 db 相关的输入、错误和返回值。
 fn workspace_entries_by_path(
     conn: &Connection,
     workspace_id: &str,
@@ -2220,10 +2283,12 @@ fn workspace_entries_by_path(
     Ok(pairs.into_iter().collect())
 }
 
+/// 执行 path_key 流程，集中处理 db 相关的输入、错误和返回值。
 fn path_key(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
+/// 执行 stable_workspace_entry_id 流程，集中处理 db 相关的输入、错误和返回值。
 fn stable_workspace_entry_id(workspace_id: &str, path: &Path) -> String {
     let mut hash = 0xcbf29ce484222325_u64;
     let key = path_key(path);
@@ -2240,6 +2305,7 @@ fn stable_workspace_entry_id(workspace_id: &str, path: &Path) -> String {
     format!("fs-{hash:016x}")
 }
 
+/// 执行 fs_modified_or_now 流程，集中处理 db 相关的输入、错误和返回值。
 fn fs_modified_or_now(modified_at: Option<std::time::SystemTime>, fallback: &str) -> String {
     modified_at
         .map(|time| DateTime::<Utc>::from(time).to_rfc3339())
@@ -2257,6 +2323,7 @@ mod tests {
     };
     use crate::todo::{CreateTodoRequest, TodoStatus, UpdateTodoRequest};
 
+    /// 执行 fresh_db 流程，集中处理 db 相关的输入、错误和返回值。
     fn fresh_db() -> Db {
         let mut conn = Connection::open_in_memory().expect("open in-memory db");
         Db::migrate(&mut conn).expect("migrate");
@@ -3551,6 +3618,7 @@ mod tests {
         assert!(today.iter().all(|t| t.id != id));
     }
 
+    /// 执行 insert_stats_todo 流程，集中处理 db 相关的输入、错误和返回值。
     fn insert_stats_todo(
         db: &Db,
         id: &str,
